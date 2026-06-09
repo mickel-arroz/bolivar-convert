@@ -1,5 +1,5 @@
 import { Code as LucideCode, LucideProps } from 'lucide-react'
 
-export function Code(props: LucideProps) {
+export function CodeIcon(props: LucideProps) {
   return <LucideCode {...props} />
 }

@@ -1,5 +1,5 @@
 import { ShieldCheck as LucideShieldCheck, LucideProps } from 'lucide-react'
 
-export function ShieldCheck(props: LucideProps) {
+export function ShieldCheckIcon(props: LucideProps) {
   return <LucideShieldCheck {...props} />
 }

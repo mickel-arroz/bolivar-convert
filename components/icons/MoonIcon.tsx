@@ -1,5 +1,5 @@
 import { Moon as LucideMoon, LucideProps } from 'lucide-react'
 
-export function Moon(props: LucideProps) {
+export function MoonIcon(props: LucideProps) {
   return <LucideMoon {...props} />
 }

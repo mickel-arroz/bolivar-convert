@@ -1,5 +1,5 @@
 import { Landmark as LucideLandmark, LucideProps } from 'lucide-react'
 
-export function Landmark(props: LucideProps) {
+export function LandmarkIcon(props: LucideProps) {
   return <LucideLandmark {...props} />
 }

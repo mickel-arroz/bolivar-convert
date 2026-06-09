@@ -1,5 +1,5 @@
 import { ExternalLink as LucideExternalLink, LucideProps } from 'lucide-react'
 
-export function ExternalLink(props: LucideProps) {
+export function ExternalLinkIcon(props: LucideProps) {
   return <LucideExternalLink {...props} />
 }

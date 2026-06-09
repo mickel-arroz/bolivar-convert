@@ -1,5 +1,5 @@
 import { User as LucideUser, LucideProps } from 'lucide-react'
 
-export function User(props: LucideProps) {
+export function UserIcon(props: LucideProps) {
   return <LucideUser {...props} />
 }

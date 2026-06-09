@@ -1,4 +1,5 @@
 import type { Metadata } from 'next'
+import { ReactNode } from 'react'
 import { Geist, Geist_Mono, Montserrat } from 'next/font/google'
 import './globals.css'
 import { Header } from '@/components/Header'
@@ -33,13 +34,16 @@ export const metadata: Metadata = {
     capable: true,
     statusBarStyle: 'default',
     title: 'Bolívar Convert'
+  },
+  formatDetection: {
+    telephone: false
   }
 }
 
 export default function RootLayout({
   children
 }: Readonly<{
-  children: React.ReactNode
+  children: ReactNode
 }>) {
   return (
     <html

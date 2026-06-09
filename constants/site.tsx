@@ -1,4 +1,4 @@
-import { TrendingUpIcon, GithubIcon, UserIcon } from '@/components/icons'
+import { TrendingUpIcon, GithubIcon, UserIcon, ClockIcon } from '@/components/icons'
 
 export const SITE_CONFIG = {
   name: 'Bolívar Convert',
@@ -14,6 +14,11 @@ export const NAV_ITEMS = [
     label: 'Tasas',
     href: '/',
     icon: <TrendingUpIcon className="w-12 h-12 text-primary" />
+  },
+  {
+    label: 'Historial',
+    href: '/historial',
+    icon: <ClockIcon className="w-12 h-12 text-primary" />
   }
 ]
 

@@ -81,9 +81,9 @@ export function Header() {
                     <Link
                       key={item.href}
                       href={item.href}
-                      className="text-5xl font-black text-foreground transition-all hover:scale-105 active:scale-95 flex items-center gap-6 py-4"
+                      className="text-3xl font-black text-foreground transition-all hover:scale-105 active:scale-95 flex items-center gap-6 py-4"
                     >
-                      <div className="w-12 h-12 flex items-center justify-center">
+                      <div className="w-8 h-8 flex items-center justify-center">
                         {item.icon}
                       </div>
                       {item.label}
@@ -101,7 +101,7 @@ export function Header() {
                       rel="noreferrer"
                       className="flex flex-col items-center gap-2 text-[10px] uppercase tracking-widest font-bold text-muted-foreground hover:text-foreground transition-colors group"
                     >
-                      <div className="w-12 h-12 rounded-full bg-foreground/5 flex items-center justify-center group-hover:bg-foreground/10 transition-all">
+                      <div className="w-8 h-8 rounded-full bg-foreground/5 flex items-center justify-center group-hover:bg-foreground/10 transition-all">
                         {link.icon}
                       </div>
                       {link.label}

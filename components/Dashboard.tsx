@@ -1,9 +1,8 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { ClockIcon, ShieldCheckIcon } from '@/components/icons'
+import { ClockIcon, ShieldCheckIcon, RefreshIcon, AlertIcon } from '@/components/icons'
 import { RateCard } from '@/components/RateCard'
-import { RotateCcw, AlertCircle } from 'lucide-react'
 import { getVEDataString, cn } from '@/lib/utils'
 import { RATE_CARDS_CONFIG } from '@/constants/rates'
 
@@ -150,7 +149,7 @@ export function Dashboard() {
               ? "bg-yellow-500/10 text-yellow-600 dark:text-yellow-400 border-yellow-500/20" 
               : "bg-secondary/50 text-muted-foreground border-border/50"
           )}>
-            {isStale ? <AlertCircle className="w-4 h-4" /> : <ClockIcon className="w-4 h-4 text-primary" />}
+            {isStale ? <AlertIcon className="w-4 h-4" /> : <ClockIcon className="w-4 h-4 text-primary" />}
             <span>
               {isStale ? 'Mostrando datos antiguos: ' : 'Última actualización: '}
               <strong>{formatLastUpdate(rates.lastUpdate)}</strong>
@@ -163,7 +162,7 @@ export function Dashboard() {
               disabled={loading}
               className="flex items-center gap-2 text-sm font-medium text-primary hover:underline disabled:opacity-50 disabled:no-underline"
             >
-              <RotateCcw className={cn("w-4 h-4", loading && "animate-spin")} />
+              <RefreshIcon className={cn("w-4 h-4", loading && "animate-spin")} />
               {loading ? 'Actualizando...' : 'Reintentar actualización'}
             </button>
           )}

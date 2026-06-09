@@ -7,13 +7,21 @@ export default function manifest(): MetadataRoute.Manifest {
     description: 'Tasas de cambio del Banco Central de Venezuela y Binance',
     start_url: '/',
     display: 'standalone',
-    background_color: '#ffffff',
+    orientation: 'portrait',
+    background_color: '#000000',
     theme_color: '#000000',
     icons: [
       {
-        src: '/favicon.ico',
+        src: '/icon.svg',
         sizes: 'any',
-        type: 'image/x-icon'
+        type: 'image/svg+xml',
+        purpose: 'maskable'
+      },
+      {
+        src: '/icon.svg',
+        sizes: '512x512',
+        type: 'image/svg+xml',
+        purpose: 'any'
       }
     ]
   }

@@ -1,4 +1,5 @@
 import os
+import json
 from upstash_redis import Redis
 from datetime import datetime, date, timezone
 from dotenv import load_dotenv
@@ -71,8 +72,17 @@ def main():
                 # Timestamp de actualización del sistema (última vez que el script corrió con éxito)
                 now = datetime.now(timezone.utc).isoformat()
                 r.set("rates:last_update", now)
+
+                # Guardar en el historial
+                history_record = {
+                    "date": nueva_fecha_valor.strftime("%Y-%m-%d"),
+                    "bcvUsd": usd_val,
+                    "bcvEur": eur_val,
+                    "binanceUsdAvg": binance_avg
+                }
+                r.rpush("rates:history", json.dumps(history_record))
                 
-                print("Redis actualizado exitosamente sin tiempo de expiración.")
+                print("Redis actualizado y registro añadido al historial.")
         else:
             print(f"La fecha extraída ({nueva_fecha_valor}) no es más reciente que la fecha guardada ({fecha_guardada}). No se actualizarán los datos.")
 

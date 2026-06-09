@@ -26,6 +26,9 @@ export const metadata: Metadata = {
   title: 'Bolívar Convert',
   description: 'Tasas de cambio del Banco Central de Venezuela y Binance',
   manifest: '/manifest.json',
+  icons: {
+    icon: '/icon.svg'
+  },
   appleWebApp: {
     capable: true,
     statusBarStyle: 'default',

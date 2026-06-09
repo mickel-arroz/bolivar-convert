@@ -9,7 +9,7 @@ import {
   CardTitle,
 } from "@/components/ui/card"
 import { ChartConfig } from "@/components/ui/chart"
-import { TrendingUpIcon, EuroIcon, DollarIcon } from '@/components/icons'
+import { EuroIcon, DollarIcon, BinanceIcon } from '@/components/icons'
 import { getVEDataString } from '@/lib/utils'
 import { 
   HistoryHeader, 
@@ -22,6 +22,7 @@ import {
 } from '@/components/historial'
 
 const CACHE_KEY = 'bolivar_history_cache'
+const PREFS_KEY = 'bolivar_history_prefs'
 
 const RATE_METADATA: Record<string, RateMetadata> = {
   bcvUsd: {
@@ -39,16 +40,42 @@ const RATE_METADATA: Record<string, RateMetadata> = {
   binanceUsdAvg: {
     label: "Binance P2P",
     color: "var(--rate-binance)",
-    icon: TrendingUpIcon,
+    icon: BinanceIcon,
     sub: "Mercado"
   }
+}
+
+function getSavedPrefs() {
+  if (typeof window === 'undefined') return { range: '7d', activeLines: ['bcvUsd'] }
+  const saved = localStorage.getItem(PREFS_KEY)
+  if (saved) {
+    try {
+      const parsed = JSON.parse(saved)
+      return {
+        range: parsed.range || '7d',
+        activeLines: Array.isArray(parsed.activeLines) ? parsed.activeLines : ['bcvUsd']
+      }
+    } catch {
+      return { range: '7d', activeLines: ['bcvUsd'] }
+    }
+  }
+  return { range: '7d', activeLines: ['bcvUsd'] }
 }
 
 export default function HistoryPage() {
   const [data, setData] = useState<HistoryEntry[]>([])
   const [loading, setLoading] = useState(true)
-  const [range, setRange] = useState<TimeRange>('30d')
-  const [activeLines, setActiveLines] = useState<string[]>(['bcvUsd', 'bcvEur', 'binanceUsdAvg'])
+  
+  // Initialize state directly from localStorage to avoid cascading renders
+  const [range, setRange] = useState<TimeRange>(() => getSavedPrefs().range as TimeRange)
+  const [activeLines, setActiveLines] = useState<string[]>(() => getSavedPrefs().activeLines)
+
+  // Save preferences when they change
+  useEffect(() => {
+    if (!loading) {
+      localStorage.setItem(PREFS_KEY, JSON.stringify({ range, activeLines }))
+    }
+  }, [range, activeLines, loading])
 
   const availableRateKeys = useMemo(() => {
     const keys = new Set<string>()

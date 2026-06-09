@@ -3,7 +3,7 @@ import { Fragment } from 'react'
 
 export function Footer() {
   return (
-    <footer className="py-6 md:px-8 border-t mt-auto">
+    <footer className="py-6 md:py-6 pb-24 md:pb-6 md:px-8 border-t mt-auto">
       <div className="container flex flex-col items-center justify-center gap-2 md:h-16 text-center">
         <p className="text-sm text-muted-foreground/70">
           Hecho para proveer información de tasas de cambio. Actualizado

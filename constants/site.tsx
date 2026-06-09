@@ -13,12 +13,12 @@ export const NAV_ITEMS = [
   {
     label: 'Tasas',
     href: '/',
-    icon: <TrendingUpIcon className="w-12 h-12 text-primary" />
+    icon: <TrendingUpIcon className="w-5 h-5" />
   },
   {
     label: 'Historial',
     href: '/historial',
-    icon: <ClockIcon className="w-12 h-12 text-primary" />
+    icon: <ClockIcon className="w-5 h-5" />
   }
 ]
 

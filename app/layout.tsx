@@ -4,6 +4,7 @@ import { Geist, Geist_Mono, Montserrat } from 'next/font/google'
 import './globals.css'
 import { Header } from '@/components/Header'
 import { Footer } from '@/components/Footer'
+import { MobileNav } from '@/components/MobileNav'
 import { ThemeProvider } from '@/components/theme-provider'
 import { TooltipProvider } from '@/components/ui/tooltip'
 
@@ -29,6 +30,19 @@ export const metadata: Metadata = {
   manifest: '/manifest.json',
   icons: {
     icon: '/icon.svg'
+  },
+  openGraph: {
+    title: 'Bolívar Convert',
+    description: 'Consulta el valor del Bolívar respecto al Dólar (BCV), Euro (BCV) y Binance P2P en tiempo real.',
+    url: 'https://bolivar-convert.vercel.app',
+    siteName: 'Bolívar Convert',
+    locale: 'es_VE',
+    type: 'website',
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'Bolívar Convert',
+    description: 'Tasas de cambio del Banco Central de Venezuela y Binance en tiempo real.',
   },
   appleWebApp: {
     capable: true,
@@ -64,6 +78,7 @@ export default function RootLayout({
               {children}
             </main>
             <Footer />
+            <MobileNav />
           </TooltipProvider>
         </ThemeProvider>
       </body>

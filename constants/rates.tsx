@@ -1,4 +1,4 @@
-import { LandmarkIcon, DollarIcon, EuroIcon, BinanceIcon } from '@/components/icons'
+import { LandmarkIcon, DollarIcon, EuroIcon, BinanceIcon, InfoIcon } from '@/components/icons'
 import { RateBadge } from '@/components/RateBadge'
 import {
   Tooltip,
@@ -44,12 +44,12 @@ export const RATE_CARDS_CONFIG = [
         >
           <RateBadge className="text-yellow-600 dark:text-yellow-400 bg-yellow-500/10 cursor-help hover:bg-yellow-500/20 transition-colors">
             <BinanceIcon className="w-3.5 h-3.5 text-yellow-600 dark:text-yellow-400" />{' '}
-            Mediana de Binance P2P
+            Mediana de Binance P2P <InfoIcon className="w-3 h-3 ml-0.5 opacity-70" />
           </RateBadge>
         </TooltipTrigger>
         <TooltipContent className="max-w-62.5 text-center">
           <p>
-            Calculado con las 20 mejores ofertas de compra y las 20 mejores
+            Mercado P2P de Binance calculado por la media con las 20 mejores ofertas de compra y las 20 mejores
             ofertas de venta
           </p>
         </TooltipContent>

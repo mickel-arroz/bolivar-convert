@@ -13,7 +13,7 @@ test.describe('Dashboard and E2E Web Features', () => {
     // Validate the core Cards represent the correct info
     await expect(page.getByText('Dólar Oficial (BCV)')).toBeVisible()
     await expect(page.getByText('Euro Oficial (BCV)')).toBeVisible()
-    await expect(page.getByText('Binance', { exact: true })).toBeVisible()
+    await expect(page.getByText('Binance', { exact: true }).first()).toBeVisible()
 
     // Validate the Footer
     await expect(

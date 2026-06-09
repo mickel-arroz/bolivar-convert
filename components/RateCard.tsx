@@ -22,7 +22,7 @@ export function RateCard({
   return (
     <Card
       className={cn(
-        'relative overflow-hidden group hover:shadow-lg transition-all duration-300 border-border/50 bg-gradient-to-b from-card to-card/50',
+        'relative overflow-hidden group hover:shadow-lg transition-all duration-300 border-border/50 bg-linear-to-b from-card to-card/50',
         className
       )}
       {...props}

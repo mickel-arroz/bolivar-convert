@@ -1,5 +1,5 @@
-import { Github, ExternalLink } from '@/components/icons'
-import { SITE_CONFIG } from '@/constants/site'
+import { SITE_CONFIG, SOCIAL_LINKS } from '@/constants/site'
+import { Fragment } from 'react'
 
 export function Footer() {
   return (
@@ -19,15 +19,19 @@ export function Footer() {
           >
             {SITE_CONFIG.author}
           </a>
-          {' '}&bull;{' '}
-          <a
-            href={SITE_CONFIG.links.portfolio}
-            target="_blank"
-            rel="noreferrer"
-            className="font-medium underline underline-offset-4 hover:text-muted-foreground"
-          >
-            Portafolio
-          </a>
+          {SOCIAL_LINKS.filter(link => link.label !== 'GitHub').map((link) => (
+            <Fragment key={link.href}>
+              {' '}&bull;{' '}
+              <a
+                href={link.href}
+                target="_blank"
+                rel="noreferrer"
+                className="font-medium underline underline-offset-4 hover:text-muted-foreground"
+              >
+                {link.label}
+              </a>
+            </Fragment>
+          ))}
         </p>
       </div>
     </footer>

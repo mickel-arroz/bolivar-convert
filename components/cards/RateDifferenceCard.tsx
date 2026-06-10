@@ -229,11 +229,11 @@ export function RateDifferenceCard({ rates }: RateDifferenceCardProps) {
     <Card className="w-full max-w-2xl mx-auto bg-linear-to-b from-card to-card/50 border-border/50 shadow-xs">
       <CardContent className="p-4 md:p-6">
         <div className="flex flex-col md:flex-row items-center justify-between gap-6">
-          <div className="flex items-center gap-4 w-full md:w-auto">
+          <div className="flex flex-col md:flex-row items-center md:items-start gap-4 w-full md:w-auto">
             <div className="p-2.5 rounded-xl bg-primary/10 text-primary shrink-0">
               <TrendingUpIcon className="w-5 h-5" />
             </div>
-            <div className="flex flex-col min-w-0">
+            <div className="flex flex-col items-center md:items-start min-w-0">
               <span className="text-xs font-bold text-muted-foreground uppercase tracking-widest mb-2">Comparativa</span>
               <div className="flex items-center gap-2">
                 <RateSelector 

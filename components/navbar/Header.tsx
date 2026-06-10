@@ -15,24 +15,23 @@ export function Header() {
   const { setTheme, theme } = useTheme()
 
   return (
-    <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-backdrop-filter:bg-background/60 flex justify-center h-14">
-      <div className="w-full max-w-7xl px-4 md:px-6 flex items-center justify-between h-full relative">
-        
+    <header className="sticky top-4 z-50 w-[calc(100%-2rem)] max-w-7xl mx-auto flex justify-center h-14 transition-all duration-500">
+      <div className="w-full px-6 flex items-center justify-between h-full rounded-full shadow-[0_8px_32px_0_rgba(0,0,0,0.08)] dark:shadow-[0_20px_80px_rgba(0,0,0,0.5)] bg-background/60 backdrop-blur-md border border-border/50">
         {/* LEFT SECTION */}
-        <div className="flex items-center gap-6 z-20">
+        <div className="flex items-center gap-8 z-20">
           {/* Desktop: Title + Nav */}
-          <div className="flex items-center gap-6">
+          <div className="flex items-center gap-8">
             <Link href="/" className="flex items-center space-x-2">
-              <span className="text-xl font-extrabold tracking-tight text-foreground brand-font whitespace-nowrap">
+              <span className="text-xl font-black tracking-tighter text-foreground brand-font whitespace-nowrap">
                 {SITE_CONFIG.name}
               </span>
             </Link>
-            <nav className="hidden md:flex items-center space-x-6 text-sm font-medium">
+            <nav className="hidden md:flex items-center space-x-8 text-[11px] font-black uppercase tracking-widest">
               {NAV_ITEMS.map((item) => (
                 <Link
                   key={item.href}
                   href={item.href}
-                  className="transition-colors hover:text-foreground text-foreground/70"
+                  className="transition-all hover:text-primary text-muted-foreground/80"
                 >
                   {item.label}
                 </Link>

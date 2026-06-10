@@ -11,6 +11,8 @@ import {
 import { ChartConfig } from "@/components/ui/chart"
 import { getVEDataString } from '@/lib/utils'
 import { RATES_METADATA } from '@/constants/rates'
+import { ChartSkeleton } from '@/components/historial/ChartSkeleton'
+import { VisibilitySkeleton } from '@/components/historial/VisibilitySkeleton'
 import {
   HistoryHeader,
  
@@ -160,14 +162,6 @@ export default function HistoryPage() {
     })
   }
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-96">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
-      </div>
-    )
-  }
-
   return (
     <div className="flex flex-col gap-8 py-4 animate-in fade-in duration-500">
       <HistoryHeader />
@@ -184,22 +178,30 @@ export default function HistoryPage() {
             <HistoryRangeSelector range={range} onRangeChange={setRange} />
           </CardHeader>
           <CardContent className="flex-1 pb-4">
-            <HistoryChart 
-              data={filteredData}
-              chartConfig={chartConfig}
-              activeLines={activeLines}
-              availableRateKeys={availableRateKeys}
-            />
+            {loading ? (
+              <ChartSkeleton />
+            ) : (
+              <HistoryChart 
+                data={filteredData}
+                chartConfig={chartConfig}
+                activeLines={activeLines}
+                availableRateKeys={availableRateKeys}
+              />
+            )}
           </CardContent>
         </Card>
 
         <div className="flex flex-col gap-6">
-          <HistoryVisibility 
-            availableRateKeys={availableRateKeys}
-            activeLines={activeLines}
-            rateMetadata={HISTORY_RATE_METADATA}
-            onToggleLine={toggleLine}
-          />
+          {loading ? (
+            <VisibilitySkeleton />
+          ) : (
+            <HistoryVisibility 
+              availableRateKeys={availableRateKeys}
+              activeLines={activeLines}
+              rateMetadata={HISTORY_RATE_METADATA}
+              onToggleLine={toggleLine}
+            />
+          )}
           
           <div className="p-4 rounded-xl border border-dashed border-border/50 text-xs text-muted-foreground bg-muted/5">
             <p>

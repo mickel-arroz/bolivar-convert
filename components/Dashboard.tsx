@@ -2,8 +2,10 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { ClockIcon, ShieldCheckIcon, RefreshIcon, AlertIcon } from '@/components/icons'
-import { RateCard } from '@/components/RateCard'
-import { RateDifferenceCard } from '@/components/RateDifferenceCard'
+import { RateCard } from '@/components/cards/RateCard'
+import { RateDifferenceCard } from '@/components/cards/RateDifferenceCard'
+import { RateCardSkeleton } from '@/components/cards/RateCardSkeleton'
+import { RateDifferenceSkeleton } from '@/components/cards/RateDifferenceSkeleton'
 import { getVEDataString, cn } from '@/lib/utils'
 import { RATE_CARDS_CONFIG, Rates } from '@/constants/rates'
 
@@ -112,21 +114,27 @@ export function Dashboard() {
       </div>
 
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3 w-full max-w-6xl mx-auto">
-        {RATE_CARDS_CONFIG.map((card) => (
-          <RateCard
-            key={card.id}
-            label={card.label}
-            icon={card.icon}
-            rate={rates[card.id as keyof Rates] || '---'}
-            colorClass={card.colorClass}
-            badge={card.badge}
-            className={card.className}
-          />
-        ))}
+        {loading && rates.lastUpdate === '---' 
+          ? Array.from({ length: 3 }).map((_, i) => <RateCardSkeleton key={i} />)
+          : RATE_CARDS_CONFIG.map((card) => (
+            <RateCard
+              key={card.id}
+              label={card.label}
+              icon={card.icon}
+              rate={rates[card.id as keyof Rates] || '---'}
+              colorClass={card.colorClass}
+              badge={card.badge}
+              className={card.className}
+            />
+          ))
+        }
       </div>
 
       {/* Diferencia de tasas */}
-      <RateDifferenceCard rates={rates} />
+      {loading && rates.lastUpdate === '---' 
+        ? <RateDifferenceSkeleton /> 
+        : <RateDifferenceCard rates={rates} />
+      }
 
       {/* 3. Subtítulo o descripción */}
       <div className="flex flex-col items-center justify-center text-center gap-6 pb-8">

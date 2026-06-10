@@ -3,6 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
+    "init:full": "npm install && npm run build && npm run dev",
     "dev": "next dev -p 3004",
     "build": "next build",
     "start": "next start",

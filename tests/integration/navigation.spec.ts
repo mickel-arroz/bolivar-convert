@@ -10,11 +10,11 @@ test.describe('Responsive Navigation Integration', () => {
     await page.goto('/')
 
     // In Desktop, the "Tasas" link is visible directly in the nav bar
-    const desktopLink = page.locator('nav').getByText('Tasas')
+    const desktopLink = page.locator('header nav').getByText('Tasas', { exact: true })
     await expect(desktopLink).toBeVisible()
 
     // Hamburger menu should NOT be visible
-    const menuBtn = page.getByRole('button', { name: 'Toggle Menu' })
+    const menuBtn = page.getByRole('button', { name: /Menú/i })
     await expect(menuBtn).not.toBeVisible()
   })
 
@@ -23,8 +23,8 @@ test.describe('Responsive Navigation Integration', () => {
 
     await page.goto('/')
 
-    // In Mobile, the "Tasas" link inside the standard nav is hidden
-    const menuBtn = page.getByRole('button', { name: 'Toggle Menu' })
+    // In Mobile, the Menu button should be visible in the bottom nav
+    const menuBtn = page.getByRole('button', { name: /Menú/i })
     await expect(menuBtn).toBeVisible()
 
     // Open the side sheet
@@ -34,7 +34,9 @@ test.describe('Responsive Navigation Integration', () => {
     const sheetContent = page.getByRole('dialog') // Shadcn's Sheet uses Dialog role
     await expect(sheetContent).toBeVisible()
 
-    const mobileLink = sheetContent.getByText('Tasas')
+    // In the new mobile nav, the links are both in the bottom bar AND in the sheet
+    // We check the sheet content for the link with text 'Tasas'
+    const mobileLink = sheetContent.getByText('Tasas', { exact: true })
     await expect(mobileLink).toBeVisible()
   })
 })

@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { cn } from '@/lib/utils'
 
 interface RateCardProps extends ComponentProps<typeof Card> {
-  title: string
+  label: string
   icon: ReactNode
   rate: string
   colorClass: string
@@ -11,7 +11,7 @@ interface RateCardProps extends ComponentProps<typeof Card> {
 }
 
 export function RateCard({
-  title,
+  label,
   icon,
   rate,
   colorClass,
@@ -30,7 +30,7 @@ export function RateCard({
       <div className={cn('absolute top-0 left-0 w-full h-1', colorClass)}></div>
       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
         <CardTitle className="text-base font-semibold text-muted-foreground">
-          {title}
+          {label}
         </CardTitle>
         <div
           className={cn(

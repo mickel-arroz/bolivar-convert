@@ -3,23 +3,14 @@
 import { useState, useEffect, useCallback } from 'react'
 import { ClockIcon, ShieldCheckIcon, RefreshIcon, AlertIcon } from '@/components/icons'
 import { RateCard } from '@/components/RateCard'
+import { RateDifferenceCard } from '@/components/RateDifferenceCard'
 import { getVEDataString, cn } from '@/lib/utils'
-import { RATE_CARDS_CONFIG } from '@/constants/rates'
-
-interface Rates {
-  bcvUsd: string
-  bcvEur: string
-  binanceUsdAvg: string
-  lastUpdate: string
-}
+import { RATE_CARDS_CONFIG, Rates } from '@/constants/rates'
 
 const CACHE_KEY = 'bolivar_rates_cache'
 
 export function Dashboard() {
   const [rates, setRates] = useState<Rates>({
-    bcvUsd: '---',
-    bcvEur: '---',
-    binanceUsdAvg: '---',
     lastUpdate: '---'
   })
   const [loading, setLoading] = useState(true)
@@ -120,20 +111,22 @@ export function Dashboard() {
         </h1>
       </div>
 
-      {/* 2. Tarjetas de tasa de cambio */}
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3 w-full max-w-6xl mx-auto">
         {RATE_CARDS_CONFIG.map((card) => (
           <RateCard
             key={card.id}
-            title={card.title}
+            label={card.label}
             icon={card.icon}
-            rate={rates[card.id]}
+            rate={rates[card.id as keyof Rates] || '---'}
             colorClass={card.colorClass}
             badge={card.badge}
             className={card.className}
           />
         ))}
       </div>
+
+      {/* Diferencia de tasas */}
+      <RateDifferenceCard rates={rates} />
 
       {/* 3. Subtítulo o descripción */}
       <div className="flex flex-col items-center justify-center text-center gap-6 pb-8">

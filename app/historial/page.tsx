@@ -9,10 +9,11 @@ import {
   CardTitle,
 } from "@/components/ui/card"
 import { ChartConfig } from "@/components/ui/chart"
-import { EuroIcon, DollarIcon, BinanceIcon } from '@/components/icons'
 import { getVEDataString } from '@/lib/utils'
-import { 
-  HistoryHeader, 
+import { RATES_METADATA } from '@/constants/rates'
+import {
+  HistoryHeader,
+ 
   HistoryChart, 
   HistoryVisibility, 
   HistoryRangeSelector,
@@ -24,26 +25,16 @@ import {
 const CACHE_KEY = 'bolivar_history_cache'
 const PREFS_KEY = 'bolivar_history_prefs'
 
-const RATE_METADATA: Record<string, RateMetadata> = {
-  bcvUsd: {
-    label: "Dólar BCV",
-    color: "var(--rate-usd)",
-    icon: DollarIcon,
-    sub: "Oficial"
-  },
-  bcvEur: {
-    label: "Euro BCV",
-    color: "var(--rate-eur)",
-    icon: EuroIcon,
-    sub: "Oficial"
-  },
-  binanceUsdAvg: {
-    label: "Binance P2P",
-    color: "var(--rate-binance)",
-    icon: BinanceIcon,
-    sub: "Mercado"
+// Convert global metadata to the format expected by History components
+const HISTORY_RATE_METADATA: Record<string, RateMetadata> = Object.values(RATES_METADATA).reduce((acc, rate) => {
+  acc[rate.id] = {
+    label: rate.shortLabel,
+    color: rate.historyColor,
+    icon: rate.iconComponent,
+    sub: rate.subLabel
   }
-}
+  return acc
+}, {} as Record<string, RateMetadata>)
 
 function getSavedPrefs() {
   if (typeof window === 'undefined') return { range: '7d', activeLines: ['bcvUsd'] }
@@ -90,7 +81,7 @@ export default function HistoryPage() {
   const chartConfig = useMemo(() => {
     const config: ChartConfig = {}
     availableRateKeys.forEach(key => {
-      const meta = RATE_METADATA[key]
+      const meta = HISTORY_RATE_METADATA[key]
       config[key] = {
         label: meta?.label || key,
         color: meta?.color || "var(--chart-5)",
@@ -206,7 +197,7 @@ export default function HistoryPage() {
           <HistoryVisibility 
             availableRateKeys={availableRateKeys}
             activeLines={activeLines}
-            rateMetadata={RATE_METADATA}
+            rateMetadata={HISTORY_RATE_METADATA}
             onToggleLine={toggleLine}
           />
           

@@ -19,7 +19,7 @@ export function MobileNav() {
   const [open, setOpen] = useState(false)
 
   return (
-    <nav className="md:hidden fixed bottom-4 left-1/2 -translate-x-1/2 z-50 w-[92%] max-w-lg h-16 rounded-full shadow-[0_12px_40px_rgba(0,0,0,0.12)] dark:shadow-[0_25px_100px_rgba(0,0,0,0.7)] bg-background/60 backdrop-blur-md border border-border/50">
+    <nav className="md:hidden fixed bottom-4 left-1/2 -translate-x-1/2 z-50 w-[92%] max-w-lg h-16 rounded-2xl shadow-[0_12px_40px_rgba(0,0,0,0.12)] dark:shadow-[0_25px_100px_rgba(0,0,0,0.7)] bg-background/60 backdrop-blur-md border border-border/50">
       {/* Contenedor de Elementos - Relativo para estar sobre las capas de cristal y con flex para el layout */}
       <div className="relative z-10 flex items-center justify-around h-full w-full px-2">
         {NAV_ITEMS.map((item) => {
@@ -29,7 +29,7 @@ export function MobileNav() {
               key={item.href}
               href={item.href} 
               className={cn(
-                "flex flex-col items-center justify-center gap-1 transition-all active:scale-90 w-20 h-14 rounded-2xl",
+                "flex flex-col items-center justify-center gap-1 transition-all active:scale-90 w-20 h-14 rounded-xl",
                 isActive 
                   ? "text-primary bg-primary/10 border border-primary/20 shadow-[0_2px_8px_rgba(var(--primary),0.1)]" 
                   : "text-muted-foreground/90 hover:text-foreground"
@@ -54,7 +54,7 @@ export function MobileNav() {
           />
           <SheetContent 
             side="bottom" 
-            className="h-[60dvh] rounded-t-[2.5rem] border-t border-white/20 dark:border-white/10 bg-background/60 dark:bg-black/40 backdrop-blur-3xl p-0 flex flex-col"
+            className="h-[60dvh] rounded-t-2xl border-t border-white/20 dark:border-white/10 bg-background/60 dark:bg-black/40 backdrop-blur-3xl p-0 flex flex-col"
           >
             <SheetHeader className="p-6 border-b border-border/10">
               <SheetTitle className="text-left">
@@ -70,7 +70,7 @@ export function MobileNav() {
                     href={item.href}
                     onClick={() => setOpen(false)}
                     className={cn(
-                      "flex items-center gap-4 p-5 rounded-2xl transition-all active:scale-95",
+                      "flex items-center gap-4 p-5 rounded-xl transition-all active:scale-95",
                       pathname === item.href ? "bg-primary/10 text-primary" : "bg-muted/30 text-foreground hover:bg-muted/50"
                     )}
                   >

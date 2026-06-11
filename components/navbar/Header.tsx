@@ -16,7 +16,7 @@ export function Header() {
 
   return (
     <header className="sticky top-4 z-50 w-[calc(100%-2rem)] max-w-7xl mx-auto flex justify-center h-14 transition-all duration-500">
-      <div className="w-full px-6 flex items-center justify-between h-full rounded-full shadow-[0_8px_32px_0_rgba(0,0,0,0.08)] dark:shadow-[0_20px_80px_rgba(0,0,0,0.5)] bg-background/60 backdrop-blur-md border border-border/50">
+      <div className="w-full px-6 flex items-center justify-between h-full rounded-2xl shadow-[0_8px_32px_0_rgba(0,0,0,0.08)] dark:shadow-[0_20px_80px_rgba(0,0,0,0.5)] bg-background/60 backdrop-blur-md border border-border/50">
         {/* LEFT SECTION */}
         <div className="flex items-center gap-8 z-20">
           {/* Desktop: Title + Nav */}

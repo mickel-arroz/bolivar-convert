@@ -40,7 +40,7 @@ export function HistoryChart({
     <ChartContainer config={chartConfig} className="min-h-87.5 w-full">
       <LineChart
         data={data}
-        margin={{ left: 0, right: 0, top: 10, bottom: 10 }}
+        margin={{ left: 0, right: 12, top: 10, bottom: 10 }}
       >
         <CartesianGrid vertical={false} strokeDasharray="3 3" className="stroke-muted/50" />
         <XAxis
@@ -49,6 +49,7 @@ export function HistoryChart({
           axisLine={false}
           tickMargin={12}
           minTickGap={32}
+          padding={{ left: 10, right: 10 }}
           tickFormatter={(value) => {
             const date = new Date(value)
             return date.toLocaleDateString("es-VE", {

@@ -58,17 +58,25 @@ function getSavedPrefs() {
 export default function HistoryPage() {
   const [data, setData] = useState<HistoryEntry[]>([])
   const [loading, setLoading] = useState(true)
+  const [mounted, setMounted] = useState(false)
   
-  // Initialize state directly from localStorage to avoid cascading renders
-  const [range, setRange] = useState<TimeRange>(() => getSavedPrefs().range as TimeRange)
-  const [activeLines, setActiveLines] = useState<string[]>(() => getSavedPrefs().activeLines)
+  const [range, setRange] = useState<TimeRange>('7d')
+  const [activeLines, setActiveLines] = useState<string[]>(['bcvUsd'])
+
+  // Handle hydration and load initial prefs
+  useEffect(() => {
+    const prefs = getSavedPrefs()
+    setRange(prefs.range as TimeRange)
+    setActiveLines(prefs.activeLines)
+    setMounted(true)
+  }, [])
 
   // Save preferences when they change
   useEffect(() => {
-    if (!loading) {
+    if (mounted && !loading) {
       localStorage.setItem(PREFS_KEY, JSON.stringify({ range, activeLines }))
     }
-  }, [range, activeLines, loading])
+  }, [range, activeLines, loading, mounted])
 
   const availableRateKeys = useMemo(() => {
     const keys = new Set<string>()

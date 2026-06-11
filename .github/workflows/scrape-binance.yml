@@ -1,9 +1,14 @@
-name: Daily Exchange Rate Scraper
+name: Binance P2P Rate Scraper
 
 on:
   schedule:
-    # Run at 04:01 UTC (12:01 AM AST/VE) every day
-    - cron: '1 4 * * *'
+    # Run at 12am, 6am, 12pm, 6pm VET
+    # VET is UTC-4.
+    # 00:00 VET -> 04:00 UTC
+    # 06:00 VET -> 10:00 UTC
+    # 12:00 VET -> 16:00 UTC
+    # 18:00 VET -> 22:00 UTC
+    - cron: '0 4,10,16,22 * * *'
   workflow_dispatch: # Allow manual triggers for testing
 
 jobs:
@@ -29,4 +34,4 @@ jobs:
           UPSTASH_REDIS_REST_URL: ${{ secrets.UPSTASH_REDIS_REST_URL }}
           UPSTASH_REDIS_REST_TOKEN: ${{ secrets.UPSTASH_REDIS_REST_TOKEN }}
         run: |
-          python scraper/main.py
+          python scraper/scrape_binance.py

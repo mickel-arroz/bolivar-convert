@@ -7,7 +7,6 @@ from dotenv import load_dotenv
 from bcv_core import fetch_bcv_html, extract_fecha_valor
 from bcv_usd import get_usd
 from bcv_eur import get_eur
-from binance import get_usdt_avg
 
 load_dotenv()
 
@@ -52,10 +51,10 @@ def main():
             usd_val = get_usd(bcv_html)
             eur_val = get_eur(bcv_html)
             
-            print("Obteniendo promedio de Binance P2P...")
-            binance_avg = get_usdt_avg()
+            # Obtener el valor actual de Binance desde Redis para el historial
+            binance_avg = r.get("rates:binance:usd:avg") if r else None
             
-            print(f"Resultados -> USD: {usd_val}, EUR: {eur_val}, Binance USDT: {binance_avg}")
+            print(f"Resultados -> USD: {usd_val}, EUR: {eur_val}, Binance USDT (desde Redis): {binance_avg}")
             
             if r:
                 # Guardamos sin expiración (TTL no definido)
@@ -63,13 +62,11 @@ def main():
                     r.set("rates:bcv:usd", str(usd_val))
                 if eur_val:
                     r.set("rates:bcv:eur", str(eur_val))
-                if binance_avg:
-                    r.set("rates:binance:usd:avg", str(binance_avg))
                     
                 # Guardar la nueva fecha valor para futuras comparaciones
                 r.set("rates:bcv:fecha_valor", nueva_fecha_valor.strftime("%Y-%m-%d"))
                 
-                # Timestamp de actualización del sistema (última vez que el script corrió con éxito)
+                # Timestamp de actualización del sistema
                 now = datetime.now(timezone.utc).isoformat()
                 r.set("rates:last_update", now)
 
@@ -78,7 +75,7 @@ def main():
                     "date": nueva_fecha_valor.strftime("%Y-%m-%d"),
                     "bcvUsd": usd_val,
                     "bcvEur": eur_val,
-                    "binanceUsdAvg": binance_avg
+                    "binanceUsdAvg": float(binance_avg) if binance_avg else None
                 }
                 r.rpush("rates:history", json.dumps(history_record))
                 
@@ -87,9 +84,7 @@ def main():
             print(f"La fecha extraída ({nueva_fecha_valor}) no es más reciente que la fecha guardada ({fecha_guardada}). No se actualizarán los datos.")
 
     except Exception as e:
-        print(f"Error crítico durante el proceso de scraping: {e}")
-        # Al fallar después de los 3 reintentos internos, simplemente no hacemos nada 
-        # y mantenemos los datos previos en Redis.
+        print(f"Error crítico durante el proceso de scraping BCV: {e}")
 
 if __name__ == "__main__":
     main()

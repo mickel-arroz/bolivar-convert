@@ -89,11 +89,14 @@ export function Dashboard() {
     if (lastUpdate === '---') return '---'
     try {
       const date = new Date(lastUpdate)
-      return date.toLocaleDateString('es-VE', {
+      return date.toLocaleString('es-VE', {
         timeZone: 'America/Caracas',
         day: '2-digit',
         month: 'short',
-        year: 'numeric'
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: true
       })
     } catch {
       return lastUpdate
@@ -104,8 +107,17 @@ export function Dashboard() {
     <div className="flex flex-col gap-10 pb-8 animate-in fade-in zoom-in-95 duration-500">
       {/* 1. Título principal (H1) */}
       <div className="flex flex-col items-center justify-center text-center gap-4 pt-8 md:pt-12">
-        <div className="inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 border-transparent bg-primary text-primary-foreground hover:bg-primary/80 mb-4">
-          <ShieldCheckIcon className="w-4 h-4 mr-2" /> Datos validados en tiempo real
+        <div className={cn(
+          "flex items-center gap-2 text-sm px-4 py-2 rounded-lg border transition-colors mb-4",
+          isStale 
+            ? "bg-yellow-500/10 text-yellow-600 dark:text-yellow-400 border-yellow-500/20" 
+            : "bg-secondary/50 text-muted-foreground border-border/50"
+        )}>
+          {isStale ? <AlertIcon className="w-4 h-4" /> : <ClockIcon className="w-4 h-4 text-primary" />}
+          <span>
+            {isStale ? 'Mostrando datos antiguos: ' : 'Última actualización: '}
+            <strong>{formatLastUpdate(rates.lastUpdate)}</strong>
+          </span>
         </div>
         <h1 className="text-4xl md:text-6xl font-extrabold tracking-tight bg-linear-to-br from-foreground to-muted-foreground bg-clip-text text-transparent">
           El valor del Bolívar,
@@ -144,19 +156,6 @@ export function Dashboard() {
         </p>
 
         <div className="flex flex-col items-center gap-4">
-          <div className={cn(
-            "flex items-center gap-2 text-sm px-4 py-2 rounded-lg border transition-colors",
-            isStale 
-              ? "bg-yellow-500/10 text-yellow-600 dark:text-yellow-400 border-yellow-500/20" 
-              : "bg-secondary/50 text-muted-foreground border-border/50"
-          )}>
-            {isStale ? <AlertIcon className="w-4 h-4" /> : <ClockIcon className="w-4 h-4 text-primary" />}
-            <span>
-              {isStale ? 'Mostrando datos antiguos: ' : 'Última actualización: '}
-              <strong>{formatLastUpdate(rates.lastUpdate)}</strong>
-            </span>
-          </div>
-
           {(isStale || error) && (
             <button
               onClick={() => fetchRates()}

@@ -76,7 +76,7 @@ describe('useRates Hook', () => {
         binanceUsdAvg: '37.00',
         lastUpdate: '2026-06-11T10:00:00Z'
       },
-      fetchDate: '2026-06-11'
+      lastFetch: Date.now() - 3600000 // Hace 1 hora (fresco)
     }
     localStorageMock.setItem('bolivar_rates_cache', JSON.stringify(cachedData))
 
@@ -97,7 +97,7 @@ describe('useRates Hook', () => {
         binanceUsdAvg: '36.00',
         lastUpdate: '2026-06-10T10:00:00Z'
       },
-      fetchDate: '2026-06-10'
+      lastFetch: Date.now() - 86400000 // Hace 24 horas (viejo)
     }
     localStorageMock.setItem('bolivar_rates_cache', JSON.stringify(cachedData))
     

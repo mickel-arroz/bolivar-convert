@@ -1,7 +1,6 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { getVEDataString } from '@/lib/utils'
 import { Rates } from '@/constants/rates'
 
 const CACHE_KEY = 'bolivar_rates_cache'
@@ -33,10 +32,10 @@ export function useRates() {
       setRates(newRates)
       setIsStale(false)
 
-      // Guardar en cache con la fecha de hoy en VE
+      // Guardar en cache con el timestamp actual para el control de 2 horas
       localStorage.setItem(CACHE_KEY, JSON.stringify({
         rates: newRates,
-        fetchDate: getVEDataString()
+        lastFetch: Date.now()
       }))
     } catch (err) {
       console.error('Error fetching rates:', err)
@@ -57,20 +56,26 @@ export function useRates() {
   useEffect(() => {
     const initializeDashboard = () => {
       const cached = localStorage.getItem(CACHE_KEY)
-      const today = getVEDataString()
+      const now = Date.now()
+      const TWO_HOURS_MS = 2 * 60 * 60 * 1000
 
       if (cached) {
-        const { rates: cachedRates, fetchDate } = JSON.parse(cached)
-        
-        if (fetchDate === today) {
-          setRates(cachedRates)
-          setIsStale(false)
-          setLoading(false)
-          return
-        } else {
-          // Data de otro día, intentar actualizar pero mostrar vieja mientras tanto
-          setRates(cachedRates)
-          setIsStale(true)
+        try {
+          const { rates: cachedRates, lastFetch } = JSON.parse(cached)
+          
+          // Verificar si han pasado menos de 2 horas desde el último fetch
+          if (lastFetch && (now - lastFetch) < TWO_HOURS_MS) {
+            setRates(cachedRates)
+            setIsStale(false)
+            setLoading(false)
+            return
+          } else {
+            // Data de hace más de 2 horas, mostrarla pero marcar como stale y actualizar
+            setRates(cachedRates)
+            setIsStale(true)
+          }
+        } catch (e) {
+          console.error('Error parsing cache', e)
         }
       }
       

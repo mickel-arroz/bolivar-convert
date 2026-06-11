@@ -7,6 +7,7 @@ import { Footer } from '@/components/layout/Footer'
 import { MobileNav } from '@/components/navbar/MobileNav'
 import { ThemeProvider } from '@/components/theme-provider'
 import { TooltipProvider } from '@/components/ui/tooltip'
+import { RedirectGuard } from '@/components/RedirectGuard'
 
 const geistSans = Geist({
   variable: '--font-geist-sans',
@@ -73,12 +74,14 @@ export default function RootLayout({
           disableTransitionOnChange
         >
           <TooltipProvider>
-            <Header />
-            <main className="flex-1 w-full max-w-7xl py-6 px-4 md:px-6 md:py-10">
-              {children}
-            </main>
-            <Footer />
-            <MobileNav />
+            <RedirectGuard>
+              <Header />
+              <main className="flex-1 w-full max-w-7xl py-6 px-4 md:px-6 md:py-10">
+                {children}
+              </main>
+              <Footer />
+              <MobileNav />
+            </RedirectGuard>
           </TooltipProvider>
         </ThemeProvider>
       </body>

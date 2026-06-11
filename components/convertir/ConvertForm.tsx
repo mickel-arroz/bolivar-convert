@@ -98,9 +98,9 @@ export function ConvertForm() {
   const handleCustomRateChange = (val: string) => setFormData(prev => ({ ...prev, customRate: val }))
 
   return (
-    <div className="flex flex-col gap-8 max-w-4xl mx-auto w-full animate-in fade-in slide-in-from-bottom-4 duration-700">
+    <div className="flex flex-col gap-6 max-w-4xl mx-auto w-full animate-in fade-in slide-in-from-bottom-4 duration-700">
       {/* Header Info */}
-      <div className="flex flex-col items-center gap-4 text-center">
+      <div className="flex flex-col items-center gap-3 text-center">
         <div className={cn(
           "flex items-center gap-2 text-xs px-3 py-1.5 rounded-full border transition-colors",
           isStale 
@@ -120,11 +120,11 @@ export function ConvertForm() {
       </div>
 
       {/* Input Section */}
-      <Card className="border-border/60 bg-card/50 backdrop-blur-sm overflow-hidden shadow-xl shadow-primary/5">
-        <CardContent className="p-6 md:p-8">
-          <div className="grid gap-6 md:grid-cols-2">
+      <Card className="border-border/60 bg-card/50 backdrop-blur-sm overflow-hidden shadow-xl shadow-primary/5 py-0">
+        <CardContent className="pt-2 pb-4 px-4 md:pt-3 md:pb-6 md:px-6">
+          <div className="grid gap-4 md:grid-cols-2">
             {/* Amount & Currency */}
-            <div className="flex flex-col gap-4">
+            <div className="flex flex-col gap-1.5">
               <label htmlFor="amount-input" className="text-xs font-black uppercase tracking-widest text-muted-foreground/80">Monto a Convertir</label>
               <div className="relative group">
                 <input
@@ -160,7 +160,7 @@ export function ConvertForm() {
             </div>
 
             {/* Custom Rate */}
-            <div className="flex flex-col gap-4">
+            <div className="flex flex-col gap-1.5">
               <label htmlFor="custom-rate-input" className="text-xs font-black uppercase tracking-widest text-muted-foreground/80">Tasa Personalizada (Bs.)</label>
               <div className="relative group">
                 <div className="absolute left-4 top-1/2 -translate-y-1/2 text-muted-foreground group-focus-within:text-primary transition-colors">
@@ -269,11 +269,11 @@ function ResultCard({ label, value, currency, icon, subLabel, colorClass, textCo
     <Card 
       onClick={handleCopy}
       className={cn(
-        "border-2 transition-all hover:scale-[1.02] active:scale-[0.98] duration-300 shadow-sm hover:shadow-md w-full cursor-pointer relative group",
+        "border-2 transition-all hover:scale-[1.02] active:scale-[0.98] duration-300 shadow-sm hover:shadow-md w-full cursor-pointer relative group py-0",
         colorClass
       )}
     >
-      <CardContent className="p-4 flex flex-col gap-3">
+      <CardContent className="pt-1.5 pb-3 px-3 flex flex-col gap-2">
         <div className="flex items-center justify-between">
           <div className="size-9 rounded-xl bg-background border border-border/50 flex items-center justify-center shadow-xs">
             {icon}

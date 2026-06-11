@@ -108,16 +108,18 @@ export function Dashboard() {
       {/* 1. Título principal (H1) */}
       <div className="flex flex-col items-center justify-center text-center gap-4 pt-8 md:pt-12">
         <div className={cn(
-          "flex items-center gap-2 text-sm px-4 py-2 rounded-lg border transition-colors mb-4",
+          "flex flex-col sm:flex-row items-center gap-y-1 sm:gap-x-2 text-sm px-4 py-2 rounded-lg border transition-colors mb-4",
           isStale 
             ? "bg-yellow-500/10 text-yellow-600 dark:text-yellow-400 border-yellow-500/20" 
             : "bg-secondary/50 text-muted-foreground border-border/50"
         )}>
-          {isStale ? <AlertIcon className="w-4 h-4" /> : <ClockIcon className="w-4 h-4 text-primary" />}
-          <span>
-            {isStale ? 'Mostrando datos antiguos: ' : 'Última actualización: '}
-            <strong>{formatLastUpdate(rates.lastUpdate)}</strong>
-          </span>
+          <div className="flex items-center gap-2">
+            {isStale ? <AlertIcon className="w-4 h-4" /> : <ClockIcon className="w-4 h-4 text-primary" />}
+            <span className="whitespace-nowrap">
+              {isStale ? 'Mostrando datos antiguos: ' : 'Última actualización: '}
+            </span>
+          </div>
+          <strong>{formatLastUpdate(rates.lastUpdate)}</strong>
         </div>
         <h1 className="text-4xl md:text-6xl font-extrabold tracking-tight bg-linear-to-br from-foreground to-muted-foreground bg-clip-text text-transparent">
           El valor del Bolívar,

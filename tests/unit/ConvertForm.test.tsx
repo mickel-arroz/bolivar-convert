@@ -68,4 +68,17 @@ describe('ConvertForm Component', () => {
     // Regex helps with different decimal separators in different environments
     expect(screen.getByText(/36[.,]50/)).toBeInTheDocument()
   })
+
+  it('converts 1 USD to VES using Euro rate correctly', () => {
+    render(<ConvertForm />)
+    
+    // Cambiar a USD
+    const usdButton = screen.getAllByRole('button').find(b => b.textContent === 'USD')
+    if (!usdButton) throw new Error('USD button not found')
+    fireEvent.click(usdButton)
+
+    // Monto 1 USD -> a tasa EUR de 39.20 -> "39.20"
+    // Antes mostraba "0.93" (1 * 36.50 / 39.20)
+    expect(screen.getByText(/39[.,]20/)).toBeInTheDocument()
+  })
 })

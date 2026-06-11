@@ -72,20 +72,9 @@ export function ConvertForm() {
       }
     }
 
-    // Caso especial para EUR cuando la entrada es USD
-    const getEurFromUsd = () => {
-      const bcvUsd = parseFloat(rates.bcvUsd || '0')
-      const bcvEur = parseFloat(rates.bcvEur || '0')
-      if (bcvUsd === 0 || bcvEur === 0) return '0.00'
-      
-      // USD -> VES -> EUR
-      const vesAmount = numAmount * bcvUsd
-      return (vesAmount / bcvEur).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-    }
-
     return {
       bcvUsd: getConverted(rates.bcvUsd),
-      bcvEur: currency === 'VES' ? getConverted(rates.bcvEur) : getEurFromUsd(),
+      bcvEur: getConverted(rates.bcvEur),
       binance: getConverted(rates.binanceUsdAvg),
       custom: getConverted(customRate)
     }

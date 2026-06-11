@@ -133,7 +133,8 @@
   }
   body {
     @apply bg-background text-foreground min-h-full flex flex-col items-center;
-    background-image: radial-gradient(
+    background-image:
+      radial-gradient(
         at 0% 0%,
         oklch(from var(--primary) l c h / 0.07) 0px,
         transparent 50%
@@ -149,10 +150,21 @@
     @apply font-sans;
   }
 
+  /* Hide number input arrows */
+  input::-webkit-outer-spin-button,
+  input::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+  input[type='number'] {
+    -moz-appearance: textfield;
+    appearance: textfield;
+  }
+
   /* Aggressive scroll lock fix */
-  html[data-scroll-locked], 
+  html[data-scroll-locked],
   body[data-scroll-locked],
-  body[style*="overflow: hidden"] {
+  body[style*='overflow: hidden'] {
     padding-right: 0px !important;
     margin-right: 0px !important;
     overflow: hidden !important;

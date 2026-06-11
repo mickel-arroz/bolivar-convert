@@ -66,6 +66,7 @@ export default function HistoryPage() {
   // Handle hydration and load initial prefs
   useEffect(() => {
     const prefs = getSavedPrefs()
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setRange(prefs.range as TimeRange)
     setActiveLines(prefs.activeLines)
     setMounted(true)

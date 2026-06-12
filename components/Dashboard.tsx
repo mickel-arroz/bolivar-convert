@@ -9,6 +9,7 @@ import { cn } from '@/lib/utils'
 import { RATE_CARDS_CONFIG, Rates } from '@/constants/rates'
 import { useRates } from '@/hooks/useRates'
 import { LastUpdateBadge } from '@/components/LastUpdateBadge'
+import { PageHeader } from '@/components/PageHeader'
 
 export function Dashboard() {
   const { rates, loading, isStale, error, fetchRates, formatLastUpdate } = useRates()
@@ -16,18 +17,19 @@ export function Dashboard() {
   return (
     <div className="flex flex-col gap-10 pb-8 animate-in fade-in zoom-in-95 duration-500">
       {/* 1. Título principal (H1) */}
-      <div className="flex flex-col items-center justify-center text-center gap-4 pt-8 md:pt-12">
-        <LastUpdateBadge 
-          lastUpdate={rates.lastUpdate}
-          isStale={isStale}
-          formattedDate={formatLastUpdate(rates.lastUpdate)}
-          className="mb-4"
-        />
-        <h1 className="text-4xl md:text-6xl font-extrabold tracking-tight bg-linear-to-br from-foreground to-muted-foreground bg-clip-text text-transparent">
-          El valor del Bolívar,
-          <br className="hidden md:block" /> preciso y al instante.
-        </h1>
-      </div>
+      <PageHeader
+        title="El valor del Bolívar, preciso y al instante."
+        titleClassName="text-4xl md:text-6xl font-extrabold tracking-tight"
+        badge={
+          <LastUpdateBadge
+            lastUpdate={rates.lastUpdate}
+            isStale={isStale}
+            formattedDate={formatLastUpdate(rates.lastUpdate)}
+            className="mb-4"
+          />
+        }
+        className="pt-8 md:pt-12"
+      />
 
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3 w-full max-w-6xl mx-auto">
         {loading && rates.lastUpdate === '---' 

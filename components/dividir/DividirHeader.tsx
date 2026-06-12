@@ -4,13 +4,14 @@ import { PageHeader } from '@/components/PageHeader'
 import { LastUpdateBadge } from '@/components/LastUpdateBadge'
 import { useRates } from '@/hooks/useRates'
 
-export function HistoryHeader() {
+export function DividirHeader() {
   const { rates, isStale, formatLastUpdate } = useRates()
 
   return (
     <PageHeader
-      title="Historial de Tasas"
-      description="Visualiza la evolución de los tipos de cambio en el tiempo."
+      title="Dividir Factura"
+      description="Calcula cuánto debe pagar cada uno, incluyendo IVA y propina"
+      className="mb-8 max-w-2xl mx-auto"
       badge={
         <LastUpdateBadge
           lastUpdate={rates.lastUpdate}

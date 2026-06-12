@@ -22,7 +22,7 @@ export function MobileNav() {
     <nav className="md:hidden fixed bottom-4 left-1/2 -translate-x-1/2 z-50 w-[92%] max-w-lg h-16 rounded-2xl shadow-[0_12px_40px_rgba(0,0,0,0.12)] dark:shadow-[0_25px_100px_rgba(0,0,0,0.7)] bg-background/60 backdrop-blur-md border border-border/50">
       {/* Contenedor de Elementos - Relativo para estar sobre las capas de cristal y con flex para el layout */}
       <div className="relative z-10 flex items-center justify-around h-full w-full px-2">
-        {NAV_ITEMS.map((item) => {
+        {NAV_ITEMS.slice(0, 3).map((item) => {
           const isActive = pathname === item.href
           return (
             <Link 
@@ -48,7 +48,7 @@ export function MobileNav() {
             render={
               <button className="flex flex-col items-center justify-center gap-1 text-muted-foreground/90 hover:text-foreground transition-all active:scale-90 focus:outline-none w-20 h-14">
                 <MenuIcon className="w-5 h-5" />
-                <span className="text-[10px] font-bold uppercase tracking-tight">Menú</span>
+                <span className="text-[10px] font-bold uppercase tracking-tight">Más</span>
               </button>
             }
           />

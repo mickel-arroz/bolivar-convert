@@ -14,7 +14,7 @@ test.describe('Responsive Navigation Integration', () => {
     await expect(desktopLink).toBeVisible()
 
     // Hamburger menu should NOT be visible
-    const menuBtn = page.getByRole('button', { name: /Menú/i })
+    const menuBtn = page.getByRole('button', { name: /Más/i })
     await expect(menuBtn).not.toBeVisible()
   })
 
@@ -24,7 +24,7 @@ test.describe('Responsive Navigation Integration', () => {
     await page.goto('/')
 
     // In Mobile, the Menu button should be visible in the bottom nav
-    const menuBtn = page.getByRole('button', { name: /Menú/i })
+    const menuBtn = page.getByRole('button', { name: /Más/i })
     await expect(menuBtn).toBeVisible()
 
     // Open the side sheet

@@ -14,6 +14,7 @@ import {
   CopyIcon
 } from '@/components/icons'
 import { LastUpdateBadge } from '@/components/LastUpdateBadge'
+import { PageHeader } from '@/components/PageHeader'
 
 const STORAGE_KEY = 'bolivar_convert_prefs'
 
@@ -89,17 +90,17 @@ export function ConvertForm() {
   return (
     <div className="flex flex-col gap-6 max-w-4xl mx-auto w-full animate-in fade-in slide-in-from-bottom-4 duration-700">
       {/* Header Info */}
-      <div className="flex flex-col items-center gap-3 text-center">
-        <LastUpdateBadge 
-          lastUpdate={rates.lastUpdate}
-          isStale={isStale}
-          formattedDate={formatLastUpdate(rates.lastUpdate)}
-        />
-        <h1 className="text-3xl md:text-5xl font-black tracking-tighter">Calculadora Dinámica</h1>
-        <p className="text-muted-foreground text-sm md:text-base max-w-lg">
-          Ingresa un monto y obtén su valor convertido instantáneamente en todas las tasas del sistema.
-        </p>
-      </div>
+      <PageHeader
+        title="Calculadora Dinámica"
+        description="Ingresa un monto y obtén su valor convertido instantáneamente en todas las tasas del sistema."
+        badge={
+          <LastUpdateBadge
+            lastUpdate={rates.lastUpdate}
+            isStale={isStale}
+            formattedDate={formatLastUpdate(rates.lastUpdate)}
+          />
+        }
+      />
 
       {/* Input Section */}
       <Card className="border-border/60 bg-card/50 backdrop-blur-sm overflow-hidden shadow-xl shadow-primary/5 py-0">

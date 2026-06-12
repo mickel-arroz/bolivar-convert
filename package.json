@@ -3,11 +3,12 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "init:full": "npm install && npm run build && npm run dev",
+    "init:full": "npm install && npm run build && npm run types && npm run test && npm run dev",
     "dev": "next dev -p 3004",
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
+    "types": "tsc --noEmit",
     "test:unit": "vitest run",
     "test:e2e": "playwright test",
     "test": "vitest run && playwright test"

@@ -10,10 +10,10 @@ import {
   BinanceIcon, 
   RefreshIcon, 
   EuroIcon,
-  ClockIcon,
-  AlertIcon,
-  CheckIcon
+  CheckIcon,
+  CopyIcon
 } from '@/components/icons'
+import { LastUpdateBadge } from '@/components/LastUpdateBadge'
 
 const STORAGE_KEY = 'bolivar_convert_prefs'
 
@@ -90,18 +90,11 @@ export function ConvertForm() {
     <div className="flex flex-col gap-6 max-w-4xl mx-auto w-full animate-in fade-in slide-in-from-bottom-4 duration-700">
       {/* Header Info */}
       <div className="flex flex-col items-center gap-3 text-center">
-        <div className={cn(
-          "flex items-center gap-2 text-xs px-3 py-1.5 rounded-full border transition-colors",
-          isStale 
-            ? "bg-yellow-500/10 text-yellow-600 dark:text-yellow-400 border-yellow-500/20" 
-            : "bg-secondary/50 text-muted-foreground border-border/50"
-        )}>
-          {isStale ? <AlertIcon className="size-3.5" /> : <ClockIcon className="size-3.5 text-primary" />}
-          <span>
-            {isStale ? 'Datos antiguos: ' : 'Tasas actualizadas: '}
-            <strong>{formatLastUpdate(rates.lastUpdate)}</strong>
-          </span>
-        </div>
+        <LastUpdateBadge 
+          lastUpdate={rates.lastUpdate}
+          isStale={isStale}
+          formattedDate={formatLastUpdate(rates.lastUpdate)}
+        />
         <h1 className="text-3xl md:text-5xl font-black tracking-tighter">Calculadora Dinámica</h1>
         <p className="text-muted-foreground text-sm md:text-base max-w-lg">
           Ingresa un monto y obtén su valor convertido instantáneamente en todas las tasas del sistema.
@@ -180,7 +173,7 @@ export function ConvertForm() {
             value={results.bcvUsd}
             currency={formData.currency === 'VES' ? 'USD' : 'Bs.'}
             icon={<DollarIcon className="size-5 text-green-600 dark:text-green-400" />}
-            subLabel="Tasa Oficial"
+            subLabel={`Tasa Oficial: ${rates.bcvUsd}Bs.`}
             colorClass="bg-green-50/50 dark:bg-green-500/10 border-green-200/60 dark:border-green-500/20"
             textColor="text-green-600 dark:text-green-400"
           />
@@ -193,7 +186,7 @@ export function ConvertForm() {
             value={results.bcvEur}
             currency={formData.currency === 'VES' ? 'EUR' : 'Bs.'}
             icon={<EuroIcon className="size-5 text-blue-500 dark:text-blue-400" />}
-            subLabel="Tasa Oficial"
+            subLabel={`Tasa Oficial: ${rates.bcvEur}Bs.`}
             colorClass="bg-blue-50/50 dark:bg-blue-500/10 border-blue-200/60 dark:border-blue-500/20"
             textColor="text-blue-500 dark:text-blue-400"
           />
@@ -206,7 +199,7 @@ export function ConvertForm() {
             value={results.binance}
             currency={formData.currency === 'VES' ? 'USD' : 'Bs.'}
             icon={<BinanceIcon className="size-5 text-yellow-600 dark:text-yellow-500" />}
-            subLabel="Mercado P2P"
+            subLabel={`Mercado P2P: ${rates.binanceUsdAvg}Bs.`}
             colorClass="bg-yellow-50/50 dark:bg-yellow-500/10 border-yellow-200/60 dark:border-yellow-500/20"
             textColor="text-yellow-600 dark:text-yellow-500"
           />
@@ -219,7 +212,7 @@ export function ConvertForm() {
             value={results.custom}
             currency={formData.currency === 'VES' ? 'USD' : 'Bs.'}
             icon={<RefreshIcon className="size-5 text-primary" />}
-            subLabel="Tu propia tasa"
+            subLabel={`Tu propia tasa: ${formData.customRate}Bs.`}
             colorClass="bg-primary/5 dark:bg-primary/10 border-primary/20"
             textColor="text-primary"
             highlight
@@ -254,6 +247,9 @@ function ResultCard({ label, value, currency, icon, subLabel, colorClass, textCo
     })
   }
 
+  // Extraer el prefijo (ej: "Tasa Oficial") y el valor (ej: "582.69Bs.") del subLabel actual
+  const [subLabelPrefix, subLabelValue] = subLabel.split(': ')
+
   return (
     <Card 
       onClick={handleCopy}
@@ -262,24 +258,35 @@ function ResultCard({ label, value, currency, icon, subLabel, colorClass, textCo
         colorClass
       )}
     >
-      <CardContent className="pt-1.5 pb-3 px-3 flex flex-col gap-2">
+      <CardContent className="pt-3 pb-3 px-3 flex flex-col gap-2">
         <div className="flex items-center justify-between">
-          <div className="size-9 rounded-xl bg-background border border-border/50 flex items-center justify-center shadow-xs">
+          <div className="size-9 rounded-xl bg-background border border-border/50 flex items-center justify-center shadow-xs shrink-0">
             {icon}
           </div>
-          <span className="text-[9px] font-black uppercase tracking-tighter text-muted-foreground/60">{subLabel}</span>
+          
+          <div className="flex flex-col items-end text-right">
+            <span className="text-[8px] font-black uppercase tracking-widest text-muted-foreground/60 leading-none mb-0.5">
+              {subLabelPrefix}
+            </span>
+            <span className={cn(
+              "text-[12px] font-black tracking-tight drop-shadow-xs",
+              textColor
+            )}>
+              {subLabelValue}
+            </span>
+          </div>
         </div>
         
-        <div className="flex flex-col">
+        <div className="flex flex-col mt-1">
           <span className="text-[10px] font-bold text-muted-foreground/80">{label}</span>
-          <div className="flex items-baseline gap-1 overflow-hidden">
+          <div className="flex items-baseline gap-1.5 overflow-hidden">
             <span className={cn(
-              "text-xl font-black tracking-tighter truncate",
+              "text-2xl font-black tracking-tighter truncate",
               highlight ? "text-primary" : "text-foreground"
             )}>
               {value}
             </span>
-            <span className="text-[10px] font-black text-muted-foreground/40 shrink-0">{currency}</span>
+            <span className="text-xs font-black text-muted-foreground/50 shrink-0">{currency}</span>
           </div>
         </div>
 
@@ -295,19 +302,7 @@ function ResultCard({ label, value, currency, icon, subLabel, colorClass, textCo
             </div>
           ) : (
             <div className="text-muted-foreground/30 group-hover:text-primary/70 transition-colors duration-300">
-              <svg 
-                xmlns="http://www.w3.org/2000/svg" 
-                viewBox="0 0 24 24" 
-                fill="none" 
-                stroke="currentColor" 
-                strokeWidth="2.5" 
-                strokeLinecap="round" 
-                strokeLinejoin="round" 
-                className="size-4"
-              >
-                <rect width="14" height="14" x="8" y="8" rx="2" ry="2" />
-                <path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2" />
-              </svg>
+              <CopyIcon className="size-4" />
             </div>
           )}
         </div>

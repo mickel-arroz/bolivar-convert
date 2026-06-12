@@ -38,8 +38,7 @@ describe('ConvertForm Component', () => {
 
     // 1 VES in USD (at 36.50) is ~0.027...
     // The component formats it with 2 decimal places: 1 / 36.50 = 0.02739 -> 0.03
-    // Use getAllByText because multiple cards might show same value
-    expect(screen.getAllByText('0.03').length).toBeGreaterThan(0)
+    expect(screen.getAllByText(/0\.03/).length).toBeGreaterThan(0)
   })
 
   it('updates results when amount changes', () => {
@@ -51,7 +50,7 @@ describe('ConvertForm Component', () => {
     fireEvent.change(amountInput, { target: { value: '100' } })
     
     // 100 / 36.50 = 2.739... -> "2.74"
-    expect(screen.getAllByText('2.74').length).toBeGreaterThan(0)
+    expect(screen.getAllByText(/2\.74/).length).toBeGreaterThan(0)
   })
 
   it('switches currency from VES to USD', () => {
@@ -65,8 +64,8 @@ describe('ConvertForm Component', () => {
     fireEvent.click(usdButton)
     
     // Amount 1 USD -> VES (at 36.50) -> "36.50" or "36,50"
-    // Regex helps with different decimal separators in different environments
-    expect(screen.getByText(/36[.,]50/)).toBeInTheDocument()
+    // Multiple elements might have this text now because of the new labels
+    expect(screen.getAllByText(/36[.,]50/).length).toBeGreaterThan(0)
   })
 
   it('converts 1 USD to VES using Euro rate correctly', () => {
@@ -78,7 +77,6 @@ describe('ConvertForm Component', () => {
     fireEvent.click(usdButton)
 
     // Monto 1 USD -> a tasa EUR de 39.20 -> "39.20"
-    // Antes mostraba "0.93" (1 * 36.50 / 39.20)
-    expect(screen.getByText(/39[.,]20/)).toBeInTheDocument()
+    expect(screen.getAllByText(/39[.,]20/).length).toBeGreaterThan(0)
   })
 })

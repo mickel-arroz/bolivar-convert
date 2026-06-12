@@ -87,7 +87,7 @@ export const RATE_CARDS_CONFIG: (RateInfo & { badge: React.ReactNode })[] = [
         </TooltipTrigger>
         <TooltipContent className="max-w-62.5 text-center">
           <p>
-            Mercado P2P de Binance calculado por la media con las 20 mejores ofertas de compra y las 20 mejores
+            Mercado P2P de Binance calculado por la <strong>mediana</strong> con las 20 mejores ofertas de compra y las 20 mejores
             ofertas de venta
           </p>
         </TooltipContent>

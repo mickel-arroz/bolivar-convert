@@ -1,5 +1,6 @@
 "use client"
 
+import { useState, useEffect } from "react"
 import { Tooltip as TooltipPrimitive } from "@base-ui/react/tooltip"
 
 import { cn } from "@/lib/utils"
@@ -20,11 +21,48 @@ function TooltipProvider({
 }
 
 function Tooltip({ ...props }: TooltipPrimitive.Root.Props) {
-  return <TooltipPrimitive.Root data-slot="tooltip" {...props} />
+  const [open, setOpen] = useState(false)
+
+  // Cerrar al hacer scroll o click fuera
+  useEffect(() => {
+    if (!open) return
+
+    const handleClose = () => setOpen(false)
+
+    window.addEventListener("scroll", handleClose, { passive: true })
+    window.addEventListener("click", handleClose)
+    window.addEventListener("touchstart", handleClose, { passive: true })
+
+    return () => {
+      window.removeEventListener("scroll", handleClose)
+      window.removeEventListener("click", handleClose)
+      window.removeEventListener("touchstart", handleClose)
+    }
+  }, [open])
+
+  return (
+    <TooltipPrimitive.Root 
+      data-slot="tooltip" 
+      open={open}
+      onOpenChange={setOpen}
+      {...props} 
+    />
+  )
 }
 
-function TooltipTrigger({ ...props }: TooltipPrimitive.Trigger.Props) {
-  return <TooltipPrimitive.Trigger data-slot="tooltip-trigger" {...props} />
+function TooltipTrigger({ className, onClick, ...props }: TooltipPrimitive.Trigger.Props) {
+  return (
+    <TooltipPrimitive.Trigger 
+      data-slot="tooltip-trigger" 
+      className={cn("cursor-pointer", className)}
+      onClick={(e) => {
+        // Prevenir que el listener global de click cierre el tooltip inmediatamente
+        e.stopPropagation()
+        onClick?.(e)
+      }}
+      {...props} 
+    />
+  )
 }
 
 function TooltipContent({

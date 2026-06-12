@@ -8,6 +8,8 @@ import { MobileNav } from '@/components/navbar/MobileNav'
 import { ThemeProvider } from '@/components/theme-provider'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { RedirectGuard } from '@/components/RedirectGuard'
+import { Analytics } from "@vercel/analytics/next"
+import { SpeedInsights } from "@vercel/speed-insights/next"
 
 const geistSans = Geist({
   variable: '--font-geist-sans',
@@ -67,6 +69,8 @@ export default function RootLayout({
       suppressHydrationWarning
     >
       <body className="min-h-full flex flex-col items-center" suppressHydrationWarning>
+      <Analytics />
+      <SpeedInsights />
         <ThemeProvider
           attribute="class"
           defaultTheme="dark"

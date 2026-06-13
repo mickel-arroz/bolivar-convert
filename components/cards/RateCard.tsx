@@ -8,6 +8,7 @@ interface RateCardProps extends ComponentProps<typeof Card> {
   rate: string
   colorClass: string
   badge: ReactNode
+  percentageBadge?: ReactNode
 }
 
 export function RateCard({
@@ -16,6 +17,7 @@ export function RateCard({
   rate,
   colorClass,
   badge,
+  percentageBadge,
   className,
   ...props
 }: RateCardProps) {
@@ -42,10 +44,11 @@ export function RateCard({
         </div>
       </CardHeader>
       <CardContent>
-        <div className="flex items-baseline gap-2 mt-2">
+        <div className="flex items-baseline gap-3 mt-2">
           <span className="text-4xl font-extrabold tracking-tighter">
             Bs. {rate}
           </span>
+          {percentageBadge}
         </div>
         {badge}
       </CardContent>

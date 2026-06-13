@@ -3,7 +3,7 @@
 import { Card, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { cn } from '@/lib/utils'
-import type { TipPercentage } from '@/hooks/useBillSplitter'
+import { TIP_PERCENTAGES, TipPercentage } from '@/constants/config'
 
 /* ─── Formatting helpers ─── */
 function fmt(n: number, decimals = 2): string {
@@ -12,8 +12,6 @@ function fmt(n: number, decimals = 2): string {
     maximumFractionDigits: decimals,
   })
 }
-
-const TIP_PERCENTAGES: TipPercentage[] = [5, 10, 15, 20, 'custom']
 
 export function TipConfigurator({
   uid,

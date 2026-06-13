@@ -13,6 +13,10 @@ import {
 } from '@/components/ui/table'
 import { CheckIcon, CopyIcon } from '@/components/icons'
 
+import { RateConversion } from '@/hooks/useBillSplitter'
+import { Rates } from '@/constants/rates'
+import { CurrencyId } from '@/constants/currencies'
+
 /* ─── Formatting helpers ─── */
 function fmt(n: number, decimals = 2): string {
   return n.toLocaleString('es-VE', {
@@ -27,25 +31,37 @@ export function SummaryTable({
   rawTotal,
   tipValue,
   ivaValue,
+  igtfValue,
   grandTotal,
   tipIncluded,
   ivaIncluded,
+  igtfIncluded,
   uid,
   handleCopy,
   copied,
+  currency,
+  rates,
+  buildConversions,
 }: {
-  breakdowns: { id: string; name: string; subtotal: number; tipShare: number; ivaShare: number; total: number }[]
+  breakdowns: { id: string; name: string; subtotal: number; tipShare: number; ivaShare: number; igtfShare: number; total: number }[]
   symbol: string
   rawTotal: number
   tipValue: number
   ivaValue: number
+  igtfValue: number
   grandTotal: number
   tipIncluded: boolean
   ivaIncluded: boolean
+  igtfIncluded: boolean
   uid: string
   handleCopy: () => void
   copied: boolean
+  currency: CurrencyId
+  rates: Rates
+  buildConversions: (total: number, currency: CurrencyId, rates: Rates) => RateConversion[]
 }) {
+  const showIgtf = igtfIncluded && (currency === 'USD' || currency === 'EUR')
+
   return (
     <div className="flex flex-col gap-3 animate-in fade-in slide-in-from-bottom-4 duration-400">
       <div className="flex items-center justify-between">
@@ -74,6 +90,11 @@ export function SummaryTable({
                   IVA
                 </TableHead>
               )}
+              {showIgtf && (
+                <TableHead className="font-black text-xs uppercase tracking-wider text-foreground text-right">
+                  IGTF
+                </TableHead>
+              )}
               <TableHead className="font-black text-xs uppercase tracking-wider text-primary text-right pr-4">
                 Total
               </TableHead>
@@ -81,36 +102,55 @@ export function SummaryTable({
           </TableHeader>
 
           <TableBody>
-            {breakdowns.map((p) => (
-              <TableRow key={p.id}>
-                <TableCell className="pl-4">
-                  <div className="flex items-center gap-2">
-                    <div className="w-6 h-6 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center shrink-0">
-                      <span className="text-[10px] font-black text-primary uppercase">
-                        {p.name.charAt(0)}
-                      </span>
+            {breakdowns.map((p) => {
+              const pConversions = buildConversions(p.total, currency, rates)
+              return (
+                <TableRow key={p.id}>
+                  <TableCell className="pl-4">
+                    <div className="flex items-center gap-2">
+                      <div className="w-6 h-6 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center shrink-0">
+                        <span className="text-[10px] font-black text-primary uppercase">
+                          {p.name.charAt(0)}
+                        </span>
+                      </div>
+                      <span className="font-semibold text-sm truncate max-w-20">{p.name}</span>
                     </div>
-                    <span className="font-semibold text-sm truncate max-w-[80px]">{p.name}</span>
-                  </div>
-                </TableCell>
-                <TableCell className="text-right font-mono text-sm">
-                  {symbol}{fmt(p.subtotal)}
-                </TableCell>
-                {!tipIncluded && tipValue > 0 && (
-                  <TableCell className="text-right font-mono text-sm text-muted-foreground">
-                    {symbol}{fmt(p.tipShare)}
                   </TableCell>
-                )}
-                {!ivaIncluded && (
-                  <TableCell className="text-right font-mono text-sm text-muted-foreground">
-                    {symbol}{fmt(p.ivaShare)}
+                  <TableCell className="text-right font-mono text-sm">
+                    {symbol}{fmt(p.subtotal)}
                   </TableCell>
-                )}
-                <TableCell className="text-right font-mono font-black text-sm text-primary pr-4">
-                  {symbol}{fmt(p.total)}
-                </TableCell>
-              </TableRow>
-            ))}
+                  {!tipIncluded && tipValue > 0 && (
+                    <TableCell className="text-right font-mono text-sm text-muted-foreground">
+                      {symbol}{fmt(p.tipShare)}
+                    </TableCell>
+                  )}
+                  {!ivaIncluded && (
+                    <TableCell className="text-right font-mono text-sm text-muted-foreground">
+                      {symbol}{fmt(p.ivaShare)}
+                    </TableCell>
+                  )}
+                  {showIgtf && (
+                    <TableCell className="text-right font-mono text-sm text-muted-foreground">
+                      {symbol}{fmt(p.igtfShare)}
+                    </TableCell>
+                  )}
+                  <TableCell className="text-right font-mono font-black text-sm text-primary pr-4">
+                    <div className="flex flex-col items-end gap-0.5">
+                      <span>{symbol}{fmt(p.total)}</span>
+                      {pConversions.length > 0 && (
+                        <div className="flex flex-col items-end">
+                          {pConversions.map((c) => (
+                            <span key={c.rateId} className="text-[10px] font-medium text-muted-foreground leading-tight">
+                              {c.symbol}{fmt(c.value)} {c.shortLabel}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </TableCell>
+                </TableRow>
+              )
+            })}
           </TableBody>
 
           <TableFooter>
@@ -129,6 +169,11 @@ export function SummaryTable({
               {!ivaIncluded && (
                 <TableCell className="text-right font-mono font-bold text-sm">
                   {symbol}{fmt(ivaValue)}
+                </TableCell>
+              )}
+              {showIgtf && (
+                <TableCell className="text-right font-mono font-bold text-sm">
+                  {symbol}{fmt(igtfValue)}
                 </TableCell>
               )}
               <TableCell className="text-right font-mono font-black text-sm text-primary pr-4">

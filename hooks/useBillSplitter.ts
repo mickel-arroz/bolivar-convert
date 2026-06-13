@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import { CurrencyId } from '@/constants/currencies'
 import { Rates } from '@/constants/rates'
+import { TAX_RATES, TipPercentage } from '@/constants/config'
 
 /* ─── Types ─── */
 export interface ConsumedItem {
@@ -17,10 +18,8 @@ export interface Person {
   items: ConsumedItem[]
 }
 
+export type SplitMode = 'equal' | 'itemized'
 export type TipMode = 'percentage' | 'amount'
-export type TipPercentage = 5 | 10 | 15 | 20 | 'custom'
-
-export type SplitMode = 'itemized' | 'equal'
 
 export interface BillSplitterState {
   splitMode: SplitMode
@@ -30,6 +29,7 @@ export interface BillSplitterState {
   currency: CurrencyId
   ivaIncluded: boolean
   tipIncluded: boolean
+  igtfIncluded: boolean
   tipMode: TipMode
   tipPercentage: TipPercentage
   customTipPercent: string
@@ -42,6 +42,7 @@ export interface PersonBreakdown {
   subtotal: number
   tipShare: number
   ivaShare: number
+  igtfShare: number
   total: number
 }
 
@@ -63,9 +64,10 @@ const DEFAULT_STATE: BillSplitterState = {
   equalSplitAmount: '',
   equalSplitPeopleCount: '',
   people: [],
-  currency: 'USD',
+  currency: 'VES',
   ivaIncluded: true,
   tipIncluded: true,
+  igtfIncluded: false,
   tipMode: 'percentage',
   tipPercentage: 10,
   customTipPercent: '',
@@ -93,6 +95,8 @@ export function useBillSplitter() {
       const raw = localStorage.getItem(STORAGE_KEY)
       if (raw) {
         const parsed: BillSplitterState = JSON.parse(raw)
+        // Ensure igtfIncluded exists in parsed state for backwards compatibility
+        if (parsed.igtfIncluded === undefined) parsed.igtfIncluded = false;
         // eslint-disable-next-line react-hooks/set-state-in-effect
         setState(parsed)
       }
@@ -127,6 +131,9 @@ export function useBillSplitter() {
 
   const setTipIncluded = useCallback((tipIncluded: boolean) =>
     setState((s) => ({ ...s, tipIncluded })), [])
+
+  const setIgtfIncluded = useCallback((igtfIncluded: boolean) =>
+    setState((s) => ({ ...s, igtfIncluded })), [])
 
   const setTipMode = useCallback((tipMode: TipMode) =>
     setState((s) => ({ ...s, tipMode })), [])
@@ -191,7 +198,7 @@ export function useBillSplitter() {
 
   /* ── Derived calculations ── */
   const calculations = useMemo(() => {
-    const { splitMode, equalSplitAmount, equalSplitPeopleCount, people, ivaIncluded, tipIncluded, tipMode, tipPercentage, customTipPercent, tipAmount } = state
+    const { splitMode, equalSplitAmount, equalSplitPeopleCount, people, currency, ivaIncluded, tipIncluded, igtfIncluded, tipMode, tipPercentage, customTipPercent, tipAmount } = state
 
     const subtotals = people.map((p) => ({
       id: p.id,
@@ -216,11 +223,13 @@ export function useBillSplitter() {
       }
     }
 
-    const totalWithTip = rawTotal + tipValue
-
-    // IVA on (total + tip)
-    const ivaValue = ivaIncluded ? 0 : totalWithTip * 0.16
-    const grandTotal = totalWithTip + ivaValue
+    // IVA on raw total (base)
+    const ivaValue = ivaIncluded ? 0 : rawTotal * TAX_RATES.IVA
+    
+    // IGTF on raw total (base)
+    const igtfValue = (igtfIncluded && (currency === 'USD' || currency === 'EUR')) ? rawTotal * TAX_RATES.IGTF : 0
+    
+    const grandTotal = rawTotal + tipValue + ivaValue + igtfValue;
 
     // Per-person proportional breakdown
     let breakdowns: PersonBreakdown[] = []
@@ -233,15 +242,16 @@ export function useBillSplitter() {
           ? p.subtotal / rawTotal
           : hasPeople ? 1 / people.length : 0
         const personTip = tipValue * proportion
-        const personSubtotalWithTip = p.subtotal + personTip
-        const personIva = ivaIncluded ? 0 : personSubtotalWithTip * 0.16
-        const personTotal = personSubtotalWithTip + personIva
+        const personIva = ivaValue * proportion
+        const personIgtf = igtfValue * proportion
+        const personTotal = p.subtotal + personTip + personIva + personIgtf
         return {
           id: p.id,
           name: p.name,
           subtotal: p.subtotal,
           tipShare: personTip,
           ivaShare: personIva,
+          igtfShare: personIgtf,
           total: personTotal
         }
       })
@@ -250,7 +260,7 @@ export function useBillSplitter() {
       perPersonTotal = grandTotal / pCount
     }
 
-    return { rawTotal, tipValue, ivaValue, grandTotal, breakdowns, perPersonTotal }
+    return { rawTotal, tipValue, ivaValue, igtfValue, grandTotal, breakdowns, perPersonTotal }
   }, [state])
 
   /* ── Rate conversions ── */
@@ -298,13 +308,6 @@ export function useBillSplitter() {
           value: grandTotal * bcvUsd, symbol: 'Bs.'
         })
 
-        const binance = rateNum(rates.binanceUsdAvg)
-        if (binance > 0) result.push({
-          rateId: 'binanceUsdAvg', label: 'Bolívares (Binance P2P)', shortLabel: 'Bs. Binance',
-          colorClass: 'bg-yellow-50/50 dark:bg-yellow-500/10 border-yellow-200/60 dark:border-yellow-500/20',
-          textColor: 'text-yellow-600 dark:text-yellow-500',
-          value: grandTotal * binance, symbol: 'Bs.'
-        })
       } else if (currency === 'EUR') {
         // Show equivalents in Bs.
         const bcvEur = rateNum(rates.bcvEur)
@@ -334,6 +337,7 @@ export function useBillSplitter() {
     setCurrency,
     setIvaIncluded,
     setTipIncluded,
+    setIgtfIncluded,
     setTipMode,
     setTipPercentage,
     setCustomTipPercent,

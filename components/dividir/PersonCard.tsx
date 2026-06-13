@@ -44,15 +44,24 @@ export function PersonCard({
 
   const subtotal = person.items.reduce((sum, it) => sum + parseAmount(it.amount), 0)
 
-  const handleAdd = () => {
+  const handleAdd = (keepFocus = false) => {
     if (!newAmount || parseAmount(newAmount) <= 0) return
     onAddItem(person.id, newTitle, newAmount)
     setNewTitle('')
     setNewAmount('')
+    if (keepFocus) {
+      setTimeout(() => {
+        document.getElementById(`amount-input-${person.id}`)?.focus()
+      }, 0)
+    }
   }
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter') { e.preventDefault(); handleAdd() }
+  }
+
+  const handleAmountKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') { e.preventDefault(); handleAdd(true) }
   }
 
   return (
@@ -130,33 +139,36 @@ export function PersonCard({
       </div>
 
       {/* Add item row */}
-      <div className="px-4 pb-4 pt-2 flex gap-2">
+      <div className="px-4 pb-4 pt-2 flex flex-col sm:flex-row gap-2">
         <Input
           placeholder="Descripción (opcional)"
           value={newTitle}
           onChange={(e) => setNewTitle(e.target.value)}
           onKeyDown={handleKeyDown}
-          className="flex-1 h-12 text-sm bg-background border-2 border-border/50 rounded-xl transition-all focus:outline-none focus:border-primary/50 focus:ring-4 focus:ring-primary/10"
+          className="w-full sm:flex-1 h-12 text-sm bg-background border-2 border-border/50 rounded-xl transition-all focus:outline-none focus:border-primary/50 focus:ring-4 focus:ring-primary/10"
         />
-        <Input
-          placeholder="Monto"
-          type="number"
-          min="0"
-          step="0.01"
-          value={newAmount}
-          onChange={(e) => setNewAmount(e.target.value)}
-          onKeyDown={handleKeyDown}
-          className="w-28 h-12 text-sm font-bold bg-background border-2 border-border/50 rounded-xl transition-all focus:outline-none focus:border-primary/50 focus:ring-4 focus:ring-primary/10"
-        />
-        <Button
-          size="sm"
-          onClick={handleAdd}
-          disabled={!newAmount || parseAmount(newAmount) <= 0}
-          className="h-12 px-4 shrink-0 text-xl font-bold rounded-xl"
-          aria-label="Agregar ítem"
-        >
-          +
-        </Button>
+        <div className="flex gap-2 w-full sm:w-auto justify-end">
+          <Input
+            id={`amount-input-${person.id}`}
+            placeholder="Monto"
+            type="number"
+            min="0"
+            step="0.01"
+            value={newAmount}
+            onChange={(e) => setNewAmount(e.target.value)}
+            onKeyDown={handleAmountKeyDown}
+            className="flex-1 sm:flex-none sm:w-28 h-12 text-sm font-bold bg-background border-2 border-border/50 rounded-xl transition-all focus:outline-none focus:border-primary/50 focus:ring-4 focus:ring-primary/10"
+          />
+          <Button
+            size="sm"
+            onClick={() => handleAdd()}
+            disabled={!newAmount || parseAmount(newAmount) <= 0}
+            className="h-12 px-4 shrink-0 text-xl font-bold rounded-xl"
+            aria-label="Agregar ítem"
+          >
+            +
+          </Button>
+        </div>
       </div>
     </Card>
   )

@@ -1,6 +1,7 @@
 'use client'
 
-import { RefreshIcon } from '@/components/icons'
+import { useState, useEffect } from 'react'
+import { RefreshIcon, TrendingUpIcon } from '@/components/icons'
 import { RateCard } from '@/components/cards/RateCard'
 import { RateDifferenceCard } from '@/components/cards/RateDifferenceCard'
 import { RateCardSkeleton } from '@/components/cards/RateCardSkeleton'
@@ -13,6 +14,51 @@ import { PageHeader } from '@/components/PageHeader'
 
 export function Dashboard() {
   const { rates, loading, isStale, error, fetchRates, formatLastUpdate } = useRates()
+  const [historyData, setHistoryData] = useState<any[]>([])
+
+  useEffect(() => {
+    fetch('/api/history').then(res => res.json()).then(data => {
+      if (Array.isArray(data)) {
+        const sorted = data.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+        setHistoryData(sorted)
+      }
+    }).catch(console.error)
+  }, [])
+
+  const getPreviousRate = (id: string) => {
+    if (!historyData.length) return null
+    const currentVal = parseFloat(rates[id as keyof Rates] as string)
+    if (isNaN(currentVal)) return null
+
+    const todayStr = new Date().toISOString().split('T')[0]
+    const prevItem = historyData.find(item => item.date < todayStr) || historyData[1]
+    
+    if (prevItem && prevItem[id]) {
+      return parseFloat(prevItem[id])
+    }
+    return null
+  }
+
+  const renderBadge = (id: string) => {
+    const prev = getPreviousRate(id)
+    if (prev === null) return null
+
+    const currentVal = parseFloat(rates[id as keyof Rates] as string)
+    if (isNaN(currentVal)) return null
+
+    const diff = currentVal - prev
+    if (Math.abs(diff) < 0.001) return null
+
+    const percent = (Math.abs(diff) / prev) * 100
+    const isUp = diff > 0
+
+    return (
+      <div className={cn("flex items-center gap-1 text-[11px] font-bold mt-1", isUp ? "text-green-500" : "text-red-500")}>
+        <TrendingUpIcon className={cn("w-3 h-3", !isUp && "rotate-180")} />
+        <span>{percent.toFixed(2)}%</span>
+      </div>
+    )
+  }
 
   return (
     <div className="flex flex-col gap-10 pb-8 animate-in fade-in zoom-in-95 duration-500">
@@ -42,6 +88,7 @@ export function Dashboard() {
               rate={rates[card.id as keyof Rates] || '---'}
               colorClass={card.colorClass}
               badge={card.badge}
+              percentageBadge={renderBadge(card.id)}
               className={card.className}
             />
           ))

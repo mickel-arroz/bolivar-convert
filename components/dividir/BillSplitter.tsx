@@ -4,6 +4,7 @@ import { useState, useId } from 'react'
 import { useBillSplitter } from '@/hooks/useBillSplitter'
 import { useRates } from '@/hooks/useRates'
 import { CURRENCIES, getCurrency } from '@/constants/currencies'
+import { TAX_RATES } from '@/constants/config'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -62,6 +63,7 @@ export function BillSplitter() {
     setEqualSplitAmount,
     setEqualSplitPeopleCount,
     setTipMode,
+    setIgtfIncluded,
   } = useBillSplitter()
 
   const [newPersonName, setNewPersonName] = useState('')
@@ -69,8 +71,8 @@ export function BillSplitter() {
 
   if (!isMounted) return null
 
-  const { splitMode, equalSplitAmount, equalSplitPeopleCount, people, currency, ivaIncluded, tipIncluded, tipMode, tipPercentage, customTipPercent, tipAmount } = state
-  const { rawTotal, tipValue, ivaValue, grandTotal, breakdowns, perPersonTotal } = calculations
+  const { splitMode, equalSplitAmount, equalSplitPeopleCount, people, currency, ivaIncluded, tipIncluded, igtfIncluded, tipMode, tipPercentage, customTipPercent, tipAmount } = state
+  const { rawTotal, tipValue, ivaValue, igtfValue, grandTotal, breakdowns, perPersonTotal } = calculations
   const currencyMeta = getCurrency(currency)
   const symbol = currencyMeta.symbol
 
@@ -97,6 +99,7 @@ export function BillSplitter() {
     const lines: string[] = []
     const showTip = !tipIncluded && tipValue > 0
     const showIva = !ivaIncluded
+    const showIgtf = igtfIncluded && (currency === 'USD' || currency === 'EUR')
 
     const now = new Date()
     const dateStr = now.toLocaleDateString('es-VE', { day: '2-digit', month: '2-digit', year: 'numeric' })
@@ -135,10 +138,20 @@ export function BillSplitter() {
           lines.push(`  Propina              +${symbol}${fmt(breakdown.tipShare)}`)
         }
         if (showIva && breakdown.ivaShare > 0) {
-          lines.push(`  IVA (16%)            +${symbol}${fmt(breakdown.ivaShare)}`)
+          lines.push(`  IVA (${TAX_RATES.IVA * 100}%)            +${symbol}${fmt(breakdown.ivaShare)}`)
+        }
+        if (showIgtf && breakdown.igtfShare > 0) {
+          lines.push(`  IGTF (${TAX_RATES.IGTF * 100}%)            +${symbol}${fmt(breakdown.igtfShare)}`)
         }
         lines.push(`  ─────────────────────────`)
         lines.push(`  Total a pagar        ${symbol}${fmt(breakdown.total)}`)
+
+        const pConversions = buildConversions(breakdown.total, currency, rates)
+        if (pConversions.length > 0) {
+          pConversions.forEach((c) => {
+            lines.push(`    ${c.shortLabel.padEnd(14)} : ${c.symbol}${fmt(c.value)}`)
+          })
+        }
       })
     } else {
       const pCount = Math.max(1, parseInt(equalSplitPeopleCount) || 1)
@@ -152,11 +165,19 @@ export function BillSplitter() {
     lines.push('============================')
     if (showTip) lines.push(`Propina total  : ${symbol}${fmt(tipValue)}`)
     if (showIva)  lines.push(`IVA total      : ${symbol}${fmt(ivaValue)}`)
+    if (showIgtf) lines.push(`IGTF total     : ${symbol}${fmt(igtfValue)}`)
     lines.push(`GRAN TOTAL     : ${symbol}${fmt(grandTotal)}`)
 
     if (splitMode === 'equal') {
       lines.push('----------------------------')
       lines.push(`CADA UNO PAGA  : ${symbol}${fmt(perPersonTotal!)}`)
+
+      const eqConversions = buildConversions(perPersonTotal!, currency, rates)
+      if (eqConversions.length > 0) {
+        eqConversions.forEach((c) => {
+          lines.push(`  ${c.shortLabel.padEnd(14)} : ${c.symbol}${fmt(c.value)}`)
+        })
+      }
     }
 
     if (conversions.length > 0) {
@@ -263,23 +284,25 @@ export function BillSplitter() {
       {splitMode === 'itemized' && (
         <>
           {/* ── Add person ── */}
-          <div className="flex gap-3">
+          <div className="flex flex-col sm:flex-row gap-3">
             <Input
               id={`${uid}-new-person`}
               placeholder="Nombre de la persona…"
               value={newPersonName}
               onChange={(e) => setNewPersonName(e.target.value)}
               onKeyDown={handlePersonKeyDown}
-              className="flex-1 h-14 text-lg bg-background border-2 border-border/50 rounded-2xl transition-all focus:outline-none focus:border-primary/50 focus:ring-4 focus:ring-primary/10"
+              className="w-full sm:flex-1 h-14 text-lg bg-background border-2 border-border/50 rounded-2xl transition-all focus:outline-none focus:border-primary/50 focus:ring-4 focus:ring-primary/10"
             />
-            <Button
-              id={`${uid}-add-person`}
-              onClick={handleAddPerson}
-              disabled={!newPersonName.trim()}
-              className="h-14 px-6 font-bold rounded-2xl shadow-md text-base"
-            >
-              + Agregar
-            </Button>
+            <div className="flex justify-end w-full sm:w-auto">
+              <Button
+                id={`${uid}-add-person`}
+                onClick={handleAddPerson}
+                disabled={!newPersonName.trim()}
+                className="h-14 px-6 font-bold rounded-2xl shadow-md text-base shrink-0"
+              >
+                + Agregar
+              </Button>
+            </div>
           </div>
 
           {people.length === 0 && (
@@ -357,8 +380,18 @@ export function BillSplitter() {
             checked={ivaIncluded}
             onChange={setIvaIncluded}
             label="Los precios ya incluyen IVA"
-            description="Si se desactiva, se sumará el 16% al total"
+            description={`Si se desactiva, se sumará el ${TAX_RATES.IVA * 100}% al total`}
           />
+
+          {(currency === 'USD' || currency === 'EUR') && (
+            <ToggleRow
+              id={`${uid}-igtf`}
+              checked={igtfIncluded}
+              onChange={setIgtfIncluded}
+              label={`Cobrar IGTF (${TAX_RATES.IGTF * 100}%)`}
+              description={`Si se activa, se sumará el ${TAX_RATES.IGTF * 100}% de IGTF al monto base`}
+            />
+          )}
 
           <ToggleRow
             id={`${uid}-tip`}
@@ -397,8 +430,10 @@ export function BillSplitter() {
           currency={currency}
           tipIncluded={tipIncluded}
           ivaIncluded={ivaIncluded}
+          igtfIncluded={igtfIncluded}
           tipValue={tipValue}
           ivaValue={ivaValue}
+          igtfValue={igtfValue}
           rawTotal={rawTotal}
           grandTotal={grandTotal}
           conversions={conversions}
@@ -416,12 +451,17 @@ export function BillSplitter() {
           rawTotal={rawTotal}
           tipValue={tipValue}
           ivaValue={ivaValue}
+          igtfValue={igtfValue}
           grandTotal={grandTotal}
           tipIncluded={tipIncluded}
           ivaIncluded={ivaIncluded}
+          igtfIncluded={igtfIncluded}
           uid={uid}
           handleCopy={handleCopy}
           copied={copied}
+          currency={currency}
+          rates={rates}
+          buildConversions={buildConversions}
         />
       )}
     </div>

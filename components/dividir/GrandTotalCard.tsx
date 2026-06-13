@@ -6,6 +6,7 @@ import { CheckIcon, CopyIcon, DollarIcon, EuroIcon, BinanceIcon } from '@/compon
 import { InlineCopy } from '@/components/dividir/InlineCopy'
 import { cn } from '@/lib/utils'
 import type { RateConversion, SplitMode } from '@/hooks/useBillSplitter'
+import { TAX_RATES } from '@/constants/config'
 
 /* ─── Formatting helpers ─── */
 function fmt(n: number, decimals = 2): string {
@@ -23,8 +24,10 @@ export function GrandTotalCard({
   currency,
   tipIncluded,
   ivaIncluded,
+  igtfIncluded,
   tipValue,
   ivaValue,
+  igtfValue,
   rawTotal,
   grandTotal,
   conversions,
@@ -39,8 +42,10 @@ export function GrandTotalCard({
   currency: string
   tipIncluded: boolean
   ivaIncluded: boolean
+  igtfIncluded: boolean
   tipValue: number
   ivaValue: number
+  igtfValue: number
   rawTotal: number
   grandTotal: number
   conversions: RateConversion[]
@@ -48,11 +53,13 @@ export function GrandTotalCard({
   copied: boolean
   uid: string
 }) {
+  const showIgtf = igtfIncluded && (currency === 'USD' || currency === 'EUR')
+
   return (
     <Card className="border-primary/20 bg-primary/5 backdrop-blur-sm shadow-xl dark:shadow-2xl py-0 animate-in fade-in duration-300">
       <CardContent className="px-5 py-6 flex flex-col gap-4">
         {/* Breakdown lines */}
-        {(!tipIncluded && tipValue > 0) || !ivaIncluded ? (
+        {(!tipIncluded && tipValue > 0) || !ivaIncluded || showIgtf ? (
           <div className="flex flex-col gap-1 text-sm text-muted-foreground">
             <div className="flex items-center justify-between">
               <span>Subtotal</span>
@@ -66,8 +73,14 @@ export function GrandTotalCard({
             )}
             {!ivaIncluded && (
               <div className="flex items-center justify-between">
-                <span>IVA (16%)</span>
+                <span>IVA ({TAX_RATES.IVA * 100}%)</span>
                 <span className="font-mono">+ {symbol}{fmt(ivaValue)}</span>
+              </div>
+            )}
+            {showIgtf && (
+              <div className="flex items-center justify-between">
+                <span>IGTF ({TAX_RATES.IGTF * 100}%)</span>
+                <span className="font-mono">+ {symbol}{fmt(igtfValue)}</span>
               </div>
             )}
           </div>

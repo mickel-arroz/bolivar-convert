@@ -20,6 +20,7 @@ describe('BillSplitter Component', () => {
       rates: mockRates,
       loading: false,
       isStale: false,
+      isOffline: false,
       error: false,
       fetchRates: vi.fn(),
       formatLastUpdate: (d: string) => d

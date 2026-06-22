@@ -1,7 +1,8 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { Rates } from '@/constants/rates'
+import { useOnlineStatus } from '@/hooks/useOnlineStatus'
 
 const CACHE_KEY = 'bolivar_rates_cache'
 
@@ -12,16 +13,41 @@ export function useRates() {
   const [loading, setLoading] = useState(true)
   const [isStale, setIsStale] = useState(false)
   const [error, setError] = useState(false)
+  const isOnline = useOnlineStatus()
+  const isStaleRef = useRef(isStale)
+
+  useEffect(() => {
+    isStaleRef.current = isStale
+  }, [isStale])
+
+  const loadFromCache = useCallback(() => {
+    const cached = localStorage.getItem(CACHE_KEY)
+    if (cached) {
+      try {
+        const { rates: cachedRates } = JSON.parse(cached)
+        setRates(cachedRates)
+      } catch (e) {
+        console.error('Error parsing cache', e)
+      }
+    }
+  }, [])
 
   const fetchRates = useCallback(async () => {
+    if (!isOnline) {
+      loadFromCache()
+      setIsStale(true)
+      setLoading(false)
+      return
+    }
+
     setLoading(true)
     setError(false)
     try {
       const response = await fetch('/api/rates')
       if (!response.ok) throw new Error('Failed to fetch')
-      
+
       const data = await response.json()
-      
+
       const newRates: Rates = {
         bcvUsd: data.bcvUsd ? parseFloat(data.bcvUsd).toFixed(2) : '---',
         bcvEur: data.bcvEur ? parseFloat(data.bcvEur).toFixed(2) : '---',
@@ -37,10 +63,11 @@ export function useRates() {
         rates: newRates,
         lastFetch: Date.now()
       }))
+      window.dispatchEvent(new Event('rates-updated'))
     } catch (err) {
       console.error('Error fetching rates:', err)
       setError(true)
-      
+
       // Si falla, intentar usar lo que hay en cache aunque sea viejo
       const cached = localStorage.getItem(CACHE_KEY)
       if (cached) {
@@ -51,8 +78,9 @@ export function useRates() {
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [isOnline, loadFromCache])
 
+  // Inicialización: cargar caché o hacer fetch
   useEffect(() => {
     const initializeDashboard = () => {
       const cached = localStorage.getItem(CACHE_KEY)
@@ -62,7 +90,7 @@ export function useRates() {
       if (cached) {
         try {
           const { rates: cachedRates, lastFetch } = JSON.parse(cached)
-          
+
           // Verificar si han pasado menos de 2 horas desde el último fetch
           if (lastFetch && (now - lastFetch) < TWO_HOURS_MS) {
             setRates(cachedRates)
@@ -78,12 +106,20 @@ export function useRates() {
           console.error('Error parsing cache', e)
         }
       }
-      
+
       fetchRates()
     }
 
     initializeDashboard()
-  }, [fetchRates])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // Auto-refresh cuando se recupera la conexión y los datos están desactualizados
+  useEffect(() => {
+    if (isOnline && isStaleRef.current) {
+      fetchRates()
+    }
+  }, [isOnline, fetchRates])
 
   const formatLastUpdate = useCallback((lastUpdate: string) => {
     if (lastUpdate === '---') return '---'
@@ -107,6 +143,7 @@ export function useRates() {
     rates,
     loading,
     isStale,
+    isOffline: !isOnline,
     error,
     fetchRates,
     formatLastUpdate

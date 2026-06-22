@@ -1,20 +1,20 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { RefreshIcon, TrendingUpIcon } from '@/components/icons'
+import { RefreshIcon, TrendingUpIcon, WifiOffIcon } from '@/components/icons'
 import { RateCard } from '@/components/cards/RateCard'
 import { RateDifferenceCard } from '@/components/cards/RateDifferenceCard'
 import { RateCardSkeleton } from '@/components/cards/RateCardSkeleton'
 import { RateDifferenceSkeleton } from '@/components/cards/RateDifferenceSkeleton'
 import { cn } from '@/lib/utils'
 import { RATE_CARDS_CONFIG, Rates } from '@/constants/rates'
+import { HistoryEntry } from '@/components/historial/types'
 import { useRates } from '@/hooks/useRates'
-import { LastUpdateBadge } from '@/components/LastUpdateBadge'
 import { PageHeader } from '@/components/PageHeader'
 
 export function Dashboard() {
-  const { rates, loading, isStale, error, fetchRates, formatLastUpdate } = useRates()
-  const [historyData, setHistoryData] = useState<any[]>([])
+  const { rates, loading, isStale, isOffline, error, fetchRates } = useRates()
+  const [historyData, setHistoryData] = useState<HistoryEntry[]>([])
 
   useEffect(() => {
     fetch('/api/history').then(res => res.json()).then(data => {
@@ -33,8 +33,8 @@ export function Dashboard() {
     const todayStr = new Date().toISOString().split('T')[0]
     const prevItem = historyData.find(item => item.date < todayStr) || historyData[1]
     
-    if (prevItem && prevItem[id]) {
-      return parseFloat(prevItem[id])
+    if (prevItem && prevItem[id] != null) {
+      return parseFloat(String(prevItem[id]))
     }
     return null
   }
@@ -66,15 +66,7 @@ export function Dashboard() {
       <PageHeader
         title="El valor del Bolívar, preciso y al instante."
         titleClassName="text-4xl md:text-6xl font-extrabold tracking-tight"
-        badge={
-          <LastUpdateBadge
-            lastUpdate={rates.lastUpdate}
-            isStale={isStale}
-            formattedDate={formatLastUpdate(rates.lastUpdate)}
-            className="mb-4"
-          />
-        }
-        className="pt-8 md:pt-12"
+        className="pt-4 md:pt-6"
       />
 
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3 w-full max-w-6xl mx-auto">
@@ -110,14 +102,21 @@ export function Dashboard() {
 
         <div className="flex flex-col items-center gap-4">
           {(isStale || error) && (
-            <button
-              onClick={() => fetchRates()}
-              disabled={loading}
-              className="flex items-center gap-2 text-sm font-medium text-primary hover:underline disabled:opacity-50 disabled:no-underline"
-            >
-              <RefreshIcon className={cn("w-4 h-4", loading && "animate-spin")} />
-              {loading ? 'Actualizando...' : 'Reintentar actualización'}
-            </button>
+            isOffline ? (
+              <span className="flex items-center gap-2 text-sm font-medium text-amber-600 dark:text-amber-400">
+                <WifiOffIcon className="w-4 h-4" />
+                Sin conexión · Mostrando datos guardados
+              </span>
+            ) : (
+              <button
+                onClick={() => fetchRates()}
+                disabled={loading}
+                className="flex items-center gap-2 text-sm font-medium text-primary hover:underline disabled:opacity-50 disabled:no-underline"
+              >
+                <RefreshIcon className={cn("w-4 h-4", loading && "animate-spin")} />
+                {loading ? 'Actualizando...' : 'Reintentar actualización'}
+              </button>
+            )
           )}
         </div>
       </div>

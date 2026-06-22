@@ -13,7 +13,6 @@ import {
   CheckIcon,
   CopyIcon
 } from '@/components/icons'
-import { LastUpdateBadge } from '@/components/LastUpdateBadge'
 import { PageHeader } from '@/components/PageHeader'
 
 const STORAGE_KEY = 'bolivar_convert_prefs'
@@ -27,7 +26,7 @@ interface ConvertPrefs {
 }
 
 export function ConvertForm() {
-  const { rates, isStale, formatLastUpdate } = useRates()
+  const { rates } = useRates()
   
   const [isMounted, setIsMounted] = useState(false)
   const [formData, setFormData] = useState<ConvertPrefs>({
@@ -93,13 +92,6 @@ export function ConvertForm() {
       <PageHeader
         title="Calculadora Dinámica"
         description="Ingresa un monto y obtén su valor convertido instantáneamente en todas las tasas del sistema."
-        badge={
-          <LastUpdateBadge
-            lastUpdate={rates.lastUpdate}
-            isStale={isStale}
-            formattedDate={formatLastUpdate(rates.lastUpdate)}
-          />
-        }
       />
 
       {/* Input Section */}

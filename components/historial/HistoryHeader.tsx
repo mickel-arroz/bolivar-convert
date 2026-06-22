@@ -1,23 +1,10 @@
-'use client'
-
 import { PageHeader } from '@/components/PageHeader'
-import { LastUpdateBadge } from '@/components/LastUpdateBadge'
-import { useRates } from '@/hooks/useRates'
 
 export function HistoryHeader() {
-  const { rates, isStale, formatLastUpdate } = useRates()
-
   return (
     <PageHeader
       title="Historial de Tasas"
       description="Visualiza la evolución de los tipos de cambio en el tiempo."
-      badge={
-        <LastUpdateBadge
-          lastUpdate={rates.lastUpdate}
-          isStale={isStale}
-          formattedDate={formatLastUpdate(rates.lastUpdate)}
-        />
-      }
     />
   )
 }

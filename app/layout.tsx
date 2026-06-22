@@ -8,6 +8,7 @@ import { MobileNav } from '@/components/navbar/MobileNav'
 import { ThemeProvider } from '@/components/theme-provider'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { RedirectGuard } from '@/components/RedirectGuard'
+import { OfflineBanner } from '@/components/OfflineBanner'
 import { Analytics } from "@vercel/analytics/next"
 import { SpeedInsights } from "@vercel/speed-insights/next"
 
@@ -80,8 +81,11 @@ export default function RootLayout({
           <TooltipProvider>
             <RedirectGuard>
               <Header />
-              <main className="flex-1 w-full max-w-7xl py-6 px-4 md:px-6 md:py-10">
-                {children}
+              <main className="flex-1 w-full pt-[4.5rem]">
+                <OfflineBanner />
+                <div className="max-w-7xl mx-auto py-6 px-4 md:px-6 md:py-10">
+                  {children}
+                </div>
               </main>
               <Footer />
               <MobileNav />

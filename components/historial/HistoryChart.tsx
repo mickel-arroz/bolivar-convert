@@ -4,6 +4,7 @@ import {
   XAxis,
   YAxis,
   CartesianGrid,
+  ReferenceLine,
 } from 'recharts'
 import {
   ChartConfig,
@@ -19,6 +20,8 @@ interface HistoryChartProps {
   chartConfig: ChartConfig
   activeLines: string[]
   availableRateKeys: string[]
+  selectedDate: string | null
+  onSelectDate: (date: string) => void
 }
 
 export function HistoryChart({
@@ -26,6 +29,8 @@ export function HistoryChart({
   chartConfig,
   activeLines,
   availableRateKeys,
+  selectedDate,
+  onSelectDate,
 }: HistoryChartProps) {
   if (data.length === 0) {
     return (
@@ -41,6 +46,11 @@ export function HistoryChart({
       <LineChart
         data={data}
         margin={{ left: 0, right: 12, top: 10, bottom: 10 }}
+        onClick={(state) => {
+          const label = state?.activeLabel
+          if (label) onSelectDate(String(label))
+        }}
+        className="cursor-pointer"
       >
         <CartesianGrid vertical={false} strokeDasharray="3 3" className="stroke-muted/50" />
         <XAxis
@@ -70,6 +80,14 @@ export function HistoryChart({
           cursor={{ stroke: 'var(--border)', strokeWidth: 1 }}
           content={<ChartTooltipContent indicator="dot" />}
         />
+        {selectedDate && (
+          <ReferenceLine
+            x={selectedDate}
+            stroke="var(--foreground)"
+            strokeOpacity={0.4}
+            strokeDasharray="4 4"
+          />
+        )}
         {availableRateKeys.map((key) => (
           activeLines.includes(key) && (
             <Line

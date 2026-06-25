@@ -1,5 +1,6 @@
 export * from './HistoryHeader'
 export * from './HistoryChart'
 export * from './HistoryVisibility'
+export * from './HistoryComparativa'
 export * from './HistoryRangeSelector'
 export * from './types'

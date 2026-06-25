@@ -16,8 +16,9 @@ import { VisibilitySkeleton } from '@/components/historial/VisibilitySkeleton'
 import {
   HistoryHeader,
  
-  HistoryChart, 
-  HistoryVisibility, 
+  HistoryChart,
+  HistoryVisibility,
+  HistoryComparativa,
   HistoryRangeSelector,
   HistoryEntry,
   TimeRange,
@@ -62,6 +63,7 @@ export default function HistoryPage() {
   
   const [range, setRange] = useState<TimeRange>('7d')
   const [activeLines, setActiveLines] = useState<string[]>(['bcvUsd'])
+  const [selectedDate, setSelectedDate] = useState<string | null>(null)
 
   // Handle hydration and load initial prefs
   useEffect(() => {
@@ -171,6 +173,15 @@ export default function HistoryPage() {
     })
   }
 
+  const handleSelectDate = (date: string) => {
+    setSelectedDate(prev => (prev === date ? null : date))
+  }
+
+  const handleRangeChange = (newRange: TimeRange) => {
+    setRange(newRange)
+    setSelectedDate(null)
+  }
+
   return (
     <div className="flex flex-col gap-8 py-4 animate-in fade-in duration-500">
       <HistoryHeader />
@@ -184,17 +195,19 @@ export default function HistoryPage() {
                 Bs. por divisa según fecha de valor.
               </CardDescription>
             </div>
-            <HistoryRangeSelector range={range} onRangeChange={setRange} />
+            <HistoryRangeSelector range={range} onRangeChange={handleRangeChange} />
           </CardHeader>
           <CardContent className="flex-1 pb-4">
             {loading ? (
               <ChartSkeleton />
             ) : (
-              <HistoryChart 
+              <HistoryChart
                 data={filteredData}
                 chartConfig={chartConfig}
                 activeLines={activeLines}
                 availableRateKeys={availableRateKeys}
+                selectedDate={selectedDate}
+                onSelectDate={handleSelectDate}
               />
             )}
           </CardContent>
@@ -204,14 +217,26 @@ export default function HistoryPage() {
           {loading ? (
             <VisibilitySkeleton />
           ) : (
-            <HistoryVisibility 
+            <HistoryVisibility
               availableRateKeys={availableRateKeys}
               activeLines={activeLines}
               rateMetadata={HISTORY_RATE_METADATA}
               onToggleLine={toggleLine}
             />
           )}
-          
+
+          {!loading && filteredData.length > 0 && (
+            <HistoryComparativa
+              data={filteredData}
+              activeLines={activeLines}
+              availableRateKeys={availableRateKeys}
+              rateMetadata={HISTORY_RATE_METADATA}
+              range={range}
+              selectedDate={selectedDate}
+              onClearSelection={() => setSelectedDate(null)}
+            />
+          )}
+
           <div className="p-4 rounded-xl border border-dashed border-border/50 text-xs text-muted-foreground bg-muted/5">
             <p>
               El historial se genera automáticamente cada vez que el BCV actualiza su tasa oficial.

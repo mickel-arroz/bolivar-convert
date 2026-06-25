@@ -11,9 +11,10 @@ import { RATE_CARDS_CONFIG, Rates } from '@/constants/rates'
 import { HistoryEntry } from '@/components/historial/types'
 import { useRates } from '@/hooks/useRates'
 import { PageHeader } from '@/components/PageHeader'
+import { LastUpdateBadge } from '@/components/LastUpdateBadge'
 
 export function Dashboard() {
-  const { rates, loading, isStale, isOffline, error, fetchRates } = useRates()
+  const { rates, loading, isStale, isOffline, error, fetchRates, formatLastUpdate } = useRates()
   const [historyData, setHistoryData] = useState<HistoryEntry[]>([])
 
   useEffect(() => {
@@ -67,6 +68,15 @@ export function Dashboard() {
         title="El valor del Bolívar, preciso y al instante."
         titleClassName="text-4xl md:text-6xl font-extrabold tracking-tight"
         className="pt-4 md:pt-6"
+        badge={
+          rates.lastUpdate !== '---' && !isStale && !isOffline ? (
+            <LastUpdateBadge
+              lastUpdate={rates.lastUpdate}
+              isStale={false}
+              formattedDate={formatLastUpdate(rates.lastUpdate)}
+            />
+          ) : undefined
+        }
       />
 
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3 w-full max-w-6xl mx-auto">

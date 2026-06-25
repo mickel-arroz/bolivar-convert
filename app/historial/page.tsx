@@ -183,7 +183,7 @@ export default function HistoryPage() {
   }
 
   return (
-    <div className="flex flex-col gap-8 py-4 animate-in fade-in duration-500">
+    <div className="flex flex-col gap-8 pb-4 -mt-3 md:-mt-5 animate-in fade-in duration-500">
       <HistoryHeader />
 
       <div className="grid gap-6 lg:grid-cols-[1fr_300px]">

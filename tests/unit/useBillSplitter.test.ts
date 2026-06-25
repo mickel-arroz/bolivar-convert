@@ -1,7 +1,6 @@
 import { renderHook, act } from '@testing-library/react'
 import { useBillSplitter } from '@/hooks/useBillSplitter'
 import { describe, it, expect, beforeEach } from 'vitest'
-import { TAX_RATES } from '@/constants/config'
 
 describe('useBillSplitter Hook', () => {
   beforeEach(() => {

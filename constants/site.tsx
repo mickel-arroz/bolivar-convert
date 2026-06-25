@@ -1,4 +1,4 @@
-import { TrendingUpIcon, GithubIcon, UserIcon, ClockIcon, CalculatorIcon, SplitIcon } from '@/components/icons'
+import { TrendingUpIcon, GithubIcon, UserIcon, ClockIcon, CalculatorIcon, SplitIcon, WalletIcon } from '@/components/icons'
 
 export const SITE_CONFIG = {
   name: 'Bolívar Convert',
@@ -33,6 +33,12 @@ export const NAV_ITEMS = [
     shortLabel: 'Dividir',
     href: '/dividir',
     icon: <SplitIcon className="w-5 h-5" />
+  },
+  {
+    label: 'Billetera',
+    shortLabel: 'Billetera',
+    href: '/billetera',
+    icon: <WalletIcon className="w-5 h-5" />
   }
 ]
 

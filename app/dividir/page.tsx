@@ -10,10 +10,11 @@ export const metadata: Metadata = {
 
 export default function DividirPage() {
   return (
-    <div className="container mx-auto px-4 py-8 md:py-12">
-      <DividirHeader />
-
-      <BillSplitter />
+    <div className="container mx-auto px-4 pb-8 md:pb-12 -mt-3 md:-mt-5">
+      <div className="flex flex-col gap-8">
+        <DividirHeader />
+        <BillSplitter />
+      </div>
     </div>
   )
 }

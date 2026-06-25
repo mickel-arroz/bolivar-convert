@@ -1,8 +1,8 @@
-import { PageHeader } from '@/components/PageHeader'
+import { SectionHeader } from '@/components/SectionHeader'
 
 export function HistoryHeader() {
   return (
-    <PageHeader
+    <SectionHeader
       title="Historial de Tasas"
       description="Visualiza la evolución de los tipos de cambio en el tiempo."
     />

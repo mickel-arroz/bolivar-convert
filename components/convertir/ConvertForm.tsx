@@ -13,7 +13,7 @@ import {
   CheckIcon,
   CopyIcon
 } from '@/components/icons'
-import { PageHeader } from '@/components/PageHeader'
+import { SectionHeader } from '@/components/SectionHeader'
 
 const STORAGE_KEY = 'bolivar_convert_prefs'
 
@@ -87,9 +87,9 @@ export function ConvertForm() {
   const handleCustomRateChange = (val: string) => setFormData(prev => ({ ...prev, customRate: val }))
 
   return (
-    <div className="flex flex-col gap-6 max-w-4xl mx-auto w-full animate-in fade-in slide-in-from-bottom-4 duration-700">
+    <div className="flex flex-col gap-8 max-w-4xl mx-auto w-full animate-in fade-in slide-in-from-bottom-4 duration-700">
       {/* Header Info */}
-      <PageHeader
+      <SectionHeader
         title="Calculadora Dinámica"
         description="Ingresa un monto y obtén su valor convertido instantáneamente en todas las tasas del sistema."
       />

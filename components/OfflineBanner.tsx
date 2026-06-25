@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { WifiOffIcon, ClockIcon, AlertIcon } from '@/components/icons'
+import { WifiOffIcon, AlertIcon } from '@/components/icons'
 import { useOnlineStatus } from '@/hooks/useOnlineStatus'
 
 const CACHE_KEY = 'bolivar_rates_cache'
@@ -99,15 +99,7 @@ export function OfflineBanner() {
     )
   }
 
-  return (
-    <div
-      role="status"
-      className="w-full border-b border-border/30 px-4 py-2"
-    >
-      <div className="max-w-7xl mx-auto flex items-center justify-center gap-2 text-xs text-muted-foreground">
-        <ClockIcon className="w-3.5 h-3.5 text-primary/70 shrink-0" />
-        <span>Última actualización: <strong className="font-semibold text-foreground/70">{formattedDate}</strong></span>
-      </div>
-    </div>
-  )
+  // Con conexión y datos al día, la "última actualización" la muestra el header
+  // compartido (LastUpdateBadge); aquí no se duplica.
+  return null
 }

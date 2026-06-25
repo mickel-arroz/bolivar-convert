@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { MenuIcon } from '@/components/icons'
+import { MenuIcon, GripVerticalIcon } from '@/components/icons'
 import { 
   Sheet, 
   SheetContent, 
@@ -11,18 +11,21 @@ import {
   SheetTitle,
   SheetHeader
 } from '@/components/ui/sheet'
-import { SITE_CONFIG, NAV_ITEMS } from '@/constants/site'
+import { SITE_CONFIG } from '@/constants/site'
 import { cn } from '@/lib/utils'
+import { useNavOrder } from '@/hooks/useNavOrder'
+import { SortableNavList } from '@/components/navbar/SortableNavList'
 
 export function MobileNav() {
   const pathname = usePathname()
   const [open, setOpen] = useState(false)
+  const { orderedItems, reorder, resetOrder } = useNavOrder()
 
   return (
     <nav className="md:hidden fixed bottom-4 left-1/2 -translate-x-1/2 z-50 w-[92%] max-w-lg h-16 rounded-2xl shadow-[0_12px_40px_rgba(0,0,0,0.12)] dark:shadow-[0_25px_100px_rgba(0,0,0,0.7)] bg-background/60 backdrop-blur-md border border-border/50">
       {/* Contenedor de Elementos - Relativo para estar sobre las capas de cristal y con flex para el layout */}
       <div className="relative z-10 flex items-center justify-around h-full w-full px-2">
-        {NAV_ITEMS.slice(0, 3).map((item) => {
+        {orderedItems.slice(0, 3).map((item) => {
           const isActive = pathname === item.href
           return (
             <Link 
@@ -38,7 +41,7 @@ export function MobileNav() {
               <div className="w-5 h-5 flex items-center justify-center">
                 {item.icon}
               </div>
-              <span className="text-[10px] font-black uppercase tracking-widest">{item.label}</span>
+              <span className="text-[10px] font-black uppercase tracking-widest">{item.shortLabel}</span>
             </Link>
           )
         })}
@@ -62,25 +65,26 @@ export function MobileNav() {
               </SheetTitle>
             </SheetHeader>
 
-            <div className="flex-1 overflow-y-auto p-6 flex flex-col gap-6">
-              <div className="flex flex-col gap-3">
-                {NAV_ITEMS.map((item) => (
-                  <Link
-                    key={item.href}
-                    href={item.href}
-                    onClick={() => setOpen(false)}
-                    className={cn(
-                      "flex items-center gap-4 p-5 rounded-xl transition-all active:scale-95",
-                      pathname === item.href ? "bg-primary/10 text-primary" : "bg-muted/30 text-foreground hover:bg-muted/50"
-                    )}
-                  >
-                    <div className="w-6 h-6 flex items-center justify-center opacity-70">
-                      {item.icon}
-                    </div>
-                    <span className="text-lg font-bold">{item.label}</span>
-                  </Link>
-                ))}
+            <div className="flex-1 overflow-y-auto p-6 flex flex-col gap-4">
+              <div className="flex items-center justify-between px-1">
+                <p className="text-[10px] text-muted-foreground/60 font-bold uppercase tracking-widest">
+                  Mantén presionado{' '}
+                  <GripVerticalIcon className="inline w-3 h-3 -mt-0.5" /> para reordenar
+                </p>
+                <button
+                  type="button"
+                  onClick={resetOrder}
+                  className="text-[10px] text-muted-foreground/70 hover:text-foreground font-bold uppercase tracking-widest transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 rounded px-1"
+                >
+                  Restablecer
+                </button>
               </div>
+              <SortableNavList
+                items={orderedItems}
+                pathname={pathname}
+                reorder={reorder}
+                onNavigate={() => setOpen(false)}
+              />
             </div>
 
             <div className="p-8 border-t border-border/10 bg-muted/20 flex flex-col items-center gap-2">

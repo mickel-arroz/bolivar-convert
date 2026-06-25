@@ -12,21 +12,25 @@ export const SITE_CONFIG = {
 export const NAV_ITEMS = [
   {
     label: 'Tasas',
+    shortLabel: 'Tasas',
     href: '/',
     icon: <TrendingUpIcon className="w-5 h-5" />
   },
   {
     label: 'Convertir',
+    shortLabel: 'Convertir',
     href: '/convertir',
     icon: <CalculatorIcon className="w-5 h-5" />
   },
   {
     label: 'Historial',
+    shortLabel: 'Historial',
     href: '/historial',
     icon: <ClockIcon className="w-5 h-5" />
   },
   {
     label: 'Dividir Factura',
+    shortLabel: 'Dividir',
     href: '/dividir',
     icon: <SplitIcon className="w-5 h-5" />
   }

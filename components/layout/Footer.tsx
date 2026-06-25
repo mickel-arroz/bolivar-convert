@@ -1,5 +1,6 @@
 import { SITE_CONFIG, SOCIAL_LINKS } from '@/constants/site'
 import { Fragment } from 'react'
+import { DataTransferDialog } from '@/components/layout/DataTransferDialog'
 
 export function Footer() {
   return (
@@ -33,6 +34,7 @@ export function Footer() {
             </Fragment>
           ))}
         </p>
+        <DataTransferDialog variant="footer" />
       </div>
     </footer>
   )

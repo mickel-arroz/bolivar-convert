@@ -15,6 +15,7 @@ import { SITE_CONFIG } from '@/constants/site'
 import { cn } from '@/lib/utils'
 import { useNavOrder } from '@/hooks/useNavOrder'
 import { SortableNavList } from '@/components/navbar/SortableNavList'
+import { DataTransferDialog } from '@/components/layout/DataTransferDialog'
 
 export function MobileNav() {
   const pathname = usePathname()
@@ -85,6 +86,10 @@ export function MobileNav() {
                 reorder={reorder}
                 onNavigate={() => setOpen(false)}
               />
+
+              <div className="mt-auto pt-4 border-t border-border/10">
+                <DataTransferDialog variant="menu" />
+              </div>
             </div>
 
             <div className="p-8 border-t border-border/10 bg-muted/20 flex flex-col items-center gap-2">

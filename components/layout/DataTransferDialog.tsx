@@ -134,11 +134,11 @@ export function DataTransferDialog({
               type="button"
               variant="outline"
               size="lg"
-              className="justify-start h-auto py-3"
+              className="justify-start h-auto py-3 whitespace-normal"
               onClick={handleExport}
             >
-              <DownloadIcon className="size-5 text-primary" />
-              <span className="flex flex-col items-start text-left">
+              <DownloadIcon className="size-5 shrink-0 text-primary" />
+              <span className="flex min-w-0 flex-1 flex-col items-start text-left">
                 <span className="font-bold">Exportar datos</span>
                 <span className="text-xs font-normal text-muted-foreground">
                   Descarga un archivo .txt con tu información guardada.
@@ -150,11 +150,11 @@ export function DataTransferDialog({
               type="button"
               variant="outline"
               size="lg"
-              className="justify-start h-auto py-3"
+              className="justify-start h-auto py-3 whitespace-normal"
               onClick={() => fileInputRef.current?.click()}
             >
-              <UploadIcon className="size-5 text-primary" />
-              <span className="flex flex-col items-start text-left">
+              <UploadIcon className="size-5 shrink-0 text-primary" />
+              <span className="flex min-w-0 flex-1 flex-col items-start text-left">
                 <span className="font-bold">Importar datos</span>
                 <span className="text-xs font-normal text-muted-foreground">
                   Carga un archivo .txt y reemplaza tus datos actuales.

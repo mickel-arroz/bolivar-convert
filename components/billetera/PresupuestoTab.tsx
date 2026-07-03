@@ -1,15 +1,37 @@
 'use client'
 
-import { useMemo } from 'react'
-import { StatsBundle, WalletApi, monthKey, formatMonthLabel } from '@/hooks/useWallet'
+import { useMemo, useState } from 'react'
+import { Goal, StatsBundle, WalletApi, monthKey, formatMonthLabel } from '@/hooks/useWallet'
 import { Rates } from '@/constants/rates'
-import { getCategoryIcon } from '@/constants/walletCategories'
+import { getCategoryIcon, getAccountIcon } from '@/constants/walletCategories'
+import { DEFAULT_ACCOUNT_COLOR } from '@/constants/walletColors'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { PlusIcon, TargetIcon, PencilIcon, TrashIcon, AlertIcon, RefreshIcon } from '@/components/icons'
+import {
+  AlertDialog,
+  AlertDialogContent,
+  AlertDialogHeader,
+  AlertDialogFooter,
+  AlertDialogTitle,
+  AlertDialogDescription,
+  AlertDialogCancel,
+  AlertDialogAction,
+} from '@/components/ui/alert-dialog'
+import {
+  PlusIcon,
+  TargetIcon,
+  PencilIcon,
+  TrashIcon,
+  AlertIcon,
+  RefreshIcon,
+  TransferIcon,
+} from '@/components/icons'
 import { cn } from '@/lib/utils'
 import { WalletDialogs } from './dialogs'
 import { formatMoney } from './format'
+import { ConcludeMonthDialog } from './ConcludeMonthDialog'
+import { GoalFormDialog } from './GoalFormDialog'
+import { GoalContributionDialog } from './GoalContributionDialog'
 
 interface PresupuestoTabProps {
   wallet: WalletApi
@@ -19,8 +41,20 @@ interface PresupuestoTabProps {
 }
 
 export function PresupuestoTab({ wallet, stats, dialogs, rates }: PresupuestoTabProps) {
-  const { state, removeBudget, budgetStatusForMonth, concludeBudgetMonth } = wallet
+  const { state, removeBudget, goalBalances, removeGoal } = wallet
   const month = useMemo(() => monthKey(new Date()), [])
+  const [concludeOpen, setConcludeOpen] = useState(false)
+  const [goalForm, setGoalForm] = useState<{ open: boolean; editing: Goal | null }>({
+    open: false,
+    editing: null,
+  })
+  const [contributionGoal, setContributionGoal] = useState<Goal | null>(null)
+  const [pendingDeleteGoal, setPendingDeleteGoal] = useState<Goal | null>(null)
+
+  const goalBalanceById = useMemo(
+    () => new Map(goalBalances.map((b) => [b.goalId, b.balance])),
+    [goalBalances]
+  )
 
   const budgetedCategoryIds = useMemo(
     () => new Set(stats.budgetStatus.map((b) => b.budget.categoryId)),
@@ -38,14 +72,6 @@ export function PresupuestoTab({ wallet, stats, dialogs, rates }: PresupuestoTab
     const past = [...months].filter((m) => m < month && !state.concludedMonths.includes(m)).sort()
     return past.length > 0 ? past[past.length - 1] : null
   }, [state.budgets, state.concludedMonths, month])
-
-  const handleConclude = () => {
-    if (!pastMonth) return
-    const rows = budgetStatusForMonth(rates, pastMonth)
-    const carryovers: Record<string, number> = {}
-    for (const r of rows) carryovers[r.budget.categoryId] = r.effectiveLimit - r.actual
-    concludeBudgetMonth(pastMonth, month, carryovers)
-  }
 
   return (
     <div className="flex flex-col gap-5">
@@ -74,7 +100,7 @@ export function PresupuestoTab({ wallet, stats, dialogs, rates }: PresupuestoTab
               </p>
             </div>
           </div>
-          <Button onClick={handleConclude} className="shrink-0 sm:self-center">
+          <Button onClick={() => setConcludeOpen(true)} className="shrink-0 sm:self-center">
             Concluir {formatMonthLabel(pastMonth)}
           </Button>
         </div>
@@ -207,6 +233,162 @@ export function PresupuestoTab({ wallet, stats, dialogs, rates }: PresupuestoTab
           </div>
         </div>
       )}
+
+      {/* Metas / Alcancías */}
+      <div className="flex flex-col gap-3 border-t border-border/60 pt-5">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h2 className="text-sm font-bold uppercase tracking-wider text-muted-foreground">
+              Metas de ahorro
+            </h2>
+            <p className="text-xs text-muted-foreground">
+              Alcancías para tus objetivos. No dependen del mes.
+            </p>
+          </div>
+          <Button onClick={() => setGoalForm({ open: true, editing: null })}>
+            <PlusIcon /> Nueva meta
+          </Button>
+        </div>
+
+        {state.goals.length === 0 ? (
+          <Card>
+            <CardContent className="flex flex-col items-center gap-3 py-10 text-center">
+              <TargetIcon className="size-10 text-muted-foreground/40" />
+              <p className="text-sm text-muted-foreground">
+                Crea una meta (fondo de emergencia, un carro…) y mueve dinero de tus cuentas hacia
+                ella.
+              </p>
+            </CardContent>
+          </Card>
+        ) : (
+          <div className="grid gap-3 sm:grid-cols-2">
+            {state.goals.map((goal) => {
+              const saved = goalBalanceById.get(goal.id) ?? 0
+              const target = parseFloat(String(goal.target ?? '0').replace(',', '.')) || 0
+              const pct = target > 0 ? Math.min(100, (saved / target) * 100) : 0
+              const accent = goal.color ?? DEFAULT_ACCOUNT_COLOR
+              const GoalIcon = getAccountIcon(goal.icon)
+              return (
+                <Card
+                  key={goal.id}
+                  style={{
+                    boxShadow: `0 0 0 2px color-mix(in oklch, ${accent} 40%, transparent)`,
+                  }}
+                >
+                  <CardContent className="flex flex-col gap-2">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex min-w-0 items-center gap-2.5">
+                        <div
+                          className="flex size-9 shrink-0 items-center justify-center rounded-full"
+                          style={{
+                            backgroundColor: `color-mix(in oklch, ${accent} 18%, transparent)`,
+                            color: accent,
+                          }}
+                        >
+                          <GoalIcon className="size-4" />
+                        </div>
+                        <div className="min-w-0">
+                          <p className="truncate font-bold">{goal.name}</p>
+                          <p className="text-xs text-muted-foreground tabular-nums">
+                            {target > 0
+                              ? `${formatMoney(saved, goal.currency)} de ${formatMoney(target, goal.currency)}`
+                              : formatMoney(saved, goal.currency)}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex items-center">
+                        <Button
+                          variant="ghost"
+                          size="icon-sm"
+                          onClick={() => setGoalForm({ open: true, editing: goal })}
+                          aria-label="Editar meta"
+                        >
+                          <PencilIcon className="size-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon-sm"
+                          onClick={() => setPendingDeleteGoal(goal)}
+                          aria-label="Eliminar meta"
+                        >
+                          <TrashIcon className="size-4" />
+                        </Button>
+                      </div>
+                    </div>
+
+                    {target > 0 && (
+                      <div className="h-2 overflow-hidden rounded-full bg-muted">
+                        <div
+                          className="h-full rounded-full transition-all"
+                          style={{ width: `${pct}%`, backgroundColor: accent }}
+                        />
+                      </div>
+                    )}
+
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="mt-1 self-start"
+                      onClick={() => setContributionGoal(goal)}
+                    >
+                      <TransferIcon className="size-4" /> Mover dinero
+                    </Button>
+                  </CardContent>
+                </Card>
+              )
+            })}
+          </div>
+        )}
+      </div>
+
+      <ConcludeMonthDialog
+        open={concludeOpen}
+        onOpenChange={setConcludeOpen}
+        wallet={wallet}
+        rates={rates}
+        fromMonth={pastMonth}
+        toMonth={month}
+      />
+
+      <GoalFormDialog
+        open={goalForm.open}
+        onOpenChange={(open) => setGoalForm((s) => ({ ...s, open }))}
+        wallet={wallet}
+        editing={goalForm.editing}
+      />
+
+      <GoalContributionDialog
+        open={!!contributionGoal}
+        onOpenChange={(o) => !o && setContributionGoal(null)}
+        wallet={wallet}
+        goal={contributionGoal}
+      />
+
+      <AlertDialog
+        open={!!pendingDeleteGoal}
+        onOpenChange={(o) => !o && setPendingDeleteGoal(null)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Eliminar meta</AlertDialogTitle>
+            <AlertDialogDescription>
+              Se eliminará «{pendingDeleteGoal?.name}» y su historial de aportes. El dinero ya
+              retirado a tus cuentas no se ve afectado. Esta acción no se puede deshacer.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (pendingDeleteGoal) removeGoal(pendingDeleteGoal.id)
+                setPendingDeleteGoal(null)
+              }}
+            >
+              Eliminar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }

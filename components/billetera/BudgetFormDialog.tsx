@@ -36,6 +36,7 @@ export function BudgetFormDialog({
   const month = useMemo(() => monthKey(new Date()), [])
   const [categoryId, setCategoryId] = useState('')
   const [limit, setLimit] = useState('')
+  const [carryover, setCarryover] = useState('')
   const [currency, setCurrency] = useState<CurrencyId>(state.displayCurrency)
 
   const expenseCategories = useMemo(
@@ -50,6 +51,7 @@ export function BudgetFormDialog({
       setCategoryId(cat)
       const existing = state.budgets.find((b) => b.categoryId === cat && b.month === month)
       setLimit(existing?.limit ?? '')
+      setCarryover(existing?.carryover ?? '')
       setCurrency(existing?.currency ?? state.displayCurrency)
     }
   }, [open, presetCategoryId, expenseCategories, state.budgets, state.displayCurrency, month])
@@ -61,6 +63,7 @@ export function BudgetFormDialog({
     if (existing) {
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setLimit(existing.limit)
+      setCarryover(existing.carryover ?? '')
       setCurrency(existing.currency)
     }
   }, [categoryId, open, state.budgets, month])
@@ -69,7 +72,7 @@ export function BudgetFormDialog({
 
   const handleSubmit = () => {
     if (!canSubmit) return
-    setBudget(categoryId, month, limit, currency)
+    setBudget(categoryId, month, limit, currency, carryover.trim() === '' ? '0' : carryover)
     onOpenChange(false)
   }
 
@@ -127,6 +130,19 @@ export function BudgetFormDialog({
               onChange={(e) => setLimit(e.target.value)}
               placeholder="0,00"
               autoFocus
+            />
+          </Field>
+
+          <Field
+            label="Extra"
+            hint="Sobrante o déficit arrastrado. Por defecto 0; puedes ajustarlo (admite negativos)."
+          >
+            <Input
+              type="number"
+              inputMode="decimal"
+              value={carryover}
+              onChange={(e) => setCarryover(e.target.value)}
+              placeholder="0,00"
             />
           </Field>
         </div>

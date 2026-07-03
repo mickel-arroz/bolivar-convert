@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { CurrencyId } from '@/constants/currencies'
 import { Account, WalletApi } from '@/hooks/useWallet'
 import { Button } from '@/components/ui/button'
@@ -15,27 +15,28 @@ import {
 } from '@/components/ui/dialog'
 import { ACCOUNT_ICON_KEYS, getAccountIcon } from '@/constants/walletCategories'
 import { cn } from '@/lib/utils'
-import { Field, CurrencyToggle } from './fields'
+import { Field, CurrencyToggle, ColorPicker } from './fields'
 
 interface AccountFormDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
-  addAccount: WalletApi['addAccount']
-  updateAccount: WalletApi['updateAccount']
+  wallet: WalletApi
   editing?: Account | null
 }
 
-export function AccountFormDialog({
-  open,
-  onOpenChange,
-  addAccount,
-  updateAccount,
-  editing,
-}: AccountFormDialogProps) {
+export function AccountFormDialog({ open, onOpenChange, wallet, editing }: AccountFormDialogProps) {
+  const { addAccount, updateAccount, setAccountBalance, accountBalances } = wallet
   const [name, setName] = useState('')
   const [currency, setCurrency] = useState<CurrencyId>('VES')
-  const [openingBalance, setOpeningBalance] = useState('')
+  const [balance, setBalance] = useState('')
   const [icon, setIcon] = useState('wallet')
+  const [color, setColor] = useState<string | undefined>(undefined)
+
+  // Saldo actual calculado de la cuenta en edición (para precargar el campo "Saldo").
+  const editingBalance = useMemo(() => {
+    if (!editing) return 0
+    return accountBalances.find((b) => b.accountId === editing.id)?.balance ?? 0
+  }, [editing, accountBalances])
 
   // Sincronizar el formulario al abrir / cambiar el objeto en edición
   useEffect(() => {
@@ -43,17 +44,20 @@ export function AccountFormDialog({
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setName(editing?.name ?? '')
       setCurrency(editing?.currency ?? 'VES')
-      setOpeningBalance(editing?.openingBalance ?? '')
+      // En edición el campo muestra el saldo actual calculado; en creación queda vacío (opcional).
+      setBalance(editing ? String(Math.round(editingBalance * 100) / 100) : '')
       setIcon(editing?.icon ?? 'wallet')
+      setColor(editing?.color)
     }
-  }, [open, editing])
+  }, [open, editing, editingBalance])
 
   const handleSubmit = () => {
     if (!name.trim()) return
     if (editing) {
-      updateAccount(editing.id, { name: name.trim(), currency, openingBalance: openingBalance || '0', icon })
+      updateAccount(editing.id, { name: name.trim(), currency, icon, color })
+      setAccountBalance(editing.id, parseFloat(balance.replace(',', '.')) || 0)
     } else {
-      addAccount(name, currency, openingBalance, icon)
+      addAccount(name, currency, balance, icon, color)
     }
     onOpenChange(false)
   }
@@ -105,12 +109,23 @@ export function AccountFormDialog({
             </div>
           </Field>
 
-          <Field label="Saldo inicial" hint="Opcional. El saldo se ajusta con tus movimientos.">
+          <Field label="Color">
+            <ColorPicker value={color} onChange={setColor} />
+          </Field>
+
+          <Field
+            label="Saldo"
+            hint={
+              editing
+                ? 'Saldo actual. Si lo cambias, se ajusta al nuevo valor y los movimientos futuros lo afectan desde ahí.'
+                : 'Opcional. El saldo se ajusta con tus movimientos.'
+            }
+          >
             <Input
               type="number"
               inputMode="decimal"
-              value={openingBalance}
-              onChange={(e) => setOpeningBalance(e.target.value)}
+              value={balance}
+              onChange={(e) => setBalance(e.target.value)}
               placeholder="0,00"
             />
           </Field>

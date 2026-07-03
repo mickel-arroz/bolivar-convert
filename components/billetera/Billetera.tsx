@@ -103,8 +103,7 @@ export function Billetera() {
       <AccountFormDialog
         open={accountDialog.open}
         onOpenChange={(open) => setAccountDialog((d) => ({ ...d, open }))}
-        addAccount={wallet.addAccount}
-        updateAccount={wallet.updateAccount}
+        wallet={wallet}
         editing={accountDialog.editing}
       />
       <TransactionFormDialog

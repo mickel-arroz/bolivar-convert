@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { Transaction, TransactionType, WalletApi } from '@/hooks/useWallet'
 import { getCurrency } from '@/constants/currencies'
 import { getCategoryIcon, CATEGORY_ICON_MAP, ACCOUNT_ICON_MAP } from '@/constants/walletCategories'
-import { DotsIcon, WalletIcon } from '@/components/icons'
+import { DotsIcon, WalletIcon, CalculatorIcon } from '@/components/icons'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import {
@@ -18,6 +18,7 @@ import {
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select'
 import { Field, TypeToggle } from './fields'
 import { todayInputValue } from './format'
+import { AmountCalculatorDialog } from './AmountCalculatorDialog'
 
 interface TransactionFormDialogProps {
   open: boolean
@@ -41,6 +42,7 @@ export function TransactionFormDialog({
   const [amount, setAmount] = useState('')
   const [note, setNote] = useState('')
   const [date, setDate] = useState(todayInputValue())
+  const [calcOpen, setCalcOpen] = useState(false)
 
   useEffect(() => {
     if (open) {
@@ -67,6 +69,7 @@ export function TransactionFormDialog({
     }
   }, [categories, categoryId])
 
+  const accountCurrency = state.accounts.find((a) => a.id === accountId)?.currency
   const canSubmit = parseFloat(amount.replace(',', '.')) > 0 && accountId && categoryId
 
   const handleSubmit = () => {
@@ -81,6 +84,7 @@ export function TransactionFormDialog({
   }
 
   return (
+    <>
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
@@ -160,8 +164,8 @@ export function TransactionFormDialog({
               </Select>
             </Field>
 
-            <div className="grid grid-cols-2 gap-3">
-              <Field label="Monto">
+            <Field label="Monto">
+              <div className="flex gap-2">
                 <Input
                   type="number"
                   inputMode="decimal"
@@ -169,12 +173,23 @@ export function TransactionFormDialog({
                   onChange={(e) => setAmount(e.target.value)}
                   placeholder="0,00"
                   autoFocus
+                  className="flex-1"
                 />
-              </Field>
-              <Field label="Fecha">
-                <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
-              </Field>
-            </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setCalcOpen(true)}
+                  disabled={!accountId}
+                  title="Calcular monto con las tasas"
+                >
+                  <CalculatorIcon className="size-4" /> Calcular
+                </Button>
+              </div>
+            </Field>
+
+            <Field label="Fecha">
+              <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+            </Field>
 
             <Field label="Nota" hint="Opcional">
               <Input
@@ -196,5 +211,15 @@ export function TransactionFormDialog({
         </DialogFooter>
       </DialogContent>
     </Dialog>
+
+    {accountCurrency && (
+      <AmountCalculatorDialog
+        open={calcOpen}
+        onOpenChange={setCalcOpen}
+        accountCurrency={accountCurrency}
+        onPick={(value) => setAmount(value)}
+      />
+    )}
+    </>
   )
 }

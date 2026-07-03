@@ -1,7 +1,7 @@
 'use client'
 
 import { useMemo } from 'react'
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid } from 'recharts'
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, AreaChart, Area, LineChart, Line } from 'recharts'
 import { StatsBundle, TimeRange, WalletApi } from '@/hooks/useWallet'
 import { getCurrency } from '@/constants/currencies'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
@@ -35,6 +35,19 @@ const chartConfig: ChartConfig = {
   expense: { label: 'Gastos', color: 'var(--destructive)' },
 }
 
+const netWorthConfig: ChartConfig = {
+  value: { label: 'Patrimonio', color: 'var(--rate-usd)' },
+}
+
+const budgetConfig: ChartConfig = {
+  presupuesto: { label: 'Presupuesto', color: 'var(--rate-eur)' },
+  gastado: { label: 'Gastado', color: 'var(--destructive)' },
+}
+
+const savingsConfig: ChartConfig = {
+  rate: { label: 'Ahorro %', color: 'var(--rate-binance)' },
+}
+
 function compact(value: number): string {
   return Number(value).toLocaleString('en-US', { notation: 'compact', maximumFractionDigits: 1 })
 }
@@ -54,6 +67,29 @@ export function EstadisticasTab({ wallet, stats }: EstadisticasTabProps) {
   const maxExpense = Math.max(1, ...expenseRows.map((r) => r.total))
   const maxIncome = Math.max(1, ...incomeRows.map((r) => r.total))
   const balance = stats.incomeVsExpense.income - stats.incomeVsExpense.expense
+
+  const hasAccounts = state.accounts.length > 0
+
+  // Tasa de ahorro por mes: (ingresos − gastos) / ingresos.
+  const savingsSeries = useMemo(
+    () =>
+      stats.monthlySeries.map((p) => ({
+        label: p.label,
+        rate: p.income > 0 ? Math.round(((p.income - p.expense) / p.income) * 100) : 0,
+      })),
+    [stats.monthlySeries]
+  )
+
+  // Presupuesto (disponible) vs gastado del mes actual, por categoría.
+  const budgetData = useMemo(
+    () =>
+      stats.budgetStatus.map((r) => ({
+        label: r.categoryName,
+        presupuesto: r.effectiveLimit,
+        gastado: r.actual,
+      })),
+    [stats.budgetStatus]
+  )
 
   const renderCategoryList = (
     rows: typeof expenseRows,
@@ -209,6 +245,120 @@ export function EstadisticasTab({ wallet, stats }: EstadisticasTabProps) {
                 <ChartTooltip content={<ChartTooltipContent />} />
                 <Bar dataKey="income" fill="var(--color-income)" radius={[4, 4, 0, 0]} />
                 <Bar dataKey="expense" fill="var(--color-expense)" radius={[4, 4, 0, 0]} />
+              </BarChart>
+            </ChartContainer>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Patrimonio neto acumulado */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Patrimonio neto</CardTitle>
+          <CardDescription>
+            Evolución acumulada de tus cuentas en {getCurrency(cur).label.toLowerCase()}.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {!hasAccounts || stats.netWorthSeries.length === 0 ? (
+            <div className="flex h-48 flex-col items-center justify-center gap-2 text-muted-foreground">
+              <ChartPieIcon className="size-8 opacity-20" />
+              <p className="text-sm">No hay datos en este periodo.</p>
+            </div>
+          ) : (
+            <ChartContainer config={netWorthConfig} className="min-h-56 w-full">
+              <AreaChart data={stats.netWorthSeries} margin={{ left: 0, right: 12, top: 10 }}>
+                <CartesianGrid vertical={false} strokeDasharray="3 3" className="stroke-muted/50" />
+                <XAxis dataKey="label" tickLine={false} axisLine={false} tickMargin={10} />
+                <YAxis
+                  tickLine={false}
+                  axisLine={false}
+                  tickMargin={8}
+                  width={48}
+                  tickFormatter={(v) => compact(v as number)}
+                />
+                <ChartTooltip content={<ChartTooltipContent />} />
+                <Area
+                  dataKey="value"
+                  type="monotone"
+                  stroke="var(--color-value)"
+                  fill="var(--color-value)"
+                  fillOpacity={0.15}
+                  strokeWidth={2}
+                />
+              </AreaChart>
+            </ChartContainer>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Tasa de ahorro */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Tasa de ahorro</CardTitle>
+          <CardDescription>Porcentaje de tus ingresos que no gastaste, por mes.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          {savingsSeries.length === 0 ? (
+            <div className="flex h-48 flex-col items-center justify-center gap-2 text-muted-foreground">
+              <ChartPieIcon className="size-8 opacity-20" />
+              <p className="text-sm">No hay datos en este periodo.</p>
+            </div>
+          ) : (
+            <ChartContainer config={savingsConfig} className="min-h-56 w-full">
+              <LineChart data={savingsSeries} margin={{ left: 0, right: 12, top: 10 }}>
+                <CartesianGrid vertical={false} strokeDasharray="3 3" className="stroke-muted/50" />
+                <XAxis dataKey="label" tickLine={false} axisLine={false} tickMargin={10} />
+                <YAxis
+                  tickLine={false}
+                  axisLine={false}
+                  tickMargin={8}
+                  width={48}
+                  tickFormatter={(v) => `${v}%`}
+                />
+                <ChartTooltip content={<ChartTooltipContent />} />
+                <Line
+                  dataKey="rate"
+                  type="monotone"
+                  stroke="var(--color-rate)"
+                  strokeWidth={2}
+                  dot={false}
+                />
+              </LineChart>
+            </ChartContainer>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Presupuesto vs gastado */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Presupuesto vs gastado</CardTitle>
+          <CardDescription>
+            Comparación del mes actual por categoría (montos en la moneda de cada presupuesto).
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {budgetData.length === 0 ? (
+            <div className="flex h-48 flex-col items-center justify-center gap-2 text-muted-foreground">
+              <ChartPieIcon className="size-8 opacity-20" />
+              <p className="text-sm">No has asignado presupuestos este mes.</p>
+            </div>
+          ) : (
+            <ChartContainer config={budgetConfig} className="min-h-56 w-full">
+              <BarChart data={budgetData} margin={{ left: 0, right: 12, top: 10 }}>
+                <CartesianGrid vertical={false} strokeDasharray="3 3" className="stroke-muted/50" />
+                <XAxis dataKey="label" tickLine={false} axisLine={false} tickMargin={10} />
+                <YAxis
+                  tickLine={false}
+                  axisLine={false}
+                  tickMargin={8}
+                  width={48}
+                  tickFormatter={(v) => compact(v as number)}
+                />
+                <ChartTooltip content={<ChartTooltipContent />} />
+                <Bar dataKey="presupuesto" fill="var(--color-presupuesto)" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="gastado" fill="var(--color-gastado)" radius={[4, 4, 0, 0]} />
               </BarChart>
             </ChartContainer>
           )}

@@ -16,6 +16,8 @@ export interface Account {
   openingBalance: string
   /** Clave de icono (ver ACCOUNT_ICON_MAP). Reutilizable entre cuentas. */
   icon: string
+  /** Color personalizado (string CSS, p.ej. 'var(--wallet-green)'). Opcional → gris. */
+  color?: string
   createdAt: string
 }
 
@@ -69,6 +71,31 @@ export interface Budget {
   carryover?: string
 }
 
+/** Meta de ahorro / alcancía. No está atada a un mes. */
+export interface Goal {
+  id: string
+  name: string
+  currency: CurrencyId
+  /** Objetivo opcional (para la barra de progreso). */
+  target?: string
+  icon?: string
+  color?: string
+  createdAt: string
+}
+
+/** Movimiento de dinero hacia/desde una meta (misma moneda que la meta). */
+export interface GoalContribution {
+  id: string
+  goalId: string
+  /** Cuenta afectada (misma moneda que la meta). undefined = viene de un extra de presupuesto. */
+  accountId?: string
+  /** Monto en la moneda de la meta. Positivo = aporta; negativo = retira. */
+  amount: string
+  note?: string
+  date: string
+  createdAt: string
+}
+
 export type TimeRange = '1m' | '6m' | '1y' | 'all'
 
 export interface WalletState {
@@ -77,6 +104,8 @@ export interface WalletState {
   transfers: Transfer[]
   categories: Category[]
   budgets: Budget[]
+  goals: Goal[]
+  goalContributions: GoalContribution[]
   /** Meses 'YYYY-MM' cuyo presupuesto ya fue concluido (no se vuelve a avisar). */
   concludedMonths: string[]
   /** Moneda en la que se normalizan las estadísticas agregadas. */
@@ -89,6 +118,12 @@ export interface WalletState {
 /* ─── Tipos derivados ─── */
 export interface AccountBalance {
   accountId: string
+  currency: CurrencyId
+  balance: number
+}
+
+export interface GoalBalance {
+  goalId: string
   currency: CurrencyId
   balance: number
 }
@@ -124,11 +159,20 @@ export interface BudgetStatusRow {
   isOver: boolean
 }
 
+/** Punto de la serie de patrimonio neto acumulado por mes (normalizado). */
+export interface NetWorthPoint {
+  month: string
+  label: string
+  value: number
+}
+
 export interface StatsBundle {
   incomeVsExpense: { income: number; expense: number }
   categorySummary: CategorySummaryRow[]
   monthlySeries: MonthlyPoint[]
   netWorth: number
+  /** Patrimonio neto acumulado por mes (según el rango seleccionado). */
+  netWorthSeries: NetWorthPoint[]
   budgetStatus: BudgetStatusRow[]
   /** false si falta alguna tasa necesaria para normalizar (ej. '---'). */
   ratesAvailable: boolean
@@ -143,6 +187,8 @@ const DEFAULT_STATE: WalletState = {
   transfers: [],
   categories: DEFAULT_CATEGORIES,
   budgets: [],
+  goals: [],
+  goalContributions: [],
   concludedMonths: [],
   displayCurrency: 'VES',
   statsRateSource: 'bcvUsd',
@@ -187,6 +233,26 @@ export function formatMonthLabel(month: string): string {
   const [y, m] = month.split('-').map(Number)
   const d = new Date(y, (m || 1) - 1, 1)
   return d.toLocaleDateString('es-VE', { month: 'short', year: 'numeric' })
+}
+
+/** Lista de claves de mes 'YYYY-MM' desde `startKey` hasta `endKey` (inclusive). */
+function enumerateMonths(startKey: string, endKey: string): string[] {
+  const [sy, sm] = startKey.split('-').map(Number)
+  const [ey, em] = endKey.split('-').map(Number)
+  const out: string[] = []
+  let y = sy
+  let m = sm
+  let guard = 0
+  while ((y < ey || (y === ey && m <= em)) && guard < 600) {
+    out.push(`${y}-${String(m).padStart(2, '0')}`)
+    m++
+    if (m > 12) {
+      m = 1
+      y++
+    }
+    guard++
+  }
+  return out
 }
 
 function rangeStart(range: TimeRange, now = new Date()): Date {
@@ -292,6 +358,8 @@ export function useWallet() {
           // las del usuario; si no hay ninguna guardada, siembra las por defecto.
           categories: mergeCategories(parsed.categories),
           budgets: parsed.budgets ?? [],
+          goals: parsed.goals ?? [],
+          goalContributions: parsed.goalContributions ?? [],
           concludedMonths: parsed.concludedMonths ?? [],
         }
         // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -312,7 +380,7 @@ export function useWallet() {
 
   /* ── Cuentas ── */
   const addAccount = useCallback(
-    (name: string, currency: CurrencyId, openingBalance: string, icon = 'wallet') => {
+    (name: string, currency: CurrencyId, openingBalance: string, icon = 'wallet', color?: string) => {
       const trimmed = name.trim()
       if (!trimmed) return
       setState((s) => ({
@@ -325,6 +393,7 @@ export function useWallet() {
             currency,
             openingBalance: openingBalance || '0',
             icon,
+            color,
             createdAt: new Date().toISOString(),
           },
         ],
@@ -334,7 +403,10 @@ export function useWallet() {
   )
 
   const updateAccount = useCallback(
-    (id: string, patch: Partial<Pick<Account, 'name' | 'currency' | 'openingBalance' | 'icon'>>) => {
+    (
+      id: string,
+      patch: Partial<Pick<Account, 'name' | 'currency' | 'openingBalance' | 'icon' | 'color'>>
+    ) => {
       setState((s) => ({
         ...s,
         accounts: s.accounts.map((a) => (a.id === id ? { ...a, ...patch } : a)),
@@ -342,6 +414,35 @@ export function useWallet() {
     },
     []
   )
+
+  /**
+   * Fija el saldo mostrado de una cuenta a `targetBalance` ajustando `openingBalance`
+   * (saldo como variable): dado que el saldo = openingBalance + Σmovimientos, se calcula
+   * openingBalance = targetBalance − Σmovimientos, de modo que el saldo pase a `targetBalance`
+   * y los movimientos posteriores lo sigan afectando desde ahí.
+   */
+  const setAccountBalance = useCallback((id: string, targetBalance: number) => {
+    setState((s) => {
+      const account = s.accounts.find((a) => a.id === id)
+      if (!account) return s
+      let movements = 0
+      for (const tx of s.transactions) {
+        if (tx.accountId !== id) continue
+        movements += tx.type === 'income' ? parseAmount(tx.amount) : -parseAmount(tx.amount)
+      }
+      for (const tr of s.transfers) {
+        if (tr.fromAccountId === id) movements -= parseAmount(tr.fromAmount)
+        if (tr.toAccountId === id) movements += parseAmount(tr.toAmount)
+      }
+      const newOpening = targetBalance - movements
+      return {
+        ...s,
+        accounts: s.accounts.map((a) =>
+          a.id === id ? { ...a, openingBalance: String(newOpening) } : a
+        ),
+      }
+    })
+  }, [])
 
   /** Elimina la cuenta y, en cascada, sus transacciones y traspasos asociados. */
   const removeAccount = useCallback((id: string) => {
@@ -397,30 +498,31 @@ export function useWallet() {
       fromAccountId: string
       toAccountId: string
       fromAmount: string
+      /** Monto que llega a la cuenta destino (editable, contempla comisiones). */
+      toAmount: string
       rateSource: TransferRateSource
       rateValue: number
       note?: string
       date: string
     }) => {
-      const { fromAccountId, toAccountId, fromAmount, rateSource, rateValue, note, date } = params
+      const { fromAccountId, toAccountId, fromAmount, toAmount, rateSource, rateValue, note, date } =
+        params
       if (fromAccountId === toAccountId) return
       const amount = parseAmount(fromAmount)
-      if (amount <= 0) return
+      const received = parseAmount(toAmount)
+      if (amount <= 0 || received <= 0) return
       setState((s) => {
         const from = s.accounts.find((a) => a.id === fromAccountId)
         const to = s.accounts.find((a) => a.id === toAccountId)
         if (!from || !to) return s
         const sameCurrency = from.currency === to.currency
-        const toAmount = sameCurrency
-          ? amount
-          : convertTransferAmount(amount, from.currency, to.currency, rateValue)
-        if (!sameCurrency && toAmount <= 0) return s
         const transfer: Transfer = {
           id: generateId(),
           fromAccountId,
           toAccountId,
           fromAmount,
-          toAmount: String(toAmount),
+          toAmount,
+          // La tasa se guarda solo como referencia cuando las monedas difieren.
           rate: sameCurrency ? undefined : { source: rateSource, value: String(rateValue) },
           note: note?.trim() || undefined,
           date,
@@ -459,34 +561,89 @@ export function useWallet() {
     []
   )
 
-  /** Elimina una categoría sólo si no es por defecto ni está en uso. */
+  /**
+   * Elimina una categoría (incluidas las por defecto) junto con sus transacciones y
+   * presupuestos asociados. Protección: nunca borra la última categoría que quede.
+   */
   const removeCategory = useCallback((id: string) => {
     setState((s) => {
+      if (s.categories.length <= 1) return s
       const cat = s.categories.find((c) => c.id === id)
-      if (!cat || cat.isDefault) return s
-      const inUse =
-        s.transactions.some((t) => t.categoryId === id) || s.budgets.some((b) => b.categoryId === id)
-      if (inUse) return s
-      return { ...s, categories: s.categories.filter((c) => c.id !== id) }
+      if (!cat) return s
+      return {
+        ...s,
+        categories: s.categories.filter((c) => c.id !== id),
+        transactions: s.transactions.filter((t) => t.categoryId !== id),
+        budgets: s.budgets.filter((b) => b.categoryId !== id),
+      }
     })
   }, [])
 
+  /**
+   * Reasigna las transacciones de `fromId` a `toId`, fusiona sus presupuestos por mes y
+   * elimina la categoría origen. `budgetStrategy` decide qué hacer cuando ambos tienen
+   * presupuesto en el mismo mes: 'merge' suma límite y carryover; 'overwrite' reemplaza el
+   * del destino por el del origen. Protección: no actúa si dejaría 0 categorías.
+   */
+  const reassignCategory = useCallback(
+    (fromId: string, toId: string, budgetStrategy: 'overwrite' | 'merge') => {
+      setState((s) => {
+        if (fromId === toId || s.categories.length <= 1) return s
+        if (!s.categories.some((c) => c.id === toId)) return s
+        const transactions = s.transactions.map((t) =>
+          t.categoryId === fromId ? { ...t, categoryId: toId } : t
+        )
+        const budgets = [...s.budgets]
+        const fromBudgets = budgets.filter((b) => b.categoryId === fromId)
+        for (const fb of fromBudgets) {
+          const idx = budgets.findIndex((b) => b.categoryId === toId && b.month === fb.month)
+          if (idx >= 0) {
+            const ex = budgets[idx]
+            if (budgetStrategy === 'merge') {
+              budgets[idx] = {
+                ...ex,
+                limit: String(parseAmount(ex.limit) + parseAmount(fb.limit)),
+                carryover: String(parseSigned(ex.carryover) + parseSigned(fb.carryover)),
+              }
+            } else {
+              budgets[idx] = { ...ex, limit: fb.limit, currency: fb.currency, carryover: fb.carryover }
+            }
+          } else {
+            budgets.push({ ...fb, id: generateId(), categoryId: toId })
+          }
+        }
+        return {
+          ...s,
+          transactions,
+          budgets: budgets.filter((b) => b.categoryId !== fromId),
+          categories: s.categories.filter((c) => c.id !== fromId),
+        }
+      })
+    },
+    []
+  )
+
   /* ── Presupuestos (upsert por categoría + mes) ── */
   const setBudget = useCallback(
-    (categoryId: string, month: string, limit: string, currency: CurrencyId) => {
+    (categoryId: string, month: string, limit: string, currency: CurrencyId, carryover?: string) => {
       setState((s) => {
         const existing = s.budgets.find((b) => b.categoryId === categoryId && b.month === month)
         if (existing) {
           return {
             ...s,
             budgets: s.budgets.map((b) =>
-              b.id === existing.id ? { ...b, limit, currency } : b
+              b.id === existing.id
+                ? { ...b, limit, currency, ...(carryover !== undefined && { carryover }) }
+                : b
             ),
           }
         }
         return {
           ...s,
-          budgets: [...s.budgets, { id: generateId(), categoryId, month, limit, currency }],
+          budgets: [
+            ...s.budgets,
+            { id: generateId(), categoryId, month, limit, currency, carryover },
+          ],
         }
       })
     },
@@ -537,6 +694,113 @@ export function useWallet() {
     []
   )
 
+  /* ── Metas / Alcancías ── */
+  const addGoal = useCallback(
+    (name: string, currency: CurrencyId, target?: string, icon?: string, color?: string) => {
+      const trimmed = name.trim()
+      if (!trimmed) return
+      setState((s) => ({
+        ...s,
+        goals: [
+          ...s.goals,
+          {
+            id: generateId(),
+            name: trimmed,
+            currency,
+            target: target || undefined,
+            icon,
+            color,
+            createdAt: new Date().toISOString(),
+          },
+        ],
+      }))
+    },
+    []
+  )
+
+  const updateGoal = useCallback(
+    (id: string, patch: Partial<Pick<Goal, 'name' | 'currency' | 'target' | 'icon' | 'color'>>) => {
+      setState((s) => ({
+        ...s,
+        goals: s.goals.map((g) => (g.id === id ? { ...g, ...patch } : g)),
+      }))
+    },
+    []
+  )
+
+  /** Elimina la meta y, en cascada, sus aportes/retiros (devuelve el efecto sobre cuentas). */
+  const removeGoal = useCallback((id: string) => {
+    setState((s) => ({
+      ...s,
+      goals: s.goals.filter((g) => g.id !== id),
+      goalContributions: s.goalContributions.filter((c) => c.goalId !== id),
+    }))
+  }, [])
+
+  /**
+   * Mueve dinero entre una cuenta y una meta de su misma moneda.
+   * `direction` 'in' = aporta (sale de la cuenta), 'out' = retira (vuelve a la cuenta).
+   * El monto se guarda con signo (aporte positivo, retiro negativo).
+   */
+  const moveToGoal = useCallback(
+    (params: {
+      goalId: string
+      accountId: string
+      amount: string
+      direction: 'in' | 'out'
+      note?: string
+      date: string
+    }) => {
+      const { goalId, accountId, amount, direction, note, date } = params
+      const value = parseAmount(amount)
+      if (value <= 0) return
+      setState((s) => {
+        const goal = s.goals.find((g) => g.id === goalId)
+        const account = s.accounts.find((a) => a.id === accountId)
+        if (!goal || !account || goal.currency !== account.currency) return s
+        const signed = direction === 'in' ? value : -value
+        return {
+          ...s,
+          goalContributions: [
+            ...s.goalContributions,
+            {
+              id: generateId(),
+              goalId,
+              accountId,
+              amount: String(signed),
+              note: note?.trim() || undefined,
+              date,
+              createdAt: new Date().toISOString(),
+            },
+          ],
+        }
+      })
+    },
+    []
+  )
+
+  /** Asigna un extra de presupuesto a una meta (sin afectar cuentas). Usado al concluir el mes. */
+  const allocateExtraToGoal = useCallback((goalId: string, amount: number, date: string) => {
+    if (amount <= 0) return
+    setState((s) => {
+      if (!s.goals.some((g) => g.id === goalId)) return s
+      return {
+        ...s,
+        goalContributions: [
+          ...s.goalContributions,
+          {
+            id: generateId(),
+            goalId,
+            amount: String(amount),
+            note: 'Extra de presupuesto',
+            date,
+            createdAt: new Date().toISOString(),
+          },
+        ],
+      }
+    })
+  }, [])
+
   /* ── Preferencias ── */
   const setDisplayCurrency = useCallback((displayCurrency: CurrencyId) =>
     setState((s) => ({ ...s, displayCurrency })), [])
@@ -561,9 +825,23 @@ export function useWallet() {
         if (tr.fromAccountId === account.id) balance -= parseAmount(tr.fromAmount)
         if (tr.toAccountId === account.id) balance += parseAmount(tr.toAmount)
       }
+      // Aportes a metas restan del saldo (positivo sale de la cuenta); retiros lo devuelven.
+      for (const gc of state.goalContributions) {
+        if (gc.accountId === account.id) balance -= parseSigned(gc.amount)
+      }
       return { accountId: account.id, currency: account.currency, balance }
     })
-  }, [state.accounts, state.transactions, state.transfers])
+  }, [state.accounts, state.transactions, state.transfers, state.goalContributions])
+
+  const goalBalances = useMemo<GoalBalance[]>(() => {
+    return state.goals.map((goal) => {
+      let balance = 0
+      for (const gc of state.goalContributions) {
+        if (gc.goalId === goal.id) balance += parseSigned(gc.amount)
+      }
+      return { goalId: goal.id, currency: goal.currency, balance }
+    })
+  }, [state.goals, state.goalContributions])
 
   const totalsByCurrency = useMemo<Record<CurrencyId, number>>(() => {
     const totals: Record<CurrencyId, number> = { VES: 0, USD: 0, EUR: 0 }
@@ -683,8 +961,41 @@ export function useWallet() {
         netWorth += norm(balance, account.currency, displayCurrency)
       }
 
+      // Serie de patrimonio neto acumulado por mes (normalizado con la tasa actual)
+      const now = new Date()
+      const currentMonthKey = monthKey(now)
+      const allDates = [
+        ...state.transactions.map((t) => t.date),
+        ...state.transfers.map((t) => t.date),
+      ]
+      const startMonthKey =
+        timeRange === 'all'
+          ? allDates.length > 0
+            ? monthKey(allDates.reduce((a, b) => (a < b ? a : b)))
+            : currentMonthKey
+          : monthKey(rangeStart(timeRange, now))
+      const netWorthSeries: NetWorthPoint[] = enumerateMonths(startMonthKey, currentMonthKey).map(
+        (m) => {
+          let total = 0
+          for (const account of state.accounts) {
+            let bal = parseAmount(account.openingBalance)
+            for (const tx of state.transactions) {
+              if (tx.accountId !== account.id || monthKey(tx.date) > m) continue
+              bal += tx.type === 'income' ? parseAmount(tx.amount) : -parseAmount(tx.amount)
+            }
+            for (const tr of state.transfers) {
+              if (monthKey(tr.date) > m) continue
+              if (tr.fromAccountId === account.id) bal -= parseAmount(tr.fromAmount)
+              if (tr.toAccountId === account.id) bal += parseAmount(tr.toAmount)
+            }
+            total += norm(bal, account.currency, displayCurrency)
+          }
+          return { month: m, label: formatMonthLabel(m), value: total }
+        }
+      )
+
       // Presupuesto vs gasto real (mes actual)
-      const budgetStatus = budgetStatusForMonth(rates, monthKey(new Date()))
+      const budgetStatus = budgetStatusForMonth(rates, currentMonthKey)
 
       // ¿Tenemos todas las tasas necesarias para normalizar?
       const usedCurrencies = new Set<CurrencyId>([displayCurrency])
@@ -694,7 +1005,15 @@ export function useWallet() {
         (c) => bsPerUnit(c, rates, statsRateSource) > 0
       )
 
-      return { incomeVsExpense, categorySummary, monthlySeries, netWorth, budgetStatus, ratesAvailable }
+      return {
+        incomeVsExpense,
+        categorySummary,
+        monthlySeries,
+        netWorth,
+        netWorthSeries,
+        budgetStatus,
+        ratesAvailable,
+      }
     },
     [state, budgetStatusForMonth]
   )
@@ -704,6 +1023,7 @@ export function useWallet() {
     isMounted,
     hasData,
     accountBalances,
+    goalBalances,
     totalsByCurrency,
     filteredTransactions,
     computeStats,
@@ -711,6 +1031,7 @@ export function useWallet() {
     // Cuentas
     addAccount,
     updateAccount,
+    setAccountBalance,
     removeAccount,
     // Transacciones
     addTransaction,
@@ -723,10 +1044,17 @@ export function useWallet() {
     addCategory,
     updateCategory,
     removeCategory,
+    reassignCategory,
     // Presupuestos
     setBudget,
     removeBudget,
     concludeBudgetMonth,
+    // Metas
+    addGoal,
+    updateGoal,
+    removeGoal,
+    moveToGoal,
+    allocateExtraToGoal,
     // Preferencias
     setDisplayCurrency,
     setStatsRateSource,

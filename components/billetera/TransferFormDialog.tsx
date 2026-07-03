@@ -19,7 +19,7 @@ import {
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select'
 import { cn } from '@/lib/utils'
 import { Field } from './fields'
-import { formatMoney, todayInputValue } from './format'
+import { todayInputValue } from './format'
 
 interface TransferFormDialogProps {
   open: boolean
@@ -38,6 +38,9 @@ export function TransferFormDialog({ open, onOpenChange, wallet, rates }: Transf
   const [fromAccountId, setFromAccountId] = useState('')
   const [toAccountId, setToAccountId] = useState('')
   const [fromAmount, setFromAmount] = useState('')
+  const [toAmount, setToAmount] = useState('')
+  // true cuando el usuario edita manualmente el monto a recibir (deja de autocompletarse)
+  const [toAmountEdited, setToAmountEdited] = useState(false)
   const [rateSource, setRateSource] = useState<TransferRateSource>('custom')
   const [customRate, setCustomRate] = useState('')
   const [note, setNote] = useState('')
@@ -71,6 +74,8 @@ export function TransferFormDialog({ open, onOpenChange, wallet, rates }: Transf
       setFromAccountId(state.accounts[0]?.id ?? '')
       setToAccountId(state.accounts[1]?.id ?? '')
       setFromAmount('')
+      setToAmount('')
+      setToAmountEdited(false)
       setCustomRate('')
       setNote('')
       setDate(todayInputValue())
@@ -104,16 +109,28 @@ export function TransferFormDialog({ open, onOpenChange, wallet, rates }: Transf
         : amountNum
       : 0
 
+  // Autocompletar el monto a recibir con la conversión, salvo que el usuario lo edite.
+  useEffect(() => {
+    if (!toAmountEdited) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setToAmount(converted > 0 ? String(Math.round(converted * 100) / 100) : '')
+    }
+  }, [converted, toAmountEdited])
+
+  const receivedNum = parseFloat(toAmount.replace(',', '.')) || 0
+  const fromSymbol = fromCur ? getCurrency(fromCur).symbol : ''
+  const toSymbol = toCur ? getCurrency(toCur).symbol : ''
+
   const canSubmit =
     !!fromAccountId &&
     !!toAccountId &&
     fromAccountId !== toAccountId &&
     amountNum > 0 &&
-    (!differentCur || rateValue > 0)
+    receivedNum > 0
 
   const handleSubmit = () => {
     if (!canSubmit) return
-    addTransfer({ fromAccountId, toAccountId, fromAmount, rateSource, rateValue, note, date })
+    addTransfer({ fromAccountId, toAccountId, fromAmount, toAmount, rateSource, rateValue, note, date })
     onOpenChange(false)
   }
 
@@ -205,7 +222,7 @@ export function TransferFormDialog({ open, onOpenChange, wallet, rates }: Transf
             </Field>
 
             <div className="grid grid-cols-2 gap-3">
-              <Field label="Monto a enviar">
+              <Field label="Monto a enviar" hint={fromSymbol || undefined}>
                 <Input
                   type="number"
                   inputMode="decimal"
@@ -214,8 +231,17 @@ export function TransferFormDialog({ open, onOpenChange, wallet, rates }: Transf
                   placeholder="0,00"
                 />
               </Field>
-              <Field label="Fecha">
-                <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+              <Field label="Monto a recibir" hint={toSymbol || undefined}>
+                <Input
+                  type="number"
+                  inputMode="decimal"
+                  value={toAmount}
+                  onChange={(e) => {
+                    setToAmount(e.target.value)
+                    setToAmountEdited(true)
+                  }}
+                  placeholder="0,00"
+                />
               </Field>
             </div>
 
@@ -264,18 +290,15 @@ export function TransferFormDialog({ open, onOpenChange, wallet, rates }: Transf
               </Field>
             )}
 
-            {amountNum > 0 && (
-              <div className="rounded-xl border border-border/60 bg-muted/30 p-3 text-sm">
-                <div className="flex items-center justify-between">
-                  <span className="text-muted-foreground">Llegará a destino</span>
-                  <span className="font-black tabular-nums">
-                    {toCur ? formatMoney(converted, toCur) : '—'}
-                  </span>
-                </div>
-                {differentCur && rateValue <= 0 && (
-                  <p className="mt-1 text-xs text-destructive">Indica una tasa válida.</p>
-                )}
-              </div>
+            <Field label="Fecha">
+              <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+            </Field>
+
+            {differentCur && (
+              <p className="text-xs text-muted-foreground">
+                El monto a recibir se calcula con la tasa elegida. Ajústalo si tu plataforma cobra
+                comisión.
+              </p>
             )}
 
             <Field label="Nota" hint="Opcional">

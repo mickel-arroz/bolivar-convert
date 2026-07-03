@@ -2,8 +2,9 @@
 
 import { useMemo, useState } from 'react'
 import { Account, StatsBundle, WalletApi } from '@/hooks/useWallet'
-import { getCurrency, CURRENCIES, CurrencyId } from '@/constants/currencies'
+import { getCurrency, CURRENCIES } from '@/constants/currencies'
 import { getAccountIcon } from '@/constants/walletCategories'
+import { DEFAULT_ACCOUNT_COLOR } from '@/constants/walletColors'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import {
@@ -22,19 +23,6 @@ import { WalletDialogs } from './dialogs'
 import { buildFeed } from './feed'
 import { MovementRow } from './MovementRow'
 import { formatMoney } from './format'
-
-/** Anillo de color según la moneda de la cuenta (USD verde, EUR azul, VES naranja). */
-function accountAccent(currency: CurrencyId): string {
-  switch (currency) {
-    case 'USD':
-      return 'ring-2 ring-green-500/40'
-    case 'EUR':
-      return 'ring-2 ring-blue-500/40'
-    case 'VES':
-    default:
-      return 'ring-2 ring-orange-500/40'
-  }
-}
 
 interface ResumenTabProps {
   wallet: WalletApi
@@ -135,12 +123,24 @@ export function ResumenTab({ wallet, stats, dialogs }: ResumenTabProps) {
           {state.accounts.map((account) => {
             const balance = balanceById.get(account.id) ?? 0
             const AccIcon = getAccountIcon(account.icon)
+            const accent = account.color ?? DEFAULT_ACCOUNT_COLOR
             return (
-              <Card key={account.id} className={accountAccent(account.currency)}>
+              <Card
+                key={account.id}
+                style={{
+                  boxShadow: `0 0 0 2px color-mix(in oklch, ${accent} 40%, transparent)`,
+                }}
+              >
                 <CardContent className="flex flex-col gap-2">
                   <div className="flex items-start justify-between gap-2">
                     <div className="flex min-w-0 items-center gap-2.5">
-                      <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-muted text-muted-foreground">
+                      <div
+                        className="flex size-9 shrink-0 items-center justify-center rounded-full"
+                        style={{
+                          backgroundColor: `color-mix(in oklch, ${accent} 18%, transparent)`,
+                          color: accent,
+                        }}
+                      >
                         <AccIcon className="size-4" />
                       </div>
                       <div className="min-w-0">

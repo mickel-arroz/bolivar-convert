@@ -1,6 +1,8 @@
 import { ReactNode } from 'react'
 import { CURRENCIES, CurrencyId } from '@/constants/currencies'
 import { TransactionType } from '@/hooks/useWallet'
+import { WALLET_COLORS, DEFAULT_ACCOUNT_COLOR } from '@/constants/walletColors'
+import { CheckIcon } from '@/components/icons'
 import { cn } from '@/lib/utils'
 
 /** Campo con etiqueta superior, usado en los formularios de la billetera. */
@@ -47,6 +49,55 @@ export function CurrencyToggle({
           {c.symbol}
         </button>
       ))}
+    </div>
+  )
+}
+
+/**
+ * Selector de color en cuadrícula (mismo patrón que la grilla de iconos). Incluye una
+ * opción "sin color" (gris por defecto). `value` undefined equivale a gris.
+ */
+export function ColorPicker({
+  value,
+  onChange,
+}: {
+  value: string | undefined
+  onChange: (color: string | undefined) => void
+}) {
+  const isDefault = !value || value === DEFAULT_ACCOUNT_COLOR
+  return (
+    <div className="grid grid-cols-5 gap-1.5">
+      {/* Sin color (gris) */}
+      <button
+        type="button"
+        onClick={() => onChange(undefined)}
+        aria-label="Sin color"
+        className={cn(
+          'flex aspect-square items-center justify-center rounded-lg border transition-all',
+          isDefault ? 'border-foreground/60' : 'border-border/50 hover:border-foreground/40'
+        )}
+        style={{ backgroundColor: `color-mix(in oklch, ${DEFAULT_ACCOUNT_COLOR} 25%, transparent)` }}
+      >
+        {isDefault && <CheckIcon className="size-4" style={{ color: DEFAULT_ACCOUNT_COLOR }} />}
+      </button>
+      {WALLET_COLORS.map((color) => {
+        const selected = value === color
+        return (
+          <button
+            key={color}
+            type="button"
+            onClick={() => onChange(color)}
+            aria-label={`Color ${color}`}
+            className={cn(
+              'flex aspect-square items-center justify-center rounded-lg border transition-all',
+              selected ? 'border-foreground/60' : 'border-transparent hover:border-foreground/40'
+            )}
+            style={{ backgroundColor: color }}
+          >
+            {selected && <CheckIcon className="size-4 text-white" />}
+          </button>
+        )
+      })}
     </div>
   )
 }

@@ -101,7 +101,7 @@ export function Billetera() {
           </TabsList>
 
           <TabsPanel value="resumen">
-            <ResumenTab wallet={wallet} stats={stats} dialogs={dialogs} />
+            <ResumenTab wallet={wallet} rates={rates} dialogs={dialogs} />
           </TabsPanel>
           <TabsPanel value="movimientos">
             <MovimientosTab wallet={wallet} dialogs={dialogs} />

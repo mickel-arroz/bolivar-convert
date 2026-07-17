@@ -1,8 +1,9 @@
 'use client'
 
-import { useMemo, useState } from 'react'
-import { Account, StatsBundle, WalletApi } from '@/hooks/useWallet'
-import { getCurrency, CURRENCIES } from '@/constants/currencies'
+import { useMemo, useState, useEffect } from 'react'
+import { Account, WalletApi } from '@/hooks/useWallet'
+import { Rates } from '@/constants/rates'
+import { getCurrency, CURRENCIES, type CurrencyId } from '@/constants/currencies'
 import { getAccountIcon } from '@/constants/walletCategories'
 import { DEFAULT_ACCOUNT_COLOR } from '@/constants/walletColors'
 import { Card, CardContent } from '@/components/ui/card'
@@ -17,7 +18,17 @@ import {
   AlertDialogCancel,
   AlertDialogAction,
 } from '@/components/ui/alert-dialog'
-import { PlusIcon, TransferIcon, PencilIcon, TrashIcon, WalletIcon } from '@/components/icons'
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+} from '@/components/ui/dropdown-menu'
+import { PlusIcon, TransferIcon, PencilIcon, TrashIcon, WalletIcon, DotsIcon } from '@/components/icons'
+
+/** Moneda destacada del patrimonio neto (preferencia local del dispositivo). */
+const NETWORTH_CURRENCY_KEY = 'bolivar_networth_currency_v1'
 import { cn } from '@/lib/utils'
 import { WalletDialogs } from './dialogs'
 import { buildFeed } from './feed'
@@ -26,13 +37,31 @@ import { formatMoney } from './format'
 
 interface ResumenTabProps {
   wallet: WalletApi
-  stats: StatsBundle
+  rates: Rates
   dialogs: WalletDialogs
 }
 
-export function ResumenTab({ wallet, stats, dialogs }: ResumenTabProps) {
-  const { state, accountBalances, totalsByCurrency, removeAccount } = wallet
+export function ResumenTab({ wallet, rates, dialogs }: ResumenTabProps) {
+  const { state, accountBalances, totalsByCurrency, removeAccount, netWorthIn } = wallet
   const [pendingDelete, setPendingDelete] = useState<Account | null>(null)
+
+  // Moneda destacada del patrimonio neto: por defecto USD, recordada en localStorage.
+  const [netWorthCurrency, setNetWorthCurrency] = useState<CurrencyId>('USD')
+  useEffect(() => {
+    const saved = localStorage.getItem(NETWORTH_CURRENCY_KEY)
+    if (saved === 'VES' || saved === 'USD' || saved === 'EUR') {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setNetWorthCurrency(saved)
+    }
+  }, [])
+  const handleNetWorthCurrency = (c: CurrencyId) => {
+    setNetWorthCurrency(c)
+    try {
+      localStorage.setItem(NETWORTH_CURRENCY_KEY, c)
+    } catch {
+      /* ignore */
+    }
+  }
 
   const balanceById = useMemo(
     () => new Map(accountBalances.map((b) => [b.accountId, b.balance])),
@@ -49,23 +78,48 @@ export function ResumenTab({ wallet, stats, dialogs }: ResumenTabProps) {
     [state.transactions, state.transfers]
   )
 
-  const displaySymbol = getCurrency(state.displayCurrency).symbol
+  // Patrimonio neto = suma de TODAS las cuentas convertida a la moneda elegida.
+  const netWorthCalc = netWorthIn(netWorthCurrency, rates)
 
   return (
     <div className="flex flex-col gap-6">
       {/* Patrimonio neto */}
       <Card>
         <CardContent className="flex flex-col gap-3">
-          <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
-            Patrimonio neto
-          </span>
-          {stats.ratesAvailable ? (
+          <div className="flex items-start justify-between gap-2">
+            <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+              Patrimonio neto
+            </span>
+            <DropdownMenu>
+              <DropdownMenuTrigger
+                render={
+                  <Button variant="ghost" size="icon-sm" aria-label="Cambiar moneda del patrimonio">
+                    <DotsIcon className="size-4" />
+                  </Button>
+                }
+              />
+              <DropdownMenuContent align="end" className="min-w-40">
+                <DropdownMenuRadioGroup
+                  value={netWorthCurrency}
+                  onValueChange={(v) => handleNetWorthCurrency(v as CurrencyId)}
+                >
+                  {CURRENCIES.map((c) => (
+                    <DropdownMenuRadioItem key={c.id} value={c.id}>
+                      {c.label} ({c.symbol})
+                    </DropdownMenuRadioItem>
+                  ))}
+                </DropdownMenuRadioGroup>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+          {netWorthCalc.ratesAvailable ? (
             <p className="text-3xl font-black tracking-tight tabular-nums">
-              {formatMoney(stats.netWorth, state.displayCurrency)}
+              {formatMoney(netWorthCalc.value, netWorthCurrency)}
             </p>
           ) : (
             <p className="text-2xl font-black text-muted-foreground">
-              {displaySymbol} — <span className="text-sm font-medium">tasa no disponible</span>
+              {getCurrency(netWorthCurrency).symbol}{' '}
+              — <span className="text-sm font-medium">tasa no disponible</span>
             </p>
           )}
           <div className="flex flex-wrap gap-2">
@@ -79,7 +133,7 @@ export function ResumenTab({ wallet, stats, dialogs }: ResumenTabProps) {
             ))}
           </div>
           <p className="text-[11px] text-muted-foreground">
-            Valor estimado en {getCurrency(state.displayCurrency).label.toLowerCase()} usando la tasa actual.
+            Suma de todas tus cuentas convertida a {getCurrency(netWorthCurrency).label.toLowerCase()} con la tasa actual.
           </p>
         </CardContent>
       </Card>

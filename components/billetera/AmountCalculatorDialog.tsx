@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useRates } from '@/hooks/useRates'
 import { CurrencyId, getCurrency } from '@/constants/currencies'
 import { Input } from '@/components/ui/input'
+import { clampDigits } from '@/lib/numberInput'
 import {
   Dialog,
   DialogContent,
@@ -123,7 +124,7 @@ export function AmountCalculatorDialog({
                 type="number"
                 inputMode="decimal"
                 value={amount}
-                onChange={(e) => setAmount(e.target.value)}
+                onChange={(e) => setAmount(clampDigits(e.target.value))}
                 placeholder="0,00"
                 autoFocus
               />
@@ -133,7 +134,7 @@ export function AmountCalculatorDialog({
                 type="number"
                 inputMode="decimal"
                 value={customRate}
-                onChange={(e) => setCustomRate(e.target.value)}
+                onChange={(e) => setCustomRate(clampDigits(e.target.value, { maxDecimals: 4 }))}
                 placeholder="0,00"
               />
             </Field>

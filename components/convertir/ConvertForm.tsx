@@ -14,8 +14,14 @@ import {
   CopyIcon
 } from '@/components/icons'
 import { SectionHeader } from '@/components/SectionHeader'
+import { evaluateExpression, hasMathOperator } from '@/lib/mathExpression'
+import { clampDigits } from '@/lib/numberInput'
 
 const STORAGE_KEY = 'bolivar_convert_prefs'
+
+/** Deja solo números y operadores aritméticos, con un largo máximo controlado. */
+const sanitizeExpression = (v: string): string =>
+  v.replace(/[^0-9.,+\-*/() ]/g, '').slice(0, 24)
 
 type Currency = 'VES' | 'USD'
 
@@ -59,7 +65,8 @@ export function ConvertForm() {
 
   const results = useMemo(() => {
     const { amount, currency, customRate } = formData
-    const numAmount = parseFloat(amount) || 0
+    // El monto puede ser una expresión simple ("1+2", "10*1,5"); se evalúa.
+    const numAmount = evaluateExpression(amount) ?? 0
 
     const getConverted = (rateStr: string | undefined, forceInverse = false) => {
       const rate = parseFloat(rateStr || '0')
@@ -82,9 +89,15 @@ export function ConvertForm() {
 
   if (!isMounted) return null
 
-  const handleAmountChange = (val: string) => setFormData(prev => ({ ...prev, amount: val }))
+  const handleAmountChange = (val: string) =>
+    setFormData(prev => ({ ...prev, amount: sanitizeExpression(val) }))
   const handleCurrencyChange = (val: Currency) => setFormData(prev => ({ ...prev, currency: val }))
-  const handleCustomRateChange = (val: string) => setFormData(prev => ({ ...prev, customRate: val }))
+  const handleCustomRateChange = (val: string) =>
+    setFormData(prev => ({ ...prev, customRate: clampDigits(val, { maxIntegerDigits: 12, maxDecimals: 4 }) }))
+
+  // Vista previa del resultado cuando el monto es una expresión (ej. "1+2" → "= 3").
+  const evaluatedAmount = evaluateExpression(formData.amount)
+  const showAmountPreview = hasMathOperator(formData.amount) && evaluatedAmount !== null
 
   return (
     <div className="flex flex-col gap-8 max-w-4xl mx-auto w-full animate-in fade-in slide-in-from-bottom-4 duration-700">
@@ -104,12 +117,13 @@ export function ConvertForm() {
               <div className="relative group">
                 <input
                   id="amount-input"
-                  type="number"
+                  type="text"
                   inputMode="decimal"
                   value={formData.amount}
                   onChange={(e) => handleAmountChange(e.target.value)}
                   className="w-full bg-background border-2 border-border/50 rounded-xl h-16 px-5 pr-24 text-2xl font-bold transition-all focus:outline-none focus:border-primary/50 focus:ring-4 focus:ring-primary/10 group-hover:border-border"
-                  placeholder="0.00"
+                  placeholder="0.00 (admite + - * /)"
+                  autoComplete="off"
                 />
                 <div className="absolute right-2 top-2 bottom-2 flex p-1 bg-secondary/50 rounded-lg border border-border/50">
                   <button
@@ -132,6 +146,11 @@ export function ConvertForm() {
                   </button>
                 </div>
               </div>
+              {showAmountPreview && (
+                <span className="pl-1 text-xs font-semibold text-primary/80">
+                  = {evaluatedAmount!.toLocaleString('en-US', { maximumFractionDigits: 2 })}
+                </span>
+              )}
             </div>
 
             {/* Custom Rate */}
@@ -143,9 +162,8 @@ export function ConvertForm() {
                 </div>
                 <input
                   id="custom-rate-input"
-                  type="number"
+                  type="text"
                   inputMode="decimal"
-                  step="0.01"
                   value={formData.customRate}
                   onChange={(e) => handleCustomRateChange(e.target.value)}
                   className="w-full bg-background border-2 border-border/50 rounded-xl h-16 pl-12 px-5 text-2xl font-bold transition-all focus:outline-none focus:border-primary/50 focus:ring-4 focus:ring-primary/10 group-hover:border-border"

@@ -4,6 +4,7 @@ import { useState, useEffect, useMemo } from 'react'
 import { Card, CardContent } from '@/components/ui/card'
 import { TrendingUpIcon } from '@/components/icons'
 import { cn } from '@/lib/utils'
+import { clampDigits } from '@/lib/numberInput'
 
 import { RATES_METADATA, RateId, Rates, RateInfo } from '@/constants/rates'
 
@@ -97,7 +98,7 @@ const RateSelector = ({
                       onKeyDown={(e) => {
                         if (e.key === ' ') e.stopPropagation();
                       }}
-                      onChange={(e) => setCustomValue(e.target.value)}
+                      onChange={(e) => setCustomValue(clampDigits(e.target.value, { maxDecimals: 4 }))}
                       className="flex h-10 w-full rounded-lg border border-border bg-background px-3 py-1 text-sm shadow-xs transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/20 focus-visible:border-primary/30"
                       placeholder="0.00"
                     />

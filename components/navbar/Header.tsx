@@ -1,6 +1,7 @@
 'use client'
 
 import Link from 'next/link'
+import { usePathname } from 'next/navigation'
 import { useTheme } from 'next-themes'
 import {
   MoonIcon,
@@ -9,11 +10,13 @@ import {
 
 import { Button } from '@/components/ui/button'
 import { AuthMenu } from '@/components/navbar/AuthMenu'
+import { cn } from '@/lib/utils'
 
 import { SITE_CONFIG, NAV_ITEMS } from '@/constants/site'
 
 export function Header() {
   const { setTheme, theme } = useTheme()
+  const pathname = usePathname()
 
   return (
     <header className="sticky top-4 z-50 w-[calc(100%-2rem)] max-w-7xl mx-auto flex justify-center h-14 transition-all duration-500">
@@ -28,15 +31,27 @@ export function Header() {
               </span>
             </Link>
             <nav className="hidden md:flex items-center space-x-8 text-[11px] font-black uppercase tracking-widest">
-              {NAV_ITEMS.map((item) => (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  className="transition-all hover:text-primary text-muted-foreground/80"
-                >
-                  {item.label}
-                </Link>
-              ))}
+              {NAV_ITEMS.map((item) => {
+                const isActive = pathname === item.href
+                return (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    aria-current={isActive ? 'page' : undefined}
+                    className={cn(
+                      'relative transition-all hover:text-primary',
+                      isActive
+                        ? 'text-foreground'
+                        : 'text-muted-foreground/80 dark:text-foreground/70'
+                    )}
+                  >
+                    {item.label}
+                    {isActive && (
+                      <span className="absolute -bottom-1.5 left-0 right-0 h-0.5 rounded-full bg-primary" />
+                    )}
+                  </Link>
+                )
+              })}
             </nav>
           </div>
         </div>

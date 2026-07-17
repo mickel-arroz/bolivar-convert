@@ -8,6 +8,7 @@ import { ACCOUNT_ICON_MAP } from '@/constants/walletCategories'
 import { WalletIcon } from '@/components/icons'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { clampDigits } from '@/lib/numberInput'
 import {
   Dialog,
   DialogContent,
@@ -227,7 +228,7 @@ export function TransferFormDialog({ open, onOpenChange, wallet, rates }: Transf
                   type="number"
                   inputMode="decimal"
                   value={fromAmount}
-                  onChange={(e) => setFromAmount(e.target.value)}
+                  onChange={(e) => setFromAmount(clampDigits(e.target.value))}
                   placeholder="0,00"
                 />
               </Field>
@@ -237,7 +238,7 @@ export function TransferFormDialog({ open, onOpenChange, wallet, rates }: Transf
                   inputMode="decimal"
                   value={toAmount}
                   onChange={(e) => {
-                    setToAmount(e.target.value)
+                    setToAmount(clampDigits(e.target.value))
                     setToAmountEdited(true)
                   }}
                   placeholder="0,00"
@@ -282,7 +283,7 @@ export function TransferFormDialog({ open, onOpenChange, wallet, rates }: Transf
                       type="number"
                       inputMode="decimal"
                       value={customRate}
-                      onChange={(e) => setCustomRate(e.target.value)}
+                      onChange={(e) => setCustomRate(clampDigits(e.target.value, { maxDecimals: 4 }))}
                       placeholder={customRateLabel}
                     />
                   )}

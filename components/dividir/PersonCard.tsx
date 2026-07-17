@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { clampDigits } from '@/lib/numberInput'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -155,7 +156,7 @@ export function PersonCard({
             min="0"
             step="0.01"
             value={newAmount}
-            onChange={(e) => setNewAmount(e.target.value)}
+            onChange={(e) => setNewAmount(clampDigits(e.target.value))}
             onKeyDown={handleAmountKeyDown}
             className="flex-1 sm:flex-none sm:w-28 h-12 text-sm font-bold bg-background border-2 border-border/50 rounded-xl transition-all focus:outline-none focus:border-primary/50 focus:ring-4 focus:ring-primary/10"
           />

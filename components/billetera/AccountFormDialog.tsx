@@ -5,6 +5,7 @@ import { CurrencyId } from '@/constants/currencies'
 import { Account, WalletApi } from '@/hooks/useWallet'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { clampDigits } from '@/lib/numberInput'
 import {
   Dialog,
   DialogContent,
@@ -125,7 +126,7 @@ export function AccountFormDialog({ open, onOpenChange, wallet, editing }: Accou
               type="number"
               inputMode="decimal"
               value={balance}
-              onChange={(e) => setBalance(e.target.value)}
+              onChange={(e) => setBalance(clampDigits(e.target.value, { allowNegative: true }))}
               placeholder="0,00"
             />
           </Field>

@@ -7,6 +7,7 @@ import { ACCOUNT_ICON_MAP } from '@/constants/walletCategories'
 import { WalletIcon } from '@/components/icons'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { clampDigits } from '@/lib/numberInput'
 import {
   Dialog,
   DialogContent,
@@ -157,7 +158,7 @@ export function GoalContributionDialog({
                   type="number"
                   inputMode="decimal"
                   value={amount}
-                  onChange={(e) => setAmount(e.target.value)}
+                  onChange={(e) => setAmount(clampDigits(e.target.value))}
                   placeholder="0,00"
                   autoFocus
                 />

@@ -7,6 +7,7 @@ import { getCategoryIcon, CATEGORY_ICON_MAP, ACCOUNT_ICON_MAP } from '@/constant
 import { DotsIcon, WalletIcon, CalculatorIcon } from '@/components/icons'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { clampDigits } from '@/lib/numberInput'
 import {
   Dialog,
   DialogContent,
@@ -170,7 +171,7 @@ export function TransactionFormDialog({
                   type="number"
                   inputMode="decimal"
                   value={amount}
-                  onChange={(e) => setAmount(e.target.value)}
+                  onChange={(e) => setAmount(clampDigits(e.target.value))}
                   placeholder="0,00"
                   autoFocus
                   className="flex-1"

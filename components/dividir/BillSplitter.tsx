@@ -8,6 +8,7 @@ import { TAX_RATES } from '@/constants/config'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { clampDigits, clampInteger } from '@/lib/numberInput'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -347,7 +348,7 @@ export function BillSplitter() {
                   step="0.01"
                   placeholder="0.00"
                   value={equalSplitAmount}
-                  onChange={(e) => setEqualSplitAmount(e.target.value)}
+                  onChange={(e) => setEqualSplitAmount(clampDigits(e.target.value))}
                   className="pl-10 h-14 text-lg bg-background border-2 border-border/50 rounded-2xl transition-all focus:outline-none focus:border-primary/50 focus:ring-4 focus:ring-primary/10"
                 />
               </div>
@@ -364,7 +365,7 @@ export function BillSplitter() {
                 step="1"
                 placeholder="Ej: 4"
                 value={equalSplitPeopleCount}
-                onChange={(e) => setEqualSplitPeopleCount(e.target.value)}
+                onChange={(e) => setEqualSplitPeopleCount(clampInteger(e.target.value, 4))}
                 className="h-14 text-lg bg-background border-2 border-border/50 rounded-2xl transition-all focus:outline-none focus:border-primary/50 focus:ring-4 focus:ring-primary/10"
               />
             </div>

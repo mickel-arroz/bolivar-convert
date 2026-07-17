@@ -7,6 +7,7 @@ import { getCategoryIcon, CATEGORY_ICON_MAP } from '@/constants/walletCategories
 import { DotsIcon } from '@/components/icons'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { clampDigits } from '@/lib/numberInput'
 import {
   Dialog,
   DialogContent,
@@ -127,7 +128,7 @@ export function BudgetFormDialog({
               type="number"
               inputMode="decimal"
               value={limit}
-              onChange={(e) => setLimit(e.target.value)}
+              onChange={(e) => setLimit(clampDigits(e.target.value))}
               placeholder="0,00"
               autoFocus
             />
@@ -141,7 +142,7 @@ export function BudgetFormDialog({
               type="number"
               inputMode="decimal"
               value={carryover}
-              onChange={(e) => setCarryover(e.target.value)}
+              onChange={(e) => setCarryover(clampDigits(e.target.value, { allowNegative: true }))}
               placeholder="0,00"
             />
           </Field>

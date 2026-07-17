@@ -897,6 +897,27 @@ export function useWallet() {
     return totals
   }, [accountBalances])
 
+  /**
+   * Patrimonio neto convertido a `currency`: suma de TODAS las cuentas normalizadas
+   * a esa moneda con las tasas actuales. `ratesAvailable` es false si falta alguna
+   * tasa necesaria para convertir.
+   */
+  const netWorthIn = useCallback(
+    (currency: CurrencyId, rates: Rates): { value: number; ratesAvailable: boolean } => {
+      const usedCurrencies = new Set<CurrencyId>([currency])
+      for (const b of accountBalances) usedCurrencies.add(b.currency)
+      const ratesAvailable = [...usedCurrencies].every(
+        (c) => bsPerUnit(c, rates, state.statsRateSource) > 0
+      )
+      let value = 0
+      for (const b of accountBalances) {
+        value += normalize(b.balance, b.currency, currency, rates, state.statsRateSource)
+      }
+      return { value, ratesAvailable }
+    },
+    [accountBalances, state.statsRateSource]
+  )
+
   const filteredTransactions = useMemo(
     () => filterByRange(state.transactions, state.timeRange),
     [state.transactions, state.timeRange]
@@ -1075,6 +1096,7 @@ export function useWallet() {
     accountBalances,
     goalBalances,
     totalsByCurrency,
+    netWorthIn,
     filteredTransactions,
     computeStats,
     budgetStatusForMonth,

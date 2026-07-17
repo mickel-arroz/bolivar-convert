@@ -3,6 +3,7 @@
 import { Card, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { cn } from '@/lib/utils'
+import { clampDigits } from '@/lib/numberInput'
 import { TIP_PERCENTAGES, TipPercentage } from '@/constants/config'
 
 /* ─── Formatting helpers ─── */
@@ -98,7 +99,9 @@ export function TipConfigurator({
                   step="1"
                   placeholder="Propina %"
                   value={customTipPercent}
-                  onChange={(e) => setCustomTipPercent(e.target.value)}
+                  onChange={(e) =>
+                    setCustomTipPercent(clampDigits(e.target.value, { maxIntegerDigits: 3, maxDecimals: 2 }))
+                  }
                   className="w-32 h-10 border-2 border-border/50 rounded-xl focus:outline-none focus:border-primary/50 focus:ring-4 focus:ring-primary/10"
                 />
                 <span className="text-sm font-bold text-muted-foreground">%</span>
@@ -125,7 +128,7 @@ export function TipConfigurator({
               step="0.01"
               placeholder="Monto de propina"
               value={tipAmount}
-              onChange={(e) => setTipAmount(e.target.value)}
+              onChange={(e) => setTipAmount(clampDigits(e.target.value))}
               className="w-48 h-10 border-2 border-border/50 rounded-xl focus:outline-none focus:border-primary/50 focus:ring-4 focus:ring-primary/10"
             />
             <span className="text-sm font-bold text-muted-foreground">{currency}</span>

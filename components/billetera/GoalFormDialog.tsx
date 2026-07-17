@@ -5,6 +5,7 @@ import { CurrencyId } from '@/constants/currencies'
 import { Goal, WalletApi } from '@/hooks/useWallet'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { clampDigits } from '@/lib/numberInput'
 import {
   Dialog,
   DialogContent,
@@ -82,7 +83,7 @@ export function GoalFormDialog({ open, onOpenChange, wallet, editing }: GoalForm
               type="number"
               inputMode="decimal"
               value={target}
-              onChange={(e) => setTarget(e.target.value)}
+              onChange={(e) => setTarget(clampDigits(e.target.value))}
               placeholder="0,00"
             />
           </Field>

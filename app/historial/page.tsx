@@ -9,7 +9,6 @@ import {
   CardTitle,
 } from "@/components/ui/card"
 import { ChartConfig } from "@/components/ui/chart"
-import { getVEDataString } from '@/lib/utils'
 import { RATES_METADATA } from '@/constants/rates'
 import { ChartSkeleton } from '@/components/historial/ChartSkeleton'
 import { VisibilitySkeleton } from '@/components/historial/VisibilitySkeleton'
@@ -25,8 +24,9 @@ import {
   RateMetadata
 } from '@/components/historial'
 
-const CACHE_KEY = 'bolivar_history_cache'
 const PREFS_KEY = 'bolivar_history_prefs'
+/** Solo estas claves se grafican (evita líneas fantasma por campos extra). */
+const RATE_IDS = Object.keys(RATES_METADATA)
 
 // Convert global metadata to the format expected by History components
 const HISTORY_RATE_METADATA: Record<string, RateMetadata> = Object.values(RATES_METADATA).reduce((acc, rate) => {
@@ -81,15 +81,10 @@ export default function HistoryPage() {
     }
   }, [range, activeLines, loading, mounted])
 
-  const availableRateKeys = useMemo(() => {
-    const keys = new Set<string>()
-    data.forEach(entry => {
-      Object.keys(entry).forEach(key => {
-        if (key !== 'date') keys.add(key)
-      })
-    })
-    return Array.from(keys)
-  }, [data])
+  const availableRateKeys = useMemo(
+    () => RATE_IDS.filter((id) => data.some((entry) => entry[id] != null)),
+    [data]
+  )
 
   const chartConfig = useMemo(() => {
     const config: ChartConfig = {}
@@ -103,65 +98,47 @@ export default function HistoryPage() {
     return config
   }, [availableRateKeys])
 
+  // Trae solo el rango seleccionado desde nuestro endpoint interno (filtra server-side).
+  // Sin caché en localStorage: siempre en vivo.
   useEffect(() => {
-    async function fetchHistory() {
-      const cached = localStorage.getItem(CACHE_KEY)
-      const today = getVEDataString()
-      
-      if (cached) {
-        try {
-          const { data: cachedData, fetchDate } = JSON.parse(cached)
-          if (fetchDate === today) {
-            setData(cachedData)
-            setLoading(false)
-            return
-          }
-        } catch {
-          console.warn('Failed to parse history cache')
-        }
-      }
-
-      try {
-        const res = await fetch('/api/history')
+    if (!mounted) return
+    let cancelled = false
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setLoading(true)
+    fetch(`/api/history?range=${range}`)
+      .then((res) => {
         if (!res.ok) throw new Error('Failed to fetch')
-        const json = await res.json()
-        
-        const sortedData = (json as HistoryEntry[])
-          .map((item: HistoryEntry) => {
+        return res.json()
+      })
+      .then((json: HistoryEntry[]) => {
+        if (cancelled) return
+        const sortedData = json
+          .map((item) => {
             const parsedItem: HistoryEntry = { date: item.date }
-            Object.keys(item).forEach(key => {
+            Object.keys(item).forEach((key) => {
               if (key !== 'date') {
                 const val = item[key]
-                parsedItem[key] = val ? parseFloat(val.toString()) : null
+                parsedItem[key] = val != null ? parseFloat(val.toString()) : null
               }
             })
             return parsedItem
           })
-          .sort((a: HistoryEntry, b: HistoryEntry) => new Date(a.date).getTime() - new Date(b.date).getTime())
-        
+          .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
         setData(sortedData)
-        localStorage.setItem(CACHE_KEY, JSON.stringify({
-          data: sortedData,
-          fetchDate: today
-        }))
-      } catch {
-        // Silently handle error
-      } finally {
-        setLoading(false)
-      }
+      })
+      .catch(() => {
+        /* error silencioso */
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false)
+      })
+    return () => {
+      cancelled = true
     }
-    fetchHistory()
-  }, [])
+  }, [range, mounted])
 
-  const filteredData = useMemo(() => {
-    if (range === 'all' || data.length === 0) return data
-    const now = new Date()
-    const cutoff = new Date()
-    if (range === '7d') cutoff.setDate(now.getDate() - 7)
-    else if (range === '30d') cutoff.setDate(now.getDate() - 30)
-    else if (range === '1y') cutoff.setFullYear(now.getFullYear() - 1)
-    return data.filter(item => new Date(item.date) >= cutoff)
-  }, [data, range])
+  // El servidor ya devuelve el rango pedido; no se vuelve a filtrar en cliente.
+  const filteredData = data
 
   const toggleLine = (id: string) => {
     setActiveLines(prev => {

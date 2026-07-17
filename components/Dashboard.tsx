@@ -1,6 +1,5 @@
 'use client'
 
-import { useState, useEffect } from 'react'
 import { RefreshIcon, TrendingUpIcon, WifiOffIcon } from '@/components/icons'
 import { RateCard } from '@/components/cards/RateCard'
 import { RateDifferenceCard } from '@/components/cards/RateDifferenceCard'
@@ -8,46 +7,21 @@ import { RateCardSkeleton } from '@/components/cards/RateCardSkeleton'
 import { RateDifferenceSkeleton } from '@/components/cards/RateDifferenceSkeleton'
 import { cn } from '@/lib/utils'
 import { RATE_CARDS_CONFIG, Rates } from '@/constants/rates'
-import { HistoryEntry } from '@/components/historial/types'
 import { useRates } from '@/hooks/useRates'
 import { PageHeader } from '@/components/PageHeader'
 import { LastUpdateBadge } from '@/components/LastUpdateBadge'
 
 export function Dashboard() {
-  const { rates, loading, isStale, isOffline, error, fetchRates, formatLastUpdate } = useRates()
-  const [historyData, setHistoryData] = useState<HistoryEntry[]>([])
+  const { rates, previousRates, loading, isStale, isOffline, error, fetchRates, formatLastUpdate } =
+    useRates()
 
-  useEffect(() => {
-    fetch('/api/history').then(res => res.json()).then(data => {
-      if (Array.isArray(data)) {
-        const sorted = data.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
-        setHistoryData(sorted)
-      }
-    }).catch(console.error)
-  }, [])
-
-  const getPreviousRate = (id: string) => {
-    if (!historyData.length) return null
-    const currentVal = parseFloat(rates[id as keyof Rates] as string)
-    if (isNaN(currentVal)) return null
-
-    const todayStr = new Date().toISOString().split('T')[0]
-    const prevItem = historyData.find(item => item.date < todayStr) || historyData[1]
-    
-    if (prevItem && prevItem[id] != null) {
-      return parseFloat(String(prevItem[id]))
-    }
-    return null
-  }
-
+  // Badge de variación % (tasa actual vs. registro anterior, ya provisto por /api/rates).
   const renderBadge = (id: string) => {
-    const prev = getPreviousRate(id)
-    if (prev === null) return null
+    const current = parseFloat(rates[id as keyof Rates] as string)
+    const prev = parseFloat(previousRates[id as keyof Rates] as string)
+    if (isNaN(current) || isNaN(prev) || prev === 0) return null
 
-    const currentVal = parseFloat(rates[id as keyof Rates] as string)
-    if (isNaN(currentVal)) return null
-
-    const diff = currentVal - prev
+    const diff = current - prev
     if (Math.abs(diff) < 0.001) return null
 
     const percent = (Math.abs(diff) / prev) * 100
@@ -80,7 +54,7 @@ export function Dashboard() {
       />
 
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3 w-full max-w-6xl mx-auto">
-        {loading && rates.lastUpdate === '---' 
+        {loading && rates.lastUpdate === '---'
           ? Array.from({ length: 3 }).map((_, i) => <RateCardSkeleton key={i} />)
           : RATE_CARDS_CONFIG.map((card) => (
             <RateCard
@@ -98,8 +72,8 @@ export function Dashboard() {
       </div>
 
       {/* Diferencia de tasas */}
-      {loading && rates.lastUpdate === '---' 
-        ? <RateDifferenceSkeleton /> 
+      {loading && rates.lastUpdate === '---'
+        ? <RateDifferenceSkeleton />
         : <RateDifferenceCard rates={rates} />
       }
 
@@ -115,7 +89,7 @@ export function Dashboard() {
             isOffline ? (
               <span className="flex items-center gap-2 text-sm font-medium text-amber-600 dark:text-amber-400">
                 <WifiOffIcon className="w-4 h-4" />
-                Sin conexión · Mostrando datos guardados
+                Sin conexión
               </span>
             ) : (
               <button

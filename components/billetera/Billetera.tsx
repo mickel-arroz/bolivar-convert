@@ -5,7 +5,8 @@ import { useWallet, Account, Transaction, TransactionType } from '@/hooks/useWal
 import { useRates } from '@/hooks/useRates'
 import { SectionHeader } from '@/components/SectionHeader'
 import { Tabs, TabsList, TabsTab, TabsPanel } from '@/components/ui/tabs'
-import { WalletIcon, ListIcon, ChartPieIcon, TargetIcon } from '@/components/icons'
+import { WalletIcon, ListIcon, ChartPieIcon, TargetIcon, AlertIcon } from '@/components/icons'
+import { MigrationPrompt } from './MigrationPrompt'
 import { WalletTab } from './types'
 import { WalletDialogs } from './dialogs'
 import { ResumenTab } from './ResumenTab'
@@ -62,6 +63,21 @@ export function Billetera() {
         title="Billetera"
         description="Gestiona tus cuentas, gastos e ingresos en bolívares, dólares y euros."
       />
+
+      {wallet.isMounted && <MigrationPrompt cloudHasData={wallet.hasData} />}
+
+      {wallet.loadError && (
+        <p className="flex items-center gap-2 rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+          <AlertIcon className="size-4 shrink-0" />
+          No se pudieron cargar tus datos de la nube. Revisa tu conexión y recarga la página.
+        </p>
+      )}
+      {wallet.syncError && !wallet.loadError && (
+        <p className="flex items-center gap-2 rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+          <AlertIcon className="size-4 shrink-0" />
+          Algunos cambios no se guardaron en la nube. Se reintentará con tu próxima acción.
+        </p>
+      )}
 
       {!wallet.isMounted ? (
         <div className="flex justify-center py-20">

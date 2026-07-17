@@ -18,6 +18,7 @@ describe('ConvertForm Component', () => {
     window.localStorage.clear()
     vi.mocked(useRates).mockReturnValue({
       rates: mockRates,
+      previousRates: mockRates,
       loading: false,
       isStale: false,
       isOffline: false,

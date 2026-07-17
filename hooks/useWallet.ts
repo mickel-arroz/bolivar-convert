@@ -1,10 +1,11 @@
 'use client'
 
-import { useState, useEffect, useCallback, useMemo } from 'react'
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { CurrencyId } from '@/constants/currencies'
 import { Rates, RateId } from '@/constants/rates'
 import { generateId, parseAmount } from '@/hooks/useBillSplitter'
 import { DEFAULT_CATEGORIES } from '@/constants/walletCategories'
+import { buildWalletDelta, isEmptyDelta } from '@/lib/wallet/delta'
 
 /* ─── Tipos ─── */
 export type TransactionType = 'income' | 'expense'
@@ -179,9 +180,10 @@ export interface StatsBundle {
 }
 
 /* ─── Almacenamiento ─── */
-const STORAGE_KEY = 'bolivar_wallet_v1'
+/** Clave del localStorage legado (previo a la nube). Reutilizada por la migración. */
+export const WALLET_STORAGE_KEY = 'bolivar_wallet_v1'
 
-const DEFAULT_STATE: WalletState = {
+export const DEFAULT_STATE: WalletState = {
   accounts: [],
   transactions: [],
   transfers: [],
@@ -200,7 +202,7 @@ const DEFAULT_STATE: WalletState = {
  * (nombre/ícono/color) de las categorías por defecto desde el código, conserva las
  * creadas por el usuario y anexa cualquier categoría por defecto nueva.
  */
-function mergeCategories(stored: Category[] | undefined): Category[] {
+export function mergeCategories(stored: Category[] | undefined): Category[] {
   if (!stored || stored.length === 0) return DEFAULT_CATEGORIES
   const defaultsById = new Map(DEFAULT_CATEGORIES.map((c) => [c.id, c]))
   const merged = stored.map((c) => {
@@ -340,42 +342,88 @@ export type WalletApi = ReturnType<typeof useWallet>
 export function useWallet() {
   const [isMounted, setIsMounted] = useState(false)
   const [state, setState] = useState<WalletState>(DEFAULT_STATE)
+  const [loadError, setLoadError] = useState(false)
+  const [syncError, setSyncError] = useState(false)
 
-  // Hidratar desde localStorage al montar
+  // Último estado confirmado en la nube; base para calcular el delta a persistir.
+  const lastSyncedRef = useRef<WalletState | null>(null)
+  // Cola para serializar las escrituras y evitar solapamientos.
+  const syncQueueRef = useRef<Promise<void>>(Promise.resolve())
+
+  // Hidratar desde nuestra API al montar (el cliente no habla con Supabase directo;
+  // el middleware protege /billetera, así que aquí hay sesión).
   useEffect(() => {
-    try {
-      const raw = localStorage.getItem(STORAGE_KEY)
-      if (raw) {
-        const parsed = JSON.parse(raw) as Partial<WalletState>
+    let cancelled = false
+    ;(async () => {
+      try {
+        const res = await fetch('/api/wallet/state')
+        if (res.status === 401) return // sin sesión
+        if (!res.ok) throw new Error('No se pudo cargar la billetera')
+        const loaded = (await res.json()) as Partial<WalletState>
+        if (cancelled) return
         const merged: WalletState = {
           ...DEFAULT_STATE,
-          ...parsed,
+          ...loaded,
           // Backfill: cuentas guardadas antes de tener icono → 'wallet'
-          accounts: (parsed.accounts ?? []).map((a) => ({ ...a, icon: a.icon ?? 'wallet' })),
-          transactions: parsed.transactions ?? [],
-          transfers: parsed.transfers ?? [],
+          accounts: (loaded.accounts ?? []).map((a) => ({ ...a, icon: a.icon ?? 'wallet' })),
+          transactions: loaded.transactions ?? [],
+          transfers: loaded.transfers ?? [],
           // Refresca las categorías por defecto (por id) desde el código y conserva
           // las del usuario; si no hay ninguna guardada, siembra las por defecto.
-          categories: mergeCategories(parsed.categories),
-          budgets: parsed.budgets ?? [],
-          goals: parsed.goals ?? [],
-          goalContributions: parsed.goalContributions ?? [],
-          concludedMonths: parsed.concludedMonths ?? [],
+          categories: mergeCategories(loaded.categories),
+          budgets: loaded.budgets ?? [],
+          goals: loaded.goals ?? [],
+          goalContributions: loaded.goalContributions ?? [],
+          concludedMonths: loaded.concludedMonths ?? [],
         }
-        // eslint-disable-next-line react-hooks/set-state-in-effect
+        // Base = lo que realmente hay en la nube (sin el merge de categorías), para
+        // que el primer sync inserte cualquier categoría por defecto nueva del código.
+        lastSyncedRef.current = { ...DEFAULT_STATE, ...loaded, categories: loaded.categories ?? [] }
         setState(merged)
+      } catch (e) {
+        console.error('[wallet load]', e)
+        if (!cancelled) setLoadError(true)
+      } finally {
+        if (!cancelled) setIsMounted(true)
       }
-    } catch {
-      /* ignore parse errors */
+    })()
+    return () => {
+      cancelled = true
     }
-    setIsMounted(true)
   }, [])
 
-  // Persistir en cada cambio (después del montaje)
+  // Persistir en la nube el delta respecto al último estado confirmado, vía /api/wallet/sync.
   useEffect(() => {
-    if (isMounted) {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(state))
-    }
+    if (!isMounted) return
+    const base = lastSyncedRef.current
+    if (!base) return
+    const snapshot = state
+    if (snapshot === base) return
+
+    syncQueueRef.current = syncQueueRef.current.then(async () => {
+      const from = lastSyncedRef.current
+      if (!from || from === snapshot) return
+      const delta = buildWalletDelta(from, snapshot)
+      if (isEmptyDelta(delta)) {
+        lastSyncedRef.current = snapshot
+        return
+      }
+      try {
+        const res = await fetch('/api/wallet/sync', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(delta),
+        })
+        if (!res.ok) throw new Error('sync failed')
+        lastSyncedRef.current = snapshot
+        setSyncError(false)
+      } catch (e) {
+        // No avanzamos lastSyncedRef: el próximo cambio reintenta el delta completo
+        // (los upserts/deletes son idempotentes, así que reenviar es seguro).
+        console.error('[wallet sync]', e)
+        setSyncError(true)
+      }
+    })
   }, [state, isMounted])
 
   /* ── Cuentas ── */
@@ -1021,6 +1069,8 @@ export function useWallet() {
   return {
     state,
     isMounted,
+    loadError,
+    syncError,
     hasData,
     accountBalances,
     goalBalances,

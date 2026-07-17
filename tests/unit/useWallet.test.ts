@@ -1,7 +1,52 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { renderHook, act, waitFor } from '@testing-library/react'
-import { describe, it, expect, beforeEach } from 'vitest'
+import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { useWallet, convertTransferAmount } from '@/hooks/useWallet'
 import { Rates } from '@/constants/rates'
+
+// "Nube" simulada: el hook llama a /api/wallet/state (GET) y /api/wallet/sync (POST).
+// Mockeamos fetch para probar la persistencia sin red ni Supabase real.
+const cloud = vi.hoisted(() => ({ store: {} as Record<string, any> }))
+
+const ENTITY_KEYS = [
+  'accounts',
+  'categories',
+  'goals',
+  'transactions',
+  'transfers',
+  'budgets',
+  'goalContributions',
+] as const
+
+// Réplica mínima de applyWalletDelta (servidor) sobre el store en memoria.
+function applyDeltaToStore(store: Record<string, any>, delta: any) {
+  for (const key of ENTITY_KEYS) {
+    const byId = new Map<string, any>((store[key] ?? []).map((x: any) => [x.id, x]))
+    for (const up of delta.upserts[key]) byId.set(up.id, up)
+    for (const id of delta.deletes[key]) byId.delete(id)
+    store[key] = Array.from(byId.values())
+  }
+  if (delta.prefs) {
+    store.displayCurrency = delta.prefs.displayCurrency
+    store.statsRateSource = delta.prefs.statsRateSource
+    store.timeRange = delta.prefs.timeRange
+    store.concludedMonths = delta.prefs.concludedMonths
+  }
+}
+
+vi.stubGlobal(
+  'fetch',
+  vi.fn(async (url: string, opts?: { body?: string }) => {
+    if (url.startsWith('/api/wallet/state')) {
+      return { ok: true, status: 200, json: async () => cloud.store } as Response
+    }
+    if (url.startsWith('/api/wallet/sync')) {
+      applyDeltaToStore(cloud.store, JSON.parse(opts?.body ?? '{}'))
+      return { ok: true, status: 200, json: async () => ({ ok: true }) } as Response
+    }
+    return { ok: false, status: 404, json: async () => ({}) } as Response
+  })
+)
 
 const RATES: Rates = {
   bcvUsd: '40',
@@ -16,6 +61,8 @@ const today = new Date().toISOString().slice(0, 10)
 describe('useWallet Hook', () => {
   beforeEach(() => {
     localStorage.clear()
+    cloud.store = {}
+    vi.clearAllMocks()
   })
 
   it('siembra categorías por defecto y arranca sin cuentas', async () => {
@@ -199,10 +246,16 @@ describe('useWallet Hook', () => {
     expect(parseFloat(after?.carryover ?? '0')).toBe(30)
   })
 
-  it('persiste el estado y lo rehidrata', async () => {
+  it('persiste el estado en la nube y lo rehidrata', async () => {
     const { result, unmount } = renderHook(() => useWallet())
     await waitFor(() => expect(result.current.isMounted).toBe(true))
     act(() => result.current.addAccount('Banco', 'USD', '500'))
+
+    // Esperar a que la sincronización por diff escriba en la "nube" simulada.
+    await waitFor(() => {
+      const accounts = (cloud.store.accounts as { name: string }[] | undefined) ?? []
+      expect(accounts.some((a) => a.name === 'Banco')).toBe(true)
+    })
     unmount()
 
     const { result: result2 } = renderHook(() => useWallet())

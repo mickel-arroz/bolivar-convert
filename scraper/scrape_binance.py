@@ -1,10 +1,8 @@
-import os
-import json
 from upstash_redis import Redis
-from datetime import datetime, timezone, timedelta
 from dotenv import load_dotenv
 
 from binance import get_usdt_avg
+from redis_history import upsert_today
 
 load_dotenv()
 
@@ -24,29 +22,11 @@ def main():
     try:
         binance_avg = get_usdt_avg()
         print(f"Resultado -> Binance USDT: {binance_avg}")
-        
+
         if r and binance_avg:
-            r.set("rates:binance:usd:avg", str(binance_avg))
-
-            # Actualizar timestamp global (última vez que el script corrió con éxito)
-            now = datetime.now(timezone.utc).isoformat()
-            r.set("rates:last_update", now)
-
-            print("Redis actualizado con la tasa de Binance.")
-
-            # Actualizar binanceUsdAvg en el registro de historial para hoy (hora Caracas, UTC-4)
-            CARACAS_TZ = timezone(timedelta(hours=-4))
-            today_caracas = datetime.now(CARACAS_TZ).strftime("%Y-%m-%d")
-            history = r.lrange("rates:history", 0, -1)
-            for i, item in enumerate(history):
-                record = json.loads(item)
-                if record.get("date") == today_caracas:
-                    record["binanceUsdAvg"] = binance_avg
-                    r.lset("rates:history", i, json.dumps(record))
-                    print(f"Historial actualizado para {today_caracas}: binanceUsdAvg={binance_avg}")
-                    break
-            else:
-                print(f"No existe registro en historial para {today_caracas}. No se modifica historial.")
+            # Upsert del registro de hoy en el historial unificado (solo binanceUsdAvg).
+            record = upsert_today(r, {"binanceUsdAvg": binance_avg})
+            print(f"Historial actualizado: {record}")
         elif not binance_avg:
             print("Error: No se pudo obtener la tasa de Binance.")
 

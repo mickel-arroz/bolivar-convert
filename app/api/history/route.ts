@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getRedis, readHistory } from '@/lib/rates.server'
-
-export const dynamic = 'force-dynamic'
+import { getRedis, readHistoryCached } from '@/lib/rates.server'
+import { jsonError } from '@/lib/api/route-helpers'
 
 /** Días por rango; `all` (o desconocido) = sin recorte. */
 const RANGE_DAYS: Record<string, number> = { '7d': 7, '30d': 30, '1y': 365 }
@@ -14,14 +13,14 @@ const RANGE_DAYS: Record<string, number> = { '7d': 7, '30d': 30, '1y': 365 }
 export async function GET(request: NextRequest) {
   const redis = getRedis()
   if (!redis) {
-    return NextResponse.json({ error: 'Redis connection not configured' }, { status: 500 })
+    return jsonError('Servicio de historial no disponible', 503)
   }
 
   try {
     const range = request.nextUrl.searchParams.get('range') ?? 'all'
     const days = RANGE_DAYS[range] // undefined para 'all' o rangos desconocidos
 
-    const history = await readHistory(redis) // ascendente por fecha
+    const history = await readHistoryCached() // ascendente por fecha, cacheado 30 min
 
     let entries = history
     if (days) {
@@ -41,6 +40,6 @@ export async function GET(request: NextRequest) {
     return NextResponse.json(projected)
   } catch (error) {
     console.error('Error fetching history from Redis:', error)
-    return NextResponse.json({ error: 'Failed to fetch history' }, { status: 500 })
+    return jsonError('No se pudo obtener el historial', 500)
   }
 }

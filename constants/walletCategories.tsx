@@ -15,6 +15,11 @@ import {
   DollarIcon,
   EuroIcon,
   BinanceIcon,
+  TargetIcon,
+  ChartPieIcon,
+  TrendingUpIcon,
+  ShieldCheckIcon,
+  ClockIcon,
 } from '@/components/icons'
 import type { Category } from '@/hooks/useWallet'
 
@@ -35,6 +40,11 @@ export const CATEGORY_ICON_MAP: Record<string, SvgIcon> = {
   salary: BriefcaseIcon,
   remittance: GiftIcon,
   coin: CoinIcon,
+  savings: TargetIcon,
+  investment: ChartPieIcon,
+  growth: TrendingUpIcon,
+  insurance: ShieldCheckIcon,
+  subscription: ClockIcon,
   other: DotsIcon,
 }
 
@@ -61,6 +71,11 @@ export const ACCOUNT_ICON_MAP: Record<string, SvgIcon> = {
   home: HomeIcon,
   gift: GiftIcon,
   shopping: ShoppingCartIcon,
+  savings: TargetIcon,
+  investment: ChartPieIcon,
+  growth: TrendingUpIcon,
+  insurance: ShieldCheckIcon,
+  subscription: ClockIcon,
 }
 
 /** Claves disponibles para que el usuario elija el icono de una cuenta. */

@@ -30,7 +30,7 @@ export function RateCard({
       {...props}
     >
       <div className={cn('absolute top-0 left-0 w-full h-1', colorClass)}></div>
-      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+      <CardHeader className="flex flex-row items-center justify-between space-y-0">
         <CardTitle className="text-base font-semibold text-muted-foreground">
           {label}
         </CardTitle>
@@ -44,7 +44,7 @@ export function RateCard({
         </div>
       </CardHeader>
       <CardContent>
-        <div className="flex items-baseline gap-3 mt-2">
+        <div className="flex items-baseline gap-3">
           <span className="text-4xl font-extrabold tracking-tighter">
             Bs. {rate}
           </span>

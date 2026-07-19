@@ -4,6 +4,7 @@ import { useMemo, useState } from 'react'
 import { useWallet, Account, Transaction, TransactionType } from '@/hooks/useWallet'
 import { useRates } from '@/hooks/useRates'
 import { SectionHeader } from '@/components/SectionHeader'
+import { Loader } from '@/components/ui/Loader'
 import { Tabs, TabsList, TabsTab, TabsPanel } from '@/components/ui/tabs'
 import { WalletIcon, ListIcon, ChartPieIcon, TargetIcon, AlertIcon } from '@/components/icons'
 import { MigrationPrompt } from './MigrationPrompt'
@@ -81,7 +82,7 @@ export function Billetera() {
 
       {!wallet.isMounted ? (
         <div className="flex justify-center py-20">
-          <div className="size-8 animate-spin rounded-full border-2 border-muted border-t-primary" />
+          <Loader size="lg" />
         </div>
       ) : (
         <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as WalletTab)}>
@@ -107,7 +108,7 @@ export function Billetera() {
             <MovimientosTab wallet={wallet} dialogs={dialogs} />
           </TabsPanel>
           <TabsPanel value="estadisticas">
-            <EstadisticasTab wallet={wallet} stats={stats} />
+            <EstadisticasTab wallet={wallet} />
           </TabsPanel>
           <TabsPanel value="presupuesto">
             <PresupuestoTab wallet={wallet} stats={stats} dialogs={dialogs} rates={rates} />

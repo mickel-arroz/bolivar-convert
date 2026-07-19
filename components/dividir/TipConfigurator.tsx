@@ -3,7 +3,7 @@
 import { Card, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { cn } from '@/lib/utils'
-import { clampDigits } from '@/lib/numberInput'
+import { useMathInput } from '@/hooks/useMathInput'
 import { TIP_PERCENTAGES, TipPercentage } from '@/constants/config'
 
 /* ─── Formatting helpers ─── */
@@ -41,6 +41,8 @@ export function TipConfigurator({
   setTipAmount: (a: string) => void
   currency: string
 }) {
+  const customTipInput = useMathInput(customTipPercent, setCustomTipPercent, { maxDecimals: 2 })
+  const tipAmountInput = useMathInput(tipAmount, setTipAmount, { maxDecimals: 2 })
   return (
     <Card className="border-border/50 bg-card/50 backdrop-blur-sm overflow-hidden py-0">
       <CardContent className="px-5 py-5 flex flex-col gap-4">
@@ -92,16 +94,9 @@ export function TipConfigurator({
             {tipPercentage === 'custom' && (
               <div className="flex items-center gap-2">
                 <Input
+                  {...customTipInput.inputProps}
                   id={`${uid}-custom-tip`}
-                  type="number"
-                  min="0"
-                  max="100"
-                  step="1"
                   placeholder="Propina %"
-                  value={customTipPercent}
-                  onChange={(e) =>
-                    setCustomTipPercent(clampDigits(e.target.value, { maxIntegerDigits: 3, maxDecimals: 2 }))
-                  }
                   className="w-32 h-10 border-2 border-border/50 rounded-xl focus:outline-none focus:border-primary/50 focus:ring-4 focus:ring-primary/10"
                 />
                 <span className="text-sm font-bold text-muted-foreground">%</span>
@@ -122,13 +117,9 @@ export function TipConfigurator({
         {tipMode === 'amount' && (
           <div className="flex items-center gap-2 animate-in fade-in duration-200">
             <Input
+              {...tipAmountInput.inputProps}
               id={`${uid}-tip-amount`}
-              type="number"
-              min="0"
-              step="0.01"
               placeholder="Monto de propina"
-              value={tipAmount}
-              onChange={(e) => setTipAmount(clampDigits(e.target.value))}
               className="w-48 h-10 border-2 border-border/50 rounded-xl focus:outline-none focus:border-primary/50 focus:ring-4 focus:ring-primary/10"
             />
             <span className="text-sm font-bold text-muted-foreground">{currency}</span>

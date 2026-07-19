@@ -5,7 +5,6 @@ import { CurrencyId, getCurrency } from '@/constants/currencies'
 import { ShoppingListItem, WalletApi } from '@/hooks/useWallet'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { clampDigits } from '@/lib/numberInput'
 import {
   Dialog,
   DialogContent,
@@ -15,7 +14,8 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog'
 import { cn } from '@/lib/utils'
-import { Field, CurrencyToggle } from './fields'
+import { notify } from '@/lib/notify'
+import { Field, AmountField, CurrencyToggle } from './fields'
 
 const TITLE_MAX = 60
 const DESC_MAX = 200
@@ -74,6 +74,7 @@ export function ShoppingItemFormDialog({
     } else {
       addShoppingItem({ listId, title, description: description || undefined, price: price || '0', currency })
     }
+    notify.success(editing ? 'Producto actualizado' : 'Producto añadido')
     onOpenChange(false)
   }
 
@@ -118,15 +119,12 @@ export function ShoppingItemFormDialog({
           </Field>
 
           <div className="grid grid-cols-2 gap-3">
-            <Field label="Precio" hint={getCurrency(currency).symbol}>
-              <Input
-                type="number"
-                inputMode="decimal"
-                value={price}
-                onChange={(e) => setPrice(clampDigits(e.target.value))}
-                placeholder="0,00"
-              />
-            </Field>
+            <AmountField
+              label="Precio"
+              hint={getCurrency(currency).symbol}
+              value={price}
+              onValueChange={setPrice}
+            />
             <Field label="Moneda">
               <CurrencyToggle value={currency} onChange={setCurrency} />
             </Field>

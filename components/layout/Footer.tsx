@@ -3,12 +3,9 @@ import { Fragment } from 'react'
 
 export function Footer() {
   return (
-    <footer className="py-6 md:py-6 pb-24 md:pb-6 md:px-8 border-t mt-auto">
-      <div className="container flex flex-col items-center justify-center gap-2 md:h-16 text-center">
-        <p className="text-sm text-muted-foreground/70">
-          Hecho para proveer información de tasas de cambio. Actualizado
-          diariamente.
-        </p>
+    <footer className="w-full flex justify-center pb-24 md:pb-6 mt-auto">
+      <div className="w-[calc(100%-2rem)] max-w-7xl border-t pt-3">
+        <div className="flex flex-col items-center justify-center gap-2 text-center">
         <p className="text-xs text-muted-foreground/60">
           Desarrollado por{' '}
           <a
@@ -33,6 +30,7 @@ export function Footer() {
             </Fragment>
           ))}
         </p>
+        </div>
       </div>
     </footer>
   )

@@ -8,7 +8,8 @@ import { TAX_RATES } from '@/constants/config'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { clampDigits, clampInteger } from '@/lib/numberInput'
+import { clampInteger } from '@/lib/numberInput'
+import { useMathInput, formatPreview } from '@/hooks/useMathInput'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -69,6 +70,7 @@ export function BillSplitter() {
 
   const [newPersonName, setNewPersonName] = useState('')
   const [copied, setCopied] = useState(false)
+  const equalAmountInput = useMathInput(state.equalSplitAmount, setEqualSplitAmount)
 
   if (!isMounted) return null
 
@@ -334,21 +336,24 @@ export function BillSplitter() {
         <Card className="border-border/50 bg-card/50 backdrop-blur-sm shadow-md py-0 animate-in fade-in slide-in-from-bottom-4 duration-300">
           <CardContent className="px-5 py-6 flex flex-col gap-4">
             <div className="flex flex-col gap-2">
-              <label htmlFor={`${uid}-equal-amount`} className="text-sm font-bold">
-                Monto total de la cuenta
-              </label>
+              <div className="flex min-h-5 items-center justify-between gap-2">
+                <label htmlFor={`${uid}-equal-amount`} className="text-sm font-bold">
+                  Monto total de la cuenta
+                </label>
+                {equalAmountInput.showPreview && (
+                  <span className="mr-2 text-sm font-bold tabular-nums text-primary">
+                    = {symbol}{formatPreview(equalAmountInput.evaluated!)}
+                  </span>
+                )}
+              </div>
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
                   <span className="text-muted-foreground font-bold">{symbol}</span>
                 </div>
                 <Input
+                  {...equalAmountInput.inputProps}
                   id={`${uid}-equal-amount`}
-                  type="number"
-                  min="0"
-                  step="0.01"
                   placeholder="0.00"
-                  value={equalSplitAmount}
-                  onChange={(e) => setEqualSplitAmount(clampDigits(e.target.value))}
                   className="pl-10 h-14 text-lg bg-background border-2 border-border/50 rounded-2xl transition-all focus:outline-none focus:border-primary/50 focus:ring-4 focus:ring-primary/10"
                 />
               </div>

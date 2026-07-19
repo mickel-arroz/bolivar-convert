@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { clampDigits } from '@/lib/numberInput'
+import { useMathInput } from '@/hooks/useMathInput'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -42,6 +42,7 @@ export function PersonCard({
 }) {
   const [newTitle, setNewTitle] = useState('')
   const [newAmount, setNewAmount] = useState('')
+  const amountInput = useMathInput(newAmount, setNewAmount)
 
   const subtotal = person.items.reduce((sum, it) => sum + parseAmount(it.amount), 0)
 
@@ -150,13 +151,9 @@ export function PersonCard({
         />
         <div className="flex gap-2 w-full sm:w-auto justify-end">
           <Input
+            {...amountInput.inputProps}
             id={`amount-input-${person.id}`}
             placeholder="Monto"
-            type="number"
-            min="0"
-            step="0.01"
-            value={newAmount}
-            onChange={(e) => setNewAmount(clampDigits(e.target.value))}
             onKeyDown={handleAmountKeyDown}
             className="flex-1 sm:flex-none sm:w-28 h-12 text-sm font-bold bg-background border-2 border-border/50 rounded-xl transition-all focus:outline-none focus:border-primary/50 focus:ring-4 focus:ring-primary/10"
           />

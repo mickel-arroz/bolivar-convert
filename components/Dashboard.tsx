@@ -36,12 +36,12 @@ export function Dashboard() {
   }
 
   return (
-    <div className="flex flex-col gap-10 pb-8 animate-in fade-in zoom-in-95 duration-500">
+    <div className="flex flex-col gap-10 pb-2 -mt-4 md:-mt-8 animate-in fade-in zoom-in-95 duration-500">
       {/* 1. Título principal (H1) */}
       <PageHeader
         title="El valor del Bolívar, preciso y al instante."
         titleClassName="text-4xl md:text-6xl font-extrabold tracking-tight"
-        className="pt-4 md:pt-6"
+        className="pt-0"
         badge={
           rates.lastUpdate !== '---' && !isStale && !isOffline ? (
             <LastUpdateBadge
@@ -77,13 +77,8 @@ export function Dashboard() {
         : <RateDifferenceCard rates={rates} />
       }
 
-      {/* 3. Subtítulo o descripción */}
-      <div className="flex flex-col items-center justify-center text-center gap-6 pb-8">
-        <p className="text-lg text-muted-foreground max-w-150">
-          Monitorear la tasa de cambio oficial del <a href="https://www.bcv.org.ve" target="_blank" rel="noopener noreferrer" className="text-blue-700 font-medium hover:underline">Banco Central de Venezuela</a> y
-          el mercado P2P de <a href="https://www.binance.com/es" target="_blank" rel="noopener noreferrer" className="text-yellow-600 font-medium hover:underline">Binance</a> en una sola plataforma.
-        </p>
-
+      {/* 3. Estado de conexión / reintento */}
+      <div className="flex flex-col items-center justify-center text-center gap-6">
         <div className="flex flex-col items-center gap-4">
           {(isStale || error) && (
             isOffline ? (

@@ -1,26 +1,158 @@
 import { ReactNode } from 'react'
 import { CURRENCIES, CurrencyId } from '@/constants/currencies'
-import { TransactionType } from '@/hooks/useWallet'
+import { TransactionType, CommissionType } from '@/hooks/useWallet'
 import { WALLET_COLORS, DEFAULT_ACCOUNT_COLOR } from '@/constants/walletColors'
 import { CheckIcon } from '@/components/icons'
 import { cn } from '@/lib/utils'
+import { Input } from '@/components/ui/input'
+import { useMathInput, formatPreview } from '@/hooks/useMathInput'
 
 /** Campo con etiqueta superior, usado en los formularios de la billetera. */
 export function Field({
   label,
   children,
   hint,
+  preview,
 }: {
   label: string
   children: ReactNode
   hint?: string
+  /** Nodo alineado a la derecha, en la misma fila que el label (p. ej. resultado). */
+  preview?: ReactNode
 }) {
   return (
     <div className="flex flex-col gap-1.5">
-      <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">{label}</span>
+      <div className="flex min-h-4 items-center justify-between gap-2">
+        <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">{label}</span>
+        {preview}
+      </div>
       {children}
       {hint && <span className="text-xs text-muted-foreground">{hint}</span>}
     </div>
+  )
+}
+
+/** Vista previa "= N" del resultado de una expresión, para la fila del label. */
+export function AmountPreview({
+  value,
+  maxDecimals = 2,
+}: {
+  value: number
+  maxDecimals?: number
+}) {
+  return (
+    <span className="mr-2 text-xs font-bold tabular-nums text-primary">
+      = {formatPreview(value, maxDecimals)}
+    </span>
+  )
+}
+
+/**
+ * Campo de monto/tasa con soporte de operaciones matemáticas simples. El resultado
+ * evaluado se muestra alineado a la derecha en la fila del label. El padre recibe
+ * siempre un string numérico plano vía `onValueChange`.
+ */
+export function AmountField({
+  label,
+  hint,
+  value,
+  onValueChange,
+  maxDecimals = 2,
+  placeholder = '0,00',
+  autoFocus,
+  disabled,
+  id,
+  className,
+}: {
+  label: string
+  hint?: string
+  value: string
+  onValueChange: (numeric: string) => void
+  maxDecimals?: number
+  placeholder?: string
+  autoFocus?: boolean
+  disabled?: boolean
+  id?: string
+  className?: string
+}) {
+  const { inputProps, showPreview, evaluated } = useMathInput(value, onValueChange, { maxDecimals })
+  return (
+    <Field
+      label={label}
+      hint={hint}
+      preview={showPreview ? <AmountPreview value={evaluated!} maxDecimals={maxDecimals} /> : undefined}
+    >
+      <Input
+        {...inputProps}
+        id={id}
+        placeholder={placeholder}
+        autoFocus={autoFocus}
+        disabled={disabled}
+        className={className}
+      />
+    </Field>
+  )
+}
+
+/** Campo de comisión (costo) opcional con toggle porcentual/fijo y soporte de operaciones matemáticas. */
+export function CommissionField({
+  label = 'Comisión',
+  hint,
+  type,
+  onTypeChange,
+  value,
+  onValueChange,
+  currencySymbol,
+  disabled,
+}: {
+  label?: string
+  hint?: string
+  type: CommissionType
+  onTypeChange: (type: CommissionType) => void
+  value: string
+  onValueChange: (numeric: string) => void
+  /** Símbolo de la moneda a cobrar en modo fijo (p. ej. 'Bs.'). */
+  currencySymbol?: string
+  disabled?: boolean
+}) {
+  const { inputProps, showPreview, evaluated } = useMathInput(value, onValueChange, { maxDecimals: 2 })
+  const options: { id: CommissionType; label: string }[] = [
+    { id: 'percent', label: '%' },
+    { id: 'fixed', label: currencySymbol ?? 'Monto' },
+  ]
+  return (
+    <Field
+      label={label}
+      hint={hint}
+      preview={showPreview ? <AmountPreview value={evaluated!} /> : undefined}
+    >
+      <div className="flex gap-2">
+        <div className="grid shrink-0 grid-cols-2 gap-1 rounded-lg bg-muted/50 p-1">
+          {options.map((o) => (
+            <button
+              key={o.id}
+              type="button"
+              onClick={() => onTypeChange(o.id)}
+              disabled={disabled}
+              className={cn(
+                'rounded-md px-3 py-1.5 text-sm font-bold transition-all',
+                type === o.id
+                  ? 'bg-background text-foreground shadow-sm'
+                  : 'text-muted-foreground hover:text-foreground'
+              )}
+            >
+              {o.label}
+            </button>
+          ))}
+        </div>
+        <Input
+          {...inputProps}
+          placeholder={type === 'percent' ? '0' : '0,00'}
+          disabled={disabled}
+          className="flex-1"
+        />
+      </div>
+    </Field>
   )
 }
 

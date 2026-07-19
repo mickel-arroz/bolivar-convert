@@ -6,8 +6,16 @@ import { Rates } from '@/constants/rates'
 import { getCurrency, CURRENCIES, type CurrencyId } from '@/constants/currencies'
 import { getAccountIcon } from '@/constants/walletCategories'
 import { DEFAULT_ACCOUNT_COLOR } from '@/constants/walletColors'
+import { useWalletResource } from '@/hooks/useWalletResource'
+import {
+  bsPerUnit,
+  normalize,
+  type AccountsSummary,
+  type FeedItem,
+} from '@/lib/wallet/compute'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
+import { ResumenSkeleton, MovementListSkeleton } from './skeletons'
 import {
   AlertDialog,
   AlertDialogContent,
@@ -26,14 +34,15 @@ import {
   DropdownMenuRadioItem,
 } from '@/components/ui/dropdown-menu'
 import { PlusIcon, TransferIcon, PencilIcon, TrashIcon, WalletIcon, DotsIcon } from '@/components/icons'
-
-/** Moneda destacada del patrimonio neto (preferencia local del dispositivo). */
-const NETWORTH_CURRENCY_KEY = 'bolivar_networth_currency_v1'
 import { cn } from '@/lib/utils'
+import { notify } from '@/lib/notify'
 import { WalletDialogs } from './dialogs'
-import { buildFeed } from './feed'
 import { MovementRow } from './MovementRow'
 import { formatMoney } from './format'
+
+const NETWORTH_CURRENCY_KEY = 'bolivar_networth_currency_v1'
+
+const ALL_CURRENCIES: CurrencyId[] = ['VES', 'USD', 'EUR']
 
 interface ResumenTabProps {
   wallet: WalletApi
@@ -42,10 +51,9 @@ interface ResumenTabProps {
 }
 
 export function ResumenTab({ wallet, rates, dialogs }: ResumenTabProps) {
-  const { state, accountBalances, totalsByCurrency, removeAccount, netWorthIn } = wallet
+  const { state, removeAccount } = wallet
   const [pendingDelete, setPendingDelete] = useState<Account | null>(null)
 
-  // Moneda destacada del patrimonio neto: por defecto USD, recordada en localStorage.
   const [netWorthCurrency, setNetWorthCurrency] = useState<CurrencyId>('USD')
   useEffect(() => {
     const saved = localStorage.getItem(NETWORTH_CURRENCY_KEY)
@@ -63,27 +71,50 @@ export function ResumenTab({ wallet, rates, dialogs }: ResumenTabProps) {
     }
   }
 
-  const balanceById = useMemo(
-    () => new Map(accountBalances.map((b) => [b.accountId, b.balance])),
-    [accountBalances]
+  const { data: accountsData } = useWalletResource<AccountsSummary>(
+    '/api/wallet/accounts',
+    wallet.syncedVersion
   )
-  const accountById = useMemo(() => new Map(state.accounts.map((a) => [a.id, a])), [state.accounts])
+  const { data: recentData } = useWalletResource<{ items: FeedItem[] }>(
+    '/api/wallet/movements/recent',
+    wallet.syncedVersion
+  )
+
+  const accounts = accountsData?.accounts ?? []
+  const totals = accountsData?.totalsByCurrency ?? { VES: 0, USD: 0, EUR: 0 }
+  const recentFeed = recentData?.items ?? []
+
+  const balanceById = useMemo(
+    () => new Map((accountsData?.balances ?? []).map((b) => [b.accountId, b.balance])),
+    [accountsData]
+  )
+  const accountById = useMemo(
+    () => new Map((accountsData?.accounts ?? []).map((a) => [a.id, a])),
+    [accountsData]
+  )
   const categoryById = useMemo(
     () => new Map(state.categories.map((c) => [c.id, c])),
     [state.categories]
   )
 
-  const recentFeed = useMemo(
-    () => buildFeed(state.transactions, state.transfers).slice(0, 6),
-    [state.transactions, state.transfers]
-  )
+  const netWorthCalc = useMemo(() => {
+    const t = accountsData?.totalsByCurrency ?? { VES: 0, USD: 0, EUR: 0 }
+    const ratesAvailable = ALL_CURRENCIES.filter((c) => (t[c] ?? 0) !== 0)
+      .concat(netWorthCurrency)
+      .every((c) => bsPerUnit(c, rates, state.statsRateSource) > 0)
+    let value = 0
+    ALL_CURRENCIES.forEach((c) => {
+      value += normalize(t[c] ?? 0, c, netWorthCurrency, rates, state.statsRateSource)
+    })
+    return { value, ratesAvailable }
+  }, [accountsData, netWorthCurrency, rates, state.statsRateSource])
 
-  // Patrimonio neto = suma de TODAS las cuentas convertida a la moneda elegida.
-  const netWorthCalc = netWorthIn(netWorthCurrency, rates)
+  if (!accountsData) {
+    return <ResumenSkeleton />
+  }
 
   return (
     <div className="flex flex-col gap-6">
-      {/* Patrimonio neto */}
       <Card>
         <CardContent className="flex flex-col gap-3">
           <div className="flex items-start justify-between gap-2">
@@ -128,39 +159,40 @@ export function ResumenTab({ wallet, rates, dialogs }: ResumenTabProps) {
                 key={c.id}
                 className="rounded-full bg-muted/60 px-2.5 py-1 text-xs font-bold tabular-nums text-muted-foreground"
               >
-                {formatMoney(totalsByCurrency[c.id] ?? 0, c.id)}
+                {formatMoney(totals[c.id] ?? 0, c.id)}
               </span>
             ))}
           </div>
-          <p className="text-[11px] text-muted-foreground">
-            Suma de todas tus cuentas convertida a {getCurrency(netWorthCurrency).label.toLowerCase()} con la tasa actual.
-          </p>
+          <div className="flex flex-col gap-3 border-t border-border/50 pt-3 sm:flex-row sm:items-end sm:justify-between">
+            <p className="text-[11px] text-muted-foreground sm:flex-1">
+              Suma de todas tus cuentas convertida a {getCurrency(netWorthCurrency).label.toLowerCase()} con la tasa actual.
+            </p>
+            <div className="flex flex-wrap gap-2 sm:shrink-0 sm:justify-end">
+              <Button size="sm" onClick={dialogs.openNewAccount}>
+                <PlusIcon /> Nueva cuenta
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => dialogs.openNewTransaction()}
+                disabled={accounts.length === 0}
+              >
+                <PlusIcon /> Nuevo movimiento
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={dialogs.openTransfer}
+                disabled={accounts.length < 2}
+              >
+                <TransferIcon /> Traspaso
+              </Button>
+            </div>
+          </div>
         </CardContent>
       </Card>
 
-      {/* Acciones */}
-      <div className="flex flex-wrap gap-2">
-        <Button onClick={dialogs.openNewAccount}>
-          <PlusIcon /> Nueva cuenta
-        </Button>
-        <Button
-          variant="outline"
-          onClick={() => dialogs.openNewTransaction()}
-          disabled={state.accounts.length === 0}
-        >
-          <PlusIcon /> Nuevo movimiento
-        </Button>
-        <Button
-          variant="outline"
-          onClick={dialogs.openTransfer}
-          disabled={state.accounts.length < 2}
-        >
-          <TransferIcon /> Traspaso
-        </Button>
-      </div>
-
-      {/* Cuentas */}
-      {state.accounts.length === 0 ? (
+      {accounts.length === 0 ? (
         <Card>
           <CardContent className="flex flex-col items-center gap-3 py-10 text-center">
             <WalletIcon className="size-10 text-muted-foreground/40" />
@@ -174,7 +206,7 @@ export function ResumenTab({ wallet, rates, dialogs }: ResumenTabProps) {
         </Card>
       ) : (
         <div className="grid gap-3 sm:grid-cols-2">
-          {state.accounts.map((account) => {
+          {accounts.map((account) => {
             const balance = balanceById.get(account.id) ?? 0
             const AccIcon = getAccountIcon(account.icon)
             const accent = account.color ?? DEFAULT_ACCOUNT_COLOR
@@ -236,26 +268,28 @@ export function ResumenTab({ wallet, rates, dialogs }: ResumenTabProps) {
         </div>
       )}
 
-      {/* Movimientos recientes */}
-      {recentFeed.length > 0 && (
+      {(!recentData || recentFeed.length > 0) && (
         <div className="flex flex-col gap-2">
           <h2 className="text-sm font-bold uppercase tracking-wider text-muted-foreground">
             Movimientos recientes
           </h2>
-          <div className="flex flex-col gap-2">
-            {recentFeed.map((item) => (
-              <MovementRow
-                key={item.id}
-                item={item}
-                accountById={accountById}
-                categoryById={categoryById}
-              />
-            ))}
-          </div>
+          {!recentData ? (
+            <MovementListSkeleton rows={4} />
+          ) : (
+            <div className="flex flex-col gap-2">
+              {recentFeed.map((item) => (
+                <MovementRow
+                  key={item.id}
+                  item={item}
+                  accountById={accountById}
+                  categoryById={categoryById}
+                />
+              ))}
+            </div>
+          )}
         </div>
       )}
 
-      {/* Confirmación de borrado de cuenta */}
       <AlertDialog open={!!pendingDelete} onOpenChange={(o) => !o && setPendingDelete(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -269,7 +303,10 @@ export function ResumenTab({ wallet, rates, dialogs }: ResumenTabProps) {
             <AlertDialogCancel>Cancelar</AlertDialogCancel>
             <AlertDialogAction
               onClick={() => {
-                if (pendingDelete) removeAccount(pendingDelete.id)
+                if (pendingDelete) {
+                  removeAccount(pendingDelete.id)
+                  notify.success('Cuenta eliminada')
+                }
                 setPendingDelete(null)
               }}
             >

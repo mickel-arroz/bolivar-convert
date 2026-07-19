@@ -7,7 +7,6 @@ import { ACCOUNT_ICON_MAP } from '@/constants/walletCategories'
 import { WalletIcon } from '@/components/icons'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { clampDigits } from '@/lib/numberInput'
 import {
   Dialog,
   DialogContent,
@@ -18,7 +17,8 @@ import {
 } from '@/components/ui/dialog'
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select'
 import { cn } from '@/lib/utils'
-import { Field } from './fields'
+import { notify } from '@/lib/notify'
+import { Field, AmountField } from './fields'
 import { formatMoney, todayInputValue } from './format'
 
 interface GoalContributionDialogProps {
@@ -78,6 +78,7 @@ export function GoalContributionDialog({
   const handleSubmit = () => {
     if (!canSubmit) return
     moveToGoal({ goalId: goal.id, accountId, amount, direction, note: undefined, date })
+    notify.success(direction === 'in' ? 'Aporte registrado' : 'Retiro registrado')
     onOpenChange(false)
   }
 
@@ -153,16 +154,13 @@ export function GoalContributionDialog({
             </Field>
 
             <div className="grid grid-cols-2 gap-3">
-              <Field label="Monto" hint={getCurrency(goal.currency).symbol}>
-                <Input
-                  type="number"
-                  inputMode="decimal"
-                  value={amount}
-                  onChange={(e) => setAmount(clampDigits(e.target.value))}
-                  placeholder="0,00"
-                  autoFocus
-                />
-              </Field>
+              <AmountField
+                label="Monto"
+                hint={getCurrency(goal.currency).symbol}
+                value={amount}
+                onValueChange={setAmount}
+                autoFocus
+              />
               <Field label="Fecha">
                 <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
               </Field>

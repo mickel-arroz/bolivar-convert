@@ -42,7 +42,7 @@ export function HistoryChart({
   }
 
   return (
-    <ChartContainer config={chartConfig} className="min-h-87.5 w-full">
+    <ChartContainer config={chartConfig} className="min-h-64 w-full">
       <LineChart
         data={data}
         margin={{ left: 0, right: 12, top: 10, bottom: 10 }}

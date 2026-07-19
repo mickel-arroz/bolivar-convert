@@ -3,12 +3,11 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Rates, RateId } from '@/constants/rates'
 import { getCurrency } from '@/constants/currencies'
-import { TransferRateSource, WalletApi, convertTransferAmount } from '@/hooks/useWallet'
+import { TransferRateSource, CommissionType, WalletApi, convertTransferAmount } from '@/hooks/useWallet'
 import { ACCOUNT_ICON_MAP } from '@/constants/walletCategories'
 import { WalletIcon } from '@/components/icons'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { clampDigits } from '@/lib/numberInput'
 import {
   Dialog,
   DialogContent,
@@ -19,7 +18,9 @@ import {
 } from '@/components/ui/dialog'
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select'
 import { cn } from '@/lib/utils'
-import { Field } from './fields'
+import { Field, AmountField, CommissionField } from './fields'
+import { useMathInput, formatPreview } from '@/hooks/useMathInput'
+import { notify } from '@/lib/notify'
 import { todayInputValue } from './format'
 
 interface TransferFormDialogProps {
@@ -44,6 +45,9 @@ export function TransferFormDialog({ open, onOpenChange, wallet, rates }: Transf
   const [toAmountEdited, setToAmountEdited] = useState(false)
   const [rateSource, setRateSource] = useState<TransferRateSource>('custom')
   const [customRate, setCustomRate] = useState('')
+  const [commission, setCommission] = useState('')
+  const [commissionType, setCommissionType] = useState<CommissionType>('percent')
+  const [commissionTouched, setCommissionTouched] = useState(false)
   const [note, setNote] = useState('')
   const [date, setDate] = useState(todayInputValue())
 
@@ -78,10 +82,21 @@ export function TransferFormDialog({ open, onOpenChange, wallet, rates }: Transf
       setToAmount('')
       setToAmountEdited(false)
       setCustomRate('')
+      setCommission('')
+      setCommissionType('percent')
+      setCommissionTouched(false)
       setNote('')
       setDate(todayInputValue())
     }
   }, [open, state.accounts])
+
+  useEffect(() => {
+    if (!open || commissionTouched) return
+    const acc = state.accounts.find((a) => a.id === fromAccountId)
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setCommission(acc?.commission ?? '')
+    setCommissionType(acc?.commissionType ?? 'percent')
+  }, [open, commissionTouched, fromAccountId, state.accounts])
 
   // Cuando cambian las cuentas, elegir una fuente de tasa válida por defecto
   useEffect(() => {
@@ -131,9 +146,24 @@ export function TransferFormDialog({ open, onOpenChange, wallet, rates }: Transf
 
   const handleSubmit = () => {
     if (!canSubmit) return
-    addTransfer({ fromAccountId, toAccountId, fromAmount, toAmount, rateSource, rateValue, note, date })
+    const commissionValue = commission.trim() || undefined
+    addTransfer({
+      fromAccountId,
+      toAccountId,
+      fromAmount,
+      toAmount,
+      rateSource,
+      rateValue,
+      commission: commissionValue,
+      commissionType: commissionValue ? commissionType : undefined,
+      note,
+      date,
+    })
+    notify.success('Traspaso registrado')
     onOpenChange(false)
   }
+
+  const customRateInput = useMathInput(customRate, setCustomRate, { maxDecimals: 4 })
 
   const customRateLabel =
     differentCur && fromCur && toCur
@@ -223,31 +253,34 @@ export function TransferFormDialog({ open, onOpenChange, wallet, rates }: Transf
             </Field>
 
             <div className="grid grid-cols-2 gap-3">
-              <Field label="Monto a enviar" hint={fromSymbol || undefined}>
-                <Input
-                  type="number"
-                  inputMode="decimal"
-                  value={fromAmount}
-                  onChange={(e) => setFromAmount(clampDigits(e.target.value))}
-                  placeholder="0,00"
-                />
-              </Field>
-              <Field label="Monto a recibir" hint={toSymbol || undefined}>
-                <Input
-                  type="number"
-                  inputMode="decimal"
-                  value={toAmount}
-                  onChange={(e) => {
-                    setToAmount(clampDigits(e.target.value))
-                    setToAmountEdited(true)
-                  }}
-                  placeholder="0,00"
-                />
-              </Field>
+              <AmountField
+                label="Monto a enviar"
+                hint={fromSymbol || undefined}
+                value={fromAmount}
+                onValueChange={setFromAmount}
+              />
+              <AmountField
+                label="Monto a recibir"
+                hint={toSymbol || undefined}
+                value={toAmount}
+                onValueChange={(v) => {
+                  setToAmount(v)
+                  setToAmountEdited(true)
+                }}
+              />
             </div>
 
             {differentCur && (
-              <Field label="Tasa de cambio">
+              <Field
+                label="Tasa de cambio"
+                preview={
+                  rateSource === 'custom' && customRateInput.showPreview ? (
+                    <span className="mr-2 text-xs font-bold tabular-nums text-primary">
+                      = {formatPreview(customRateInput.evaluated!, 4)}
+                    </span>
+                  ) : undefined
+                }
+              >
                 <div className="flex flex-col gap-2">
                   <div className="flex flex-wrap gap-1.5">
                     {appRateOptions.map((opt) => (
@@ -279,28 +312,30 @@ export function TransferFormDialog({ open, onOpenChange, wallet, rates }: Transf
                     </button>
                   </div>
                   {rateSource === 'custom' && (
-                    <Input
-                      type="number"
-                      inputMode="decimal"
-                      value={customRate}
-                      onChange={(e) => setCustomRate(clampDigits(e.target.value, { maxDecimals: 4 }))}
-                      placeholder={customRateLabel}
-                    />
+                    <Input {...customRateInput.inputProps} placeholder={customRateLabel} />
                   )}
                 </div>
               </Field>
             )}
 
+            <CommissionField
+              hint={`Opcional. La paga la cuenta origen${fromSymbol ? ` (${fromSymbol})` : ''}.`}
+              type={commissionType}
+              onTypeChange={(t) => {
+                setCommissionType(t)
+                setCommissionTouched(true)
+              }}
+              value={commission}
+              onValueChange={(v) => {
+                setCommission(v)
+                setCommissionTouched(true)
+              }}
+              currencySymbol={fromSymbol || undefined}
+            />
+
             <Field label="Fecha">
               <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
             </Field>
-
-            {differentCur && (
-              <p className="text-xs text-muted-foreground">
-                El monto a recibir se calcula con la tasa elegida. Ajústalo si tu plataforma cobra
-                comisión.
-              </p>
-            )}
 
             <Field label="Nota" hint="Opcional">
               <Input value={note} onChange={(e) => setNote(e.target.value)} placeholder="Motivo del traspaso" />

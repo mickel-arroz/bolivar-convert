@@ -1,11 +1,10 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import { CurrencyId } from '@/constants/currencies'
-import { Account, WalletApi } from '@/hooks/useWallet'
+import { CurrencyId, getCurrency } from '@/constants/currencies'
+import { Account, CommissionType, WalletApi } from '@/hooks/useWallet'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { clampDigits } from '@/lib/numberInput'
 import {
   Dialog,
   DialogContent,
@@ -16,7 +15,8 @@ import {
 } from '@/components/ui/dialog'
 import { ACCOUNT_ICON_KEYS, getAccountIcon } from '@/constants/walletCategories'
 import { cn } from '@/lib/utils'
-import { Field, CurrencyToggle, ColorPicker } from './fields'
+import { notify } from '@/lib/notify'
+import { Field, AmountField, CommissionField, CurrencyToggle, ColorPicker } from './fields'
 
 interface AccountFormDialogProps {
   open: boolean
@@ -32,6 +32,8 @@ export function AccountFormDialog({ open, onOpenChange, wallet, editing }: Accou
   const [balance, setBalance] = useState('')
   const [icon, setIcon] = useState('wallet')
   const [color, setColor] = useState<string | undefined>(undefined)
+  const [commission, setCommission] = useState('')
+  const [commissionType, setCommissionType] = useState<CommissionType>('percent')
 
   // Saldo actual calculado de la cuenta en edición (para precargar el campo "Saldo").
   const editingBalance = useMemo(() => {
@@ -49,17 +51,29 @@ export function AccountFormDialog({ open, onOpenChange, wallet, editing }: Accou
       setBalance(editing ? String(Math.round(editingBalance * 100) / 100) : '')
       setIcon(editing?.icon ?? 'wallet')
       setColor(editing?.color)
+      setCommission(editing?.commission ?? '')
+      setCommissionType(editing?.commissionType ?? 'percent')
     }
   }, [open, editing, editingBalance])
 
   const handleSubmit = () => {
     if (!name.trim()) return
+    const commissionValue = commission.trim() || undefined
+    const commissionTypeValue = commissionValue ? commissionType : undefined
     if (editing) {
-      updateAccount(editing.id, { name: name.trim(), currency, icon, color })
+      updateAccount(editing.id, {
+        name: name.trim(),
+        currency,
+        icon,
+        color,
+        commission: commissionValue,
+        commissionType: commissionTypeValue,
+      })
       setAccountBalance(editing.id, parseFloat(balance.replace(',', '.')) || 0)
     } else {
-      addAccount(name, currency, balance, icon, color)
+      addAccount(name, currency, balance, icon, color, commissionValue, commissionTypeValue)
     }
+    notify.success(editing ? 'Cuenta actualizada' : 'Cuenta creada')
     onOpenChange(false)
   }
 
@@ -114,22 +128,25 @@ export function AccountFormDialog({ open, onOpenChange, wallet, editing }: Accou
             <ColorPicker value={color} onChange={setColor} />
           </Field>
 
-          <Field
+          <AmountField
             label="Saldo"
             hint={
               editing
                 ? 'Saldo actual. Si lo cambias, se ajusta al nuevo valor y los movimientos futuros lo afectan desde ahí.'
                 : 'Opcional. El saldo se ajusta con tus movimientos.'
             }
-          >
-            <Input
-              type="number"
-              inputMode="decimal"
-              value={balance}
-              onChange={(e) => setBalance(clampDigits(e.target.value, { allowNegative: true }))}
-              placeholder="0,00"
-            />
-          </Field>
+            value={balance}
+            onValueChange={setBalance}
+          />
+
+          <CommissionField
+            hint="Opcional. Se prellena al registrar movimientos con esta cuenta."
+            type={commissionType}
+            onTypeChange={setCommissionType}
+            value={commission}
+            onValueChange={setCommission}
+            currencySymbol={getCurrency(currency).symbol}
+          />
         </div>
 
         <DialogFooter>

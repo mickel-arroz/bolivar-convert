@@ -2,8 +2,10 @@ import type { Metadata } from 'next'
 import { ReactNode } from 'react'
 import { Geist, Geist_Mono, Montserrat } from 'next/font/google'
 import './globals.css'
+import 'sileo/styles.css'
 import { Header } from '@/components/navbar/Header'
 import { Footer } from '@/components/layout/Footer'
+import { SileoToaster } from '@/components/SileoToaster'
 import { MobileNav } from '@/components/navbar/MobileNav'
 import { ThemeProvider } from '@/components/theme-provider'
 import { TooltipProvider } from '@/components/ui/tooltip'
@@ -79,6 +81,7 @@ export default function RootLayout({
           disableTransitionOnChange
         >
           <TooltipProvider>
+            <SileoToaster />
             <RedirectGuard>
               <Header />
               <main className="flex-1 w-full pt-[4.5rem]">

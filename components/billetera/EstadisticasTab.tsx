@@ -3,6 +3,8 @@
 import { useMemo } from 'react'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, AreaChart, Area, LineChart, Line } from 'recharts'
 import { StatsBundle, TimeRange, WalletApi } from '@/hooks/useWallet'
+import { useWalletResource } from '@/hooks/useWalletResource'
+import { EstadisticasSkeleton } from './skeletons'
 import { getCurrency } from '@/constants/currencies'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import {
@@ -20,7 +22,16 @@ import { formatMoney } from './format'
 
 interface EstadisticasTabProps {
   wallet: WalletApi
-  stats: StatsBundle
+}
+
+const EMPTY_STATS: StatsBundle = {
+  incomeVsExpense: { income: 0, expense: 0 },
+  categorySummary: [],
+  monthlySeries: [],
+  netWorth: 0,
+  netWorthSeries: [],
+  budgetStatus: [],
+  ratesAvailable: true,
 }
 
 const RANGES: { id: TimeRange; label: string }[] = [
@@ -52,9 +63,15 @@ function compact(value: number): string {
   return Number(value).toLocaleString('en-US', { notation: 'compact', maximumFractionDigits: 1 })
 }
 
-export function EstadisticasTab({ wallet, stats }: EstadisticasTabProps) {
+export function EstadisticasTab({ wallet }: EstadisticasTabProps) {
   const { state, setTimeRange, setDisplayCurrency, setStatsRateSource } = wallet
   const cur = state.displayCurrency
+
+  const { data } = useWalletResource<StatsBundle>(
+    `/api/wallet/stats?range=${state.timeRange}`,
+    wallet.syncedVersion
+  )
+  const stats = data ?? EMPTY_STATS
 
   const expenseRows = useMemo(
     () => stats.categorySummary.filter((r) => r.kind === 'expense'),
@@ -124,6 +141,10 @@ export function EstadisticasTab({ wallet, stats }: EstadisticasTabProps) {
         })}
       </div>
     )
+  }
+
+  if (!data) {
+    return <EstadisticasSkeleton />
   }
 
   return (
@@ -218,6 +239,8 @@ export function EstadisticasTab({ wallet, stats }: EstadisticasTabProps) {
         </Card>
       </div>
 
+      {/* Gráficas: 1 columna en móvil, 2 columnas en pantallas grandes */}
+      <div className="grid gap-6 lg:grid-cols-2">
       {/* Evolución mensual */}
       <Card>
         <CardHeader>
@@ -364,6 +387,7 @@ export function EstadisticasTab({ wallet, stats }: EstadisticasTabProps) {
           )}
         </CardContent>
       </Card>
+      </div>
 
       {/* Resumen por categoría */}
       <div className="grid gap-4 md:grid-cols-2">

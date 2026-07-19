@@ -1,8 +1,9 @@
 import { NextResponse } from 'next/server'
 import { getVEDataString } from '@/lib/utils'
-import { getRedis, readHistory } from '@/lib/rates.server'
+import { getRedis, readHistoryCached, RATES_CACHE_SECONDS } from '@/lib/rates.server'
+import { jsonError } from '@/lib/api/route-helpers'
 
-export const dynamic = 'force-dynamic'
+export const revalidate = RATES_CACHE_SECONDS
 
 /**
  * Tasas para la vista actual: el registro de HOY (TZ Caracas) o, si no existe, el
@@ -12,11 +13,11 @@ export const dynamic = 'force-dynamic'
 export async function GET() {
   const redis = getRedis()
   if (!redis) {
-    return NextResponse.json({ error: 'Redis connection not configured' }, { status: 500 })
+    return jsonError('Servicio de tasas no disponible', 503)
   }
 
   try {
-    const history = await readHistory(redis) // ascendente por fecha
+    const history = await readHistoryCached() // ascendente por fecha, cacheado 30 min
     const today = getVEDataString()
 
     const upToToday = history.filter((e) => e.date <= today)
@@ -51,6 +52,6 @@ export async function GET() {
     })
   } catch (error) {
     console.error('Error fetching from Redis:', error)
-    return NextResponse.json({ error: 'Failed to fetch rates' }, { status: 500 })
+    return jsonError('No se pudieron obtener las tasas', 500)
   }
 }

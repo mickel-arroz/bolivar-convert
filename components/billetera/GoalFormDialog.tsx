@@ -5,7 +5,6 @@ import { CurrencyId } from '@/constants/currencies'
 import { Goal, WalletApi } from '@/hooks/useWallet'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { clampDigits } from '@/lib/numberInput'
 import {
   Dialog,
   DialogContent,
@@ -16,7 +15,8 @@ import {
 } from '@/components/ui/dialog'
 import { ACCOUNT_ICON_KEYS, getAccountIcon } from '@/constants/walletCategories'
 import { cn } from '@/lib/utils'
-import { Field, CurrencyToggle, ColorPicker } from './fields'
+import { notify } from '@/lib/notify'
+import { Field, AmountField, CurrencyToggle, ColorPicker } from './fields'
 
 interface GoalFormDialogProps {
   open: boolean
@@ -51,6 +51,7 @@ export function GoalFormDialog({ open, onOpenChange, wallet, editing }: GoalForm
     } else {
       addGoal(name, currency, target, icon, color)
     }
+    notify.success(editing ? 'Meta actualizada' : 'Meta creada')
     onOpenChange(false)
   }
 
@@ -78,15 +79,12 @@ export function GoalFormDialog({ open, onOpenChange, wallet, editing }: GoalForm
             <CurrencyToggle value={currency} onChange={setCurrency} />
           </Field>
 
-          <Field label="Objetivo" hint="Opcional. Monto que quieres alcanzar (para la barra de progreso).">
-            <Input
-              type="number"
-              inputMode="decimal"
-              value={target}
-              onChange={(e) => setTarget(clampDigits(e.target.value))}
-              placeholder="0,00"
-            />
-          </Field>
+          <AmountField
+            label="Objetivo"
+            hint="Opcional. Monto que quieres alcanzar (para la barra de progreso)."
+            value={target}
+            onValueChange={setTarget}
+          />
 
           <Field label="Icono">
             <div className="grid grid-cols-5 gap-1.5">

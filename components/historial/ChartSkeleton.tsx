@@ -1,6 +1,6 @@
 export const ChartSkeleton = () => {
   return (
-    <div className="w-full h-87.5 flex flex-col justify-end gap-4 p-2">
+    <div className="w-full h-64 flex flex-col justify-end gap-4 p-2">
        {/* Área del gráfico */}
        <div className="w-full h-full border-b border-l border-muted/50 relative flex items-end justify-around pb-0 px-2">
           {/* Líneas de cuadrícula horizontales */}

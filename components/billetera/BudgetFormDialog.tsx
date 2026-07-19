@@ -6,8 +6,6 @@ import { WalletApi, monthKey, formatMonthLabel } from '@/hooks/useWallet'
 import { getCategoryIcon, CATEGORY_ICON_MAP } from '@/constants/walletCategories'
 import { DotsIcon } from '@/components/icons'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { clampDigits } from '@/lib/numberInput'
 import {
   Dialog,
   DialogContent,
@@ -17,7 +15,8 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog'
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select'
-import { Field, CurrencyToggle } from './fields'
+import { Field, AmountField, CurrencyToggle } from './fields'
+import { notify } from '@/lib/notify'
 
 interface BudgetFormDialogProps {
   open: boolean
@@ -69,11 +68,24 @@ export function BudgetFormDialog({
     }
   }, [categoryId, open, state.budgets, month])
 
-  const canSubmit = !!categoryId && parseFloat(limit.replace(',', '.')) > 0
+  // Validación: no permitir un presupuesto cuyo título (nombre de categoría) ya
+  // exista en otro presupuesto del mismo mes.
+  const duplicateTitle = useMemo(() => {
+    const name = state.categories.find((c) => c.id === categoryId)?.name.trim().toLowerCase()
+    if (!name) return false
+    return state.budgets.some((b) => {
+      if (b.month !== month || b.categoryId === categoryId) return false
+      const otherName = state.categories.find((c) => c.id === b.categoryId)?.name.trim().toLowerCase()
+      return otherName === name
+    })
+  }, [state.categories, state.budgets, categoryId, month])
+
+  const canSubmit = !!categoryId && parseFloat(limit.replace(',', '.')) > 0 && !duplicateTitle
 
   const handleSubmit = () => {
     if (!canSubmit) return
     setBudget(categoryId, month, limit, currency, carryover.trim() === '' ? '0' : carryover)
+    notify.success('Presupuesto guardado')
     onOpenChange(false)
   }
 
@@ -117,35 +129,30 @@ export function BudgetFormDialog({
                 })}
               </SelectContent>
             </Select>
+            {duplicateTitle && (
+              <span className="text-xs text-destructive">
+                Ya existe un presupuesto con ese título este mes.
+              </span>
+            )}
           </Field>
 
           <Field label="Moneda del presupuesto">
             <CurrencyToggle value={currency} onChange={setCurrency} />
           </Field>
 
-          <Field label="Límite estimado">
-            <Input
-              type="number"
-              inputMode="decimal"
-              value={limit}
-              onChange={(e) => setLimit(clampDigits(e.target.value))}
-              placeholder="0,00"
-              autoFocus
-            />
-          </Field>
+          <AmountField
+            label="Límite estimado"
+            value={limit}
+            onValueChange={setLimit}
+            autoFocus
+          />
 
-          <Field
+          <AmountField
             label="Extra"
             hint="Sobrante o déficit arrastrado. Por defecto 0; puedes ajustarlo (admite negativos)."
-          >
-            <Input
-              type="number"
-              inputMode="decimal"
-              value={carryover}
-              onChange={(e) => setCarryover(clampDigits(e.target.value, { allowNegative: true }))}
-              placeholder="0,00"
-            />
-          </Field>
+            value={carryover}
+            onValueChange={setCarryover}
+          />
         </div>
 
         <DialogFooter>

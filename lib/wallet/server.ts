@@ -19,10 +19,20 @@ import type {
   ShoppingListItem,
   ShoppingPurchase,
   TransferRateSource,
+  CommissionType,
 } from '@/hooks/useWallet'
 import type { CurrencyId } from '@/constants/currencies'
-import type { RateId } from '@/constants/rates'
+import type { Rates, RateId } from '@/constants/rates'
 import type { WalletDelta } from '@/lib/wallet/delta'
+import type { StatsBundle, TimeRange } from '@/hooks/useWallet'
+import {
+  buildFeed,
+  computeAccountBalances,
+  computeTotalsByCurrency,
+  computeStats,
+  type AccountsSummary,
+  type MovementsPage,
+} from '@/lib/wallet/compute'
 
 /* ───────────────────────── Mapeo dominio ↔ fila ───────────────────────── */
 
@@ -38,6 +48,8 @@ function accountToRow(a: Account, userId: string) {
     opening_balance: a.openingBalance,
     icon: a.icon,
     color: nn(a.color),
+    commission: nn(a.commission),
+    commission_type: nn(a.commissionType),
     created_at: a.createdAt,
   }
 }
@@ -49,6 +61,8 @@ function rowToAccount(r: Record<string, unknown>): Account {
     openingBalance: r.opening_balance as string,
     icon: r.icon as string,
     color: un(r.color as string | null),
+    commission: un(r.commission as string | null),
+    commissionType: un(r.commission_type as CommissionType | null),
     createdAt: r.created_at as string,
   }
 }
@@ -83,6 +97,8 @@ function transactionToRow(t: Transaction, userId: string) {
     account_id: t.accountId,
     category_id: t.categoryId,
     amount: t.amount,
+    commission: nn(t.commission),
+    commission_type: nn(t.commissionType),
     note: nn(t.note),
     date: t.date,
     created_at: t.createdAt,
@@ -95,6 +111,8 @@ function rowToTransaction(r: Record<string, unknown>): Transaction {
     accountId: r.account_id as string,
     categoryId: r.category_id as string,
     amount: r.amount as string,
+    commission: un(r.commission as string | null),
+    commissionType: un(r.commission_type as CommissionType | null),
     note: un(r.note as string | null),
     date: r.date as string,
     createdAt: r.created_at as string,
@@ -111,6 +129,8 @@ function transferToRow(t: Transfer, userId: string) {
     to_amount: t.toAmount,
     rate_source: nn(t.rate?.source),
     rate_value: nn(t.rate?.value),
+    commission: nn(t.commission),
+    commission_type: nn(t.commissionType),
     note: nn(t.note),
     date: t.date,
     created_at: t.createdAt,
@@ -128,6 +148,8 @@ function rowToTransfer(r: Record<string, unknown>): Transfer {
       source !== null
         ? { source: source as TransferRateSource, value: r.rate_value as string }
         : undefined,
+    commission: un(r.commission as string | null),
+    commissionType: un(r.commission_type as CommissionType | null),
     note: un(r.note as string | null),
     date: r.date as string,
     createdAt: r.created_at as string,
@@ -323,6 +345,111 @@ export async function loadWallet(
   return state
 }
 
+/* ─────────────────────────── Validación ─────────────────────────── */
+
+/** Error de negocio: título de presupuesto duplicado en un mes. */
+export class BudgetTitleConflictError extends Error {
+  constructor(message = 'Ya existe un presupuesto con ese título este mes.') {
+    super(message)
+    this.name = 'BudgetTitleConflictError'
+  }
+}
+
+/** Error de negocio: nombre de categoría duplicado (dentro del mismo tipo). */
+export class CategoryNameConflictError extends Error {
+  constructor(message = 'Ya existe una categoría con ese nombre.') {
+    super(message)
+    this.name = 'CategoryNameConflictError'
+  }
+}
+
+const normalizeTitle = (s: string | undefined | null) => (s ?? '').trim().toLowerCase()
+
+/**
+ * Valida que, tras aplicar el delta, no queden dos categorías con el mismo nombre
+ * dentro del mismo tipo (gasto/ingreso). Lanza {@link CategoryNameConflictError}.
+ */
+export async function assertNoDuplicateCategoryNames(
+  supabase: SupabaseClient,
+  userId: string,
+  delta: WalletDelta
+): Promise<void> {
+  if (delta.upserts.categories.length === 0) return
+
+  const { data, error } = await supabase.from('categories').select('*').eq('user_id', userId)
+  if (error) throw error
+
+  // Estado efectivo: DB, quitando borradas y reemplazando por upserts del delta.
+  const byId = new Map<string, Category>()
+  for (const r of (data as Record<string, unknown>[]) ?? []) {
+    const c = rowToCategory(r)
+    byId.set(c.id, c)
+  }
+  for (const id of delta.deletes.categories) byId.delete(id)
+  for (const c of delta.upserts.categories) byId.set(c.id, c)
+
+  const seen = new Set<string>() // `${kind}:${nombre-normalizado}`
+  for (const c of byId.values()) {
+    const key = `${c.kind}:${normalizeTitle(c.name)}`
+    if (seen.has(key)) throw new CategoryNameConflictError()
+    seen.add(key)
+  }
+}
+
+/**
+ * Valida que, tras aplicar el delta, no queden dos presupuestos en el mismo mes
+ * cuyo título (nombre de categoría) coincida. Reconstruye el estado efectivo de
+ * `budgets` y `categories` combinando lo que hay en Supabase con el delta.
+ * Lanza {@link BudgetTitleConflictError} si detecta colisión.
+ */
+export async function assertNoDuplicateBudgetTitles(
+  supabase: SupabaseClient,
+  userId: string,
+  delta: WalletDelta
+): Promise<void> {
+  // Solo hace falta validar si el delta toca presupuestos o nombres de categoría.
+  if (delta.upserts.budgets.length === 0 && delta.upserts.categories.length === 0) return
+
+  const [budgetsRes, categoriesRes] = await Promise.all([
+    supabase.from('budgets').select('*').eq('user_id', userId),
+    supabase.from('categories').select('*').eq('user_id', userId),
+  ])
+  if (budgetsRes.error) throw budgetsRes.error
+  if (categoriesRes.error) throw categoriesRes.error
+
+  // Nombre efectivo por categoría: DB + upserts del delta (los upserts ganan).
+  const nameByCat = new Map<string, string>()
+  for (const r of (categoriesRes.data as Record<string, unknown>[]) ?? []) {
+    nameByCat.set(r.id as string, r.name as string)
+  }
+  for (const c of delta.upserts.categories) nameByCat.set(c.id, c.name)
+  const deletedCats = new Set(delta.deletes.categories)
+
+  // Presupuestos efectivos: DB, quitando borrados y reemplazando por upserts.
+  const budgetsById = new Map<string, Budget>()
+  for (const r of (budgetsRes.data as Record<string, unknown>[]) ?? []) {
+    const b = rowToBudget(r)
+    budgetsById.set(b.id, b)
+  }
+  for (const id of delta.deletes.budgets) budgetsById.delete(id)
+  for (const b of delta.upserts.budgets) budgetsById.set(b.id, b)
+
+  // Dentro de cada mes, ningún título repetido entre categorías distintas.
+  const seen = new Map<string, Map<string, string>>() // month → (title → categoryId)
+  for (const b of budgetsById.values()) {
+    if (deletedCats.has(b.categoryId)) continue
+    const title = normalizeTitle(nameByCat.get(b.categoryId))
+    if (!title) continue
+    const monthMap = seen.get(b.month) ?? new Map<string, string>()
+    const owner = monthMap.get(title)
+    if (owner && owner !== b.categoryId) {
+      throw new BudgetTitleConflictError()
+    }
+    monthMap.set(title, b.categoryId)
+    seen.set(b.month, monthMap)
+  }
+}
+
 /* ─────────────────────────── Aplicar delta ─────────────────────────── */
 
 /**
@@ -402,4 +529,103 @@ export async function applyWalletDelta(
   }
 
   if (errors.length > 0) throw errors[0]
+}
+
+/* ─────────────────── Lecturas por tab (endpoints dedicados) ─────────────────── */
+
+/** Carga cuentas con su balance calculado (incluye traspasos y aportes a metas). */
+export async function loadAccountsSummary(
+  supabase: SupabaseClient,
+  userId: string
+): Promise<AccountsSummary> {
+  const [accountsRes, txRes, trRes, gcRes] = await Promise.all([
+    supabase.from('accounts').select('*').eq('user_id', userId),
+    supabase.from('transactions').select('*').eq('user_id', userId),
+    supabase.from('transfers').select('*').eq('user_id', userId),
+    supabase.from('goal_contributions').select('*').eq('user_id', userId),
+  ])
+  const failed = [accountsRes, txRes, trRes, gcRes].find((r) => r.error)
+  if (failed?.error) throw failed.error
+
+  const accounts = ((accountsRes.data as Record<string, unknown>[]) ?? []).map(rowToAccount)
+  const transactions = ((txRes.data as Record<string, unknown>[]) ?? []).map(rowToTransaction)
+  const transfers = ((trRes.data as Record<string, unknown>[]) ?? []).map(rowToTransfer)
+  const goalContributions = ((gcRes.data as Record<string, unknown>[]) ?? []).map(rowToContribution)
+
+  const balances = computeAccountBalances({ accounts, transactions, transfers, goalContributions })
+  return { accounts, balances, totalsByCurrency: computeTotalsByCurrency(balances) }
+}
+
+/**
+ * Feed de movimientos ordenado por fecha desc. Si `pageSize`/`page` se indican,
+ * devuelve una página; si `limit` se indica, devuelve solo los N más recientes.
+ * La combinación tx+traspasos se hace en el handler (escala de finanzas personales).
+ */
+export async function loadMovements(
+  supabase: SupabaseClient,
+  userId: string,
+  opts: { page?: number; pageSize?: number; limit?: number }
+): Promise<MovementsPage> {
+  const [txRes, trRes] = await Promise.all([
+    supabase.from('transactions').select('*').eq('user_id', userId),
+    supabase.from('transfers').select('*').eq('user_id', userId),
+  ])
+  const failed = [txRes, trRes].find((r) => r.error)
+  if (failed?.error) throw failed.error
+
+  const transactions = ((txRes.data as Record<string, unknown>[]) ?? []).map(rowToTransaction)
+  const transfers = ((trRes.data as Record<string, unknown>[]) ?? []).map(rowToTransfer)
+  const feed = buildFeed(transactions, transfers)
+  const total = feed.length
+
+  if (opts.limit !== undefined) {
+    const items = feed.slice(0, opts.limit)
+    return { items, page: 1, pageSize: opts.limit, total, totalPages: 1 }
+  }
+
+  const pageSize = opts.pageSize ?? 30
+  const totalPages = Math.max(1, Math.ceil(total / pageSize))
+  const page = Math.min(Math.max(1, opts.page ?? 1), totalPages)
+  const start = (page - 1) * pageSize
+  const items = feed.slice(start, start + pageSize)
+  return { items, page, pageSize, total, totalPages }
+}
+
+/**
+ * Estadísticas computadas en el servidor para un rango de antigüedad. Toma la
+ * moneda de visualización y la fuente de tasa de las preferencias del usuario y
+ * las tasas actuales (pasadas por el handler).
+ */
+export async function loadStats(
+  supabase: SupabaseClient,
+  userId: string,
+  range: TimeRange,
+  rates: Rates
+): Promise<StatsBundle> {
+  const [profileRes, accountsRes, txRes, trRes, catRes, budgetRes] = await Promise.all([
+    supabase.from('profiles').select('*').eq('id', userId).maybeSingle(),
+    supabase.from('accounts').select('*').eq('user_id', userId),
+    supabase.from('transactions').select('*').eq('user_id', userId),
+    supabase.from('transfers').select('*').eq('user_id', userId),
+    supabase.from('categories').select('*').eq('user_id', userId),
+    supabase.from('budgets').select('*').eq('user_id', userId),
+  ])
+  const failed = [profileRes, accountsRes, txRes, trRes, catRes, budgetRes].find((r) => r.error)
+  if (failed?.error) throw failed.error
+
+  const accounts = ((accountsRes.data as Record<string, unknown>[]) ?? []).map(rowToAccount)
+  const transactions = ((txRes.data as Record<string, unknown>[]) ?? []).map(rowToTransaction)
+  const transfers = ((trRes.data as Record<string, unknown>[]) ?? []).map(rowToTransfer)
+  const categories = ((catRes.data as Record<string, unknown>[]) ?? []).map(rowToCategory)
+  const budgets = ((budgetRes.data as Record<string, unknown>[]) ?? []).map(rowToBudget)
+
+  const p = profileRes.data as Record<string, unknown> | null
+  const displayCurrency = (p?.display_currency as CurrencyId) ?? 'VES'
+  const statsRateSource = (p?.stats_rate_source as RateId) ?? 'bcvUsd'
+
+  return computeStats(
+    { accounts, transactions, transfers, categories, budgets },
+    rates,
+    { displayCurrency, statsRateSource, timeRange: range }
+  )
 }

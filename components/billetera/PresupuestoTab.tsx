@@ -36,6 +36,7 @@ import {
   ShoppingCartIcon,
 } from '@/components/icons'
 import { cn } from '@/lib/utils'
+import { notify } from '@/lib/notify'
 import { WalletDialogs } from './dialogs'
 import { formatMoney } from './format'
 import { ConcludeMonthDialog } from './ConcludeMonthDialog'
@@ -174,7 +175,7 @@ export function PresupuestoTab({ wallet, stats, dialogs, rates }: PresupuestoTab
           </CardContent>
         </Card>
       ) : (
-        <div className="flex flex-col gap-3">
+        <div className="grid gap-3 lg:grid-cols-2">
           {stats.budgetStatus.map((row) => {
             const Icon = getCategoryIcon(row.categoryIcon)
             const pct = row.effectiveLimit > 0 ? Math.min(100, (row.actual / row.effectiveLimit) * 100) : 0
@@ -185,7 +186,10 @@ export function PresupuestoTab({ wallet, stats, dialogs, rates }: PresupuestoTab
                 <CardContent className="flex flex-col gap-2">
                   <div className="flex items-center justify-between gap-2">
                     <span className="flex items-center gap-2 font-bold">
-                      <Icon className="size-4" />
+                      <Icon
+                        className="size-4"
+                        style={row.categoryColor ? { color: row.categoryColor } : undefined}
+                      />
                       {row.categoryName}
                     </span>
                     <div className="flex items-center">
@@ -200,7 +204,10 @@ export function PresupuestoTab({ wallet, stats, dialogs, rates }: PresupuestoTab
                       <Button
                         variant="ghost"
                         size="icon-sm"
-                        onClick={() => removeBudget(row.budget.id)}
+                        onClick={() => {
+                          removeBudget(row.budget.id)
+                          notify.success('Presupuesto eliminado')
+                        }}
                         aria-label="Eliminar presupuesto"
                       >
                         <TrashIcon className="size-4" />
@@ -412,7 +419,7 @@ export function PresupuestoTab({ wallet, stats, dialogs, rates }: PresupuestoTab
         {state.shoppingLists.length === 0 ? (
           <Card>
             <CardContent className="flex flex-col items-center gap-3 py-10 text-center">
-              <ShoppingCartIcon className="size-10 text-muted-foreground/40" />
+              <ShoppingCartIcon className="size-10 text-muted-foreground" />
               <p className="text-sm text-muted-foreground">
                 Crea una lista (mercado, ferretería…), agrega productos con su precio y márcalos
                 como comprados.
@@ -535,7 +542,10 @@ export function PresupuestoTab({ wallet, stats, dialogs, rates }: PresupuestoTab
             <AlertDialogCancel>Cancelar</AlertDialogCancel>
             <AlertDialogAction
               onClick={() => {
-                if (pendingDeleteGoal) removeGoal(pendingDeleteGoal.id)
+                if (pendingDeleteGoal) {
+                  removeGoal(pendingDeleteGoal.id)
+                  notify.success('Meta eliminada')
+                }
                 setPendingDeleteGoal(null)
               }}
             >
@@ -608,7 +618,10 @@ export function PresupuestoTab({ wallet, stats, dialogs, rates }: PresupuestoTab
             <AlertDialogCancel>Cancelar</AlertDialogCancel>
             <AlertDialogAction
               onClick={() => {
-                if (pendingDeleteList) removeShoppingList(pendingDeleteList.id)
+                if (pendingDeleteList) {
+                  removeShoppingList(pendingDeleteList.id)
+                  notify.success('Lista eliminada')
+                }
                 setPendingDeleteList(null)
               }}
             >

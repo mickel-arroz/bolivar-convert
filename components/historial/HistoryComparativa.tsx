@@ -15,12 +15,6 @@ interface HistoryComparativaProps {
   onClearSelection: () => void
 }
 
-const RANGE_SUBTITLE: Record<TimeRange, string> = {
-  '7d': 'Últimos 7 días',
-  '30d': 'Últimos 30 días',
-  '1y': 'Último año',
-  all: 'Histórico',
-}
 
 function formatDate(date: string) {
   return new Date(date).toLocaleDateString('es-VE', {
@@ -48,7 +42,6 @@ export function HistoryComparativa({
   activeLines,
   availableRateKeys,
   rateMetadata,
-  range,
   selectedDate,
   onClearSelection,
 }: HistoryComparativaProps) {
@@ -77,9 +70,9 @@ export function HistoryComparativa({
     })
   }, [data, activeLines, availableRateKeys, selectedDate])
 
-  const subtitle = selectedDate
-    ? `Desde ${formatDate(selectedDate)} hasta hoy`
-    : RANGE_SUBTITLE[range]
+  // Solo se muestra contexto cuando hay una fecha seleccionada; no se repite la
+  // palabra del rango (evita duplicar el sentido de "historial").
+  const subtitle = selectedDate ? `Desde ${formatDate(selectedDate)} hasta hoy` : null
 
   return (
     <Card className="border-border/50">
@@ -88,7 +81,7 @@ export function HistoryComparativa({
           <CardTitle className="text-sm font-bold uppercase tracking-wider text-muted-foreground">
             Comparativa
           </CardTitle>
-          <p className="text-xs text-muted-foreground">{subtitle}</p>
+          {subtitle && <p className="text-xs text-muted-foreground">{subtitle}</p>}
         </div>
         {selectedDate && (
           <Button

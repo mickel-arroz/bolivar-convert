@@ -188,3 +188,16 @@ export function evaluateExpression(input: string): number | null {
 export function hasMathOperator(input: string): boolean {
   return /[+\-*/]/.test(input.replace(/^\s*-/, '')) // ignora un signo negativo inicial
 }
+
+/** Deja solo dígitos, separadores decimales, operadores y paréntesis. */
+export function sanitizeExpression(input: string, maxLen = 32): string {
+  return input.replace(/[^0-9.,+\-*/() ]/g, '').slice(0, maxLen)
+}
+
+/**
+ * Formatea el resultado de una expresión como string numérico plano (con `.` decimal,
+ * sin separadores de miles), listo para almacenar y volver a parsear con `parseFloat`.
+ */
+export function formatEvaluated(n: number, maxDecimals = 2): string {
+  return String(Number(n.toFixed(maxDecimals)))
+}

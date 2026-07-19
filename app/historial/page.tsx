@@ -12,6 +12,7 @@ import { ChartConfig } from "@/components/ui/chart"
 import { RATES_METADATA } from '@/constants/rates'
 import { ChartSkeleton } from '@/components/historial/ChartSkeleton'
 import { VisibilitySkeleton } from '@/components/historial/VisibilitySkeleton'
+import { ComparativaSkeleton } from '@/components/historial/ComparativaSkeleton'
 import {
   HistoryHeader,
  
@@ -202,23 +203,21 @@ export default function HistoryPage() {
             />
           )}
 
-          {!loading && filteredData.length > 0 && (
-            <HistoryComparativa
-              data={filteredData}
-              activeLines={activeLines}
-              availableRateKeys={availableRateKeys}
-              rateMetadata={HISTORY_RATE_METADATA}
-              range={range}
-              selectedDate={selectedDate}
-              onClearSelection={() => setSelectedDate(null)}
-            />
+          {loading ? (
+            <ComparativaSkeleton />
+          ) : (
+            filteredData.length > 0 && (
+              <HistoryComparativa
+                data={filteredData}
+                activeLines={activeLines}
+                availableRateKeys={availableRateKeys}
+                rateMetadata={HISTORY_RATE_METADATA}
+                range={range}
+                selectedDate={selectedDate}
+                onClearSelection={() => setSelectedDate(null)}
+              />
+            )
           )}
-
-          <div className="p-4 rounded-xl border border-dashed border-border/50 text-xs text-muted-foreground bg-muted/5">
-            <p>
-              El historial se genera automáticamente cada vez que el BCV actualiza su tasa oficial.
-            </p>
-          </div>
         </div>
       </div>
     </div>

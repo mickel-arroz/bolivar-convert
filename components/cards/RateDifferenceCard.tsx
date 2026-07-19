@@ -4,7 +4,7 @@ import { useState, useEffect, useMemo } from 'react'
 import { Card, CardContent } from '@/components/ui/card'
 import { TrendingUpIcon } from '@/components/icons'
 import { cn } from '@/lib/utils'
-import { clampDigits } from '@/lib/numberInput'
+import { useMathInput, formatPreview } from '@/hooks/useMathInput'
 
 import { RATES_METADATA, RateId, Rates, RateInfo } from '@/constants/rates'
 
@@ -45,6 +45,7 @@ const RateSelector = ({
   setCustomValue: (val: string) => void
 }) => {
   const [open, setOpen] = useState(false)
+  const rateInput = useMathInput(customValue, setCustomValue, { maxDecimals: 4 })
 
   const handleSelect = (v: ExtendedRateId) => {
     onValueChange(v)
@@ -90,15 +91,19 @@ const RateSelector = ({
               >
                 <div className="flex flex-col gap-3">
                   <div className="flex flex-col gap-1.5">
-                    <label className="text-[10px] font-black uppercase text-muted-foreground/70 tracking-tighter">Valor de Tasa (Bs.)</label>
+                    <div className="flex min-h-4 items-center justify-between gap-2">
+                      <label className="text-[10px] font-black uppercase text-muted-foreground/70 tracking-tighter">Valor de Tasa (Bs.)</label>
+                      {rateInput.showPreview && (
+                        <span className="mr-2 text-[10px] font-black tabular-nums text-primary">
+                          = {formatPreview(rateInput.evaluated!, 4)}
+                        </span>
+                      )}
+                    </div>
                     <input
-                      type="number"
-                      step="0.01"
-                      value={customValue}
+                      {...rateInput.inputProps}
                       onKeyDown={(e) => {
                         if (e.key === ' ') e.stopPropagation();
                       }}
-                      onChange={(e) => setCustomValue(clampDigits(e.target.value, { maxDecimals: 4 }))}
                       className="flex h-10 w-full rounded-lg border border-border bg-background px-3 py-1 text-sm shadow-xs transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/20 focus-visible:border-primary/30"
                       placeholder="0.00"
                     />
@@ -227,8 +232,8 @@ export function RateDifferenceCard({ rates }: RateDifferenceCardProps) {
   }
 
   return (
-    <Card className="w-full max-w-2xl mx-auto bg-linear-to-b from-card to-card/50 border-border/50 shadow-xs">
-      <CardContent className="p-4 md:p-6">
+    <Card className="w-full max-w-2xl mx-auto py-0 bg-linear-to-b from-card to-card/50 border-border/50 shadow-xs">
+      <CardContent className="p-4 md:px-6 md:py-4">
         <div className="flex flex-col md:flex-row items-center justify-between gap-6">
           <div className="flex flex-col md:flex-row items-center md:items-start gap-4 w-full md:w-auto">
             <div className="p-2.5 rounded-xl bg-primary/10 text-primary shrink-0">

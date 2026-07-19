@@ -17,9 +17,7 @@ test.describe('Dashboard and E2E Web Features', () => {
     await expect(page.getByText('Binance', { exact: true }).first()).toBeVisible()
 
     // Validate the Footer
-    await expect(
-      page.getByText(/Hecho para proveer información/i)
-    ).toBeVisible()
+    await expect(page.getByText(/Desarrollado por/i)).toBeVisible()
   })
 
   test('should toggle dark mode properly', async ({ page }) => {

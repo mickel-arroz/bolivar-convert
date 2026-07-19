@@ -3,8 +3,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useRates } from '@/hooks/useRates'
 import { CurrencyId, getCurrency } from '@/constants/currencies'
-import { Input } from '@/components/ui/input'
-import { clampDigits } from '@/lib/numberInput'
+import { cn } from '@/lib/utils'
 import {
   Dialog,
   DialogContent,
@@ -12,8 +11,7 @@ import {
   DialogTitle,
   DialogDescription,
 } from '@/components/ui/dialog'
-import { cn } from '@/lib/utils'
-import { Field } from './fields'
+import { Field, AmountField } from './fields'
 import { formatMoney } from './format'
 
 interface AmountCalculatorDialogProps {
@@ -119,25 +117,20 @@ export function AmountCalculatorDialog({
           )}
 
           <div className="grid grid-cols-2 gap-3">
-            <Field label="Monto a convertir" hint={sourceSymbol}>
-              <Input
-                type="number"
-                inputMode="decimal"
-                value={amount}
-                onChange={(e) => setAmount(clampDigits(e.target.value))}
-                placeholder="0,00"
-                autoFocus
-              />
-            </Field>
-            <Field label="Tasa personalizada" hint="Bs. (opcional)">
-              <Input
-                type="number"
-                inputMode="decimal"
-                value={customRate}
-                onChange={(e) => setCustomRate(clampDigits(e.target.value, { maxDecimals: 4 }))}
-                placeholder="0,00"
-              />
-            </Field>
+            <AmountField
+              label="Monto a convertir"
+              hint={sourceSymbol}
+              value={amount}
+              onValueChange={setAmount}
+              autoFocus
+            />
+            <AmountField
+              label="Tasa personalizada"
+              hint="Bs. (opcional)"
+              value={customRate}
+              onValueChange={setCustomRate}
+              maxDecimals={4}
+            />
           </div>
 
           <div className="flex flex-col gap-2">

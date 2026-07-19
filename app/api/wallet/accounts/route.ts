@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { authenticate, jsonError } from '@/lib/api/route-helpers'
-import { loadWallet } from '@/lib/wallet/server'
+import { loadAccountsSummary } from '@/lib/wallet/server'
 
 export const dynamic = 'force-dynamic'
 
@@ -8,10 +8,10 @@ export async function GET() {
   const auth = await authenticate()
   if (auth.response) return auth.response
   try {
-    const state = await loadWallet(auth.supabase, auth.user.id)
-    return NextResponse.json(state)
+    const summary = await loadAccountsSummary(auth.supabase, auth.user.id)
+    return NextResponse.json(summary)
   } catch (error) {
-    console.error('[api/wallet/state]', error)
-    return jsonError('No se pudo cargar la billetera', 500)
+    console.error('[api/wallet/accounts]', error)
+    return jsonError('No se pudieron cargar las cuentas', 500)
   }
 }

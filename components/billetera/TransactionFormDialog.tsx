@@ -1,13 +1,12 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import { Transaction, TransactionType, WalletApi } from '@/hooks/useWallet'
+import { Transaction, TransactionType, CommissionType, WalletApi } from '@/hooks/useWallet'
 import { getCurrency } from '@/constants/currencies'
 import { getCategoryIcon, CATEGORY_ICON_MAP, ACCOUNT_ICON_MAP } from '@/constants/walletCategories'
 import { DotsIcon, WalletIcon, CalculatorIcon } from '@/components/icons'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { clampDigits } from '@/lib/numberInput'
 import {
   Dialog,
   DialogContent,
@@ -17,7 +16,9 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog'
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select'
-import { Field, TypeToggle } from './fields'
+import { Field, TypeToggle, AmountPreview, CommissionField } from './fields'
+import { useMathInput } from '@/hooks/useMathInput'
+import { notify } from '@/lib/notify'
 import { todayInputValue } from './format'
 import { AmountCalculatorDialog } from './AmountCalculatorDialog'
 
@@ -41,6 +42,9 @@ export function TransactionFormDialog({
   const [accountId, setAccountId] = useState('')
   const [categoryId, setCategoryId] = useState('')
   const [amount, setAmount] = useState('')
+  const [commission, setCommission] = useState('')
+  const [commissionType, setCommissionType] = useState<CommissionType>('percent')
+  const [commissionTouched, setCommissionTouched] = useState(false)
   const [note, setNote] = useState('')
   const [date, setDate] = useState(todayInputValue())
   const [calcOpen, setCalcOpen] = useState(false)
@@ -52,10 +56,21 @@ export function TransactionFormDialog({
       setAccountId(editing?.accountId ?? state.accounts[0]?.id ?? '')
       setCategoryId(editing?.categoryId ?? '')
       setAmount(editing?.amount ?? '')
+      setCommission(editing?.commission ?? '')
+      setCommissionType(editing?.commissionType ?? 'percent')
+      setCommissionTouched(!!editing)
       setNote(editing?.note ?? '')
       setDate(editing?.date ?? todayInputValue())
     }
   }, [open, editing, defaultType, state.accounts])
+
+  useEffect(() => {
+    if (!open || editing || commissionTouched) return
+    const acc = state.accounts.find((a) => a.id === accountId)
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setCommission(acc?.commission ?? '')
+    setCommissionType(acc?.commissionType ?? 'percent')
+  }, [open, editing, accountId, commissionTouched, state.accounts])
 
   const categories = useMemo(
     () => state.categories.filter((c) => c.kind === type),
@@ -70,17 +85,30 @@ export function TransactionFormDialog({
     }
   }, [categories, categoryId])
 
+  const amountInput = useMathInput(amount, setAmount)
+
   const accountCurrency = state.accounts.find((a) => a.id === accountId)?.currency
   const canSubmit = parseFloat(amount.replace(',', '.')) > 0 && accountId && categoryId
 
   const handleSubmit = () => {
     if (!canSubmit) return
-    const payload = { type, accountId, categoryId, amount, note, date }
+    const commissionValue = commission.trim() || undefined
+    const payload = {
+      type,
+      accountId,
+      categoryId,
+      amount,
+      commission: commissionValue,
+      commissionType: commissionValue ? commissionType : undefined,
+      note,
+      date,
+    }
     if (editing) {
       updateTransaction(editing.id, payload)
     } else {
       addTransaction(payload)
     }
+    notify.success(editing ? 'Movimiento actualizado' : 'Movimiento registrado')
     onOpenChange(false)
   }
 
@@ -165,13 +193,13 @@ export function TransactionFormDialog({
               </Select>
             </Field>
 
-            <Field label="Monto">
+            <Field
+              label="Monto"
+              preview={amountInput.showPreview ? <AmountPreview value={amountInput.evaluated!} /> : undefined}
+            >
               <div className="flex gap-2">
                 <Input
-                  type="number"
-                  inputMode="decimal"
-                  value={amount}
-                  onChange={(e) => setAmount(clampDigits(e.target.value))}
+                  {...amountInput.inputProps}
                   placeholder="0,00"
                   autoFocus
                   className="flex-1"
@@ -187,6 +215,25 @@ export function TransactionFormDialog({
                 </Button>
               </div>
             </Field>
+
+            <CommissionField
+              hint={
+                type === 'income'
+                  ? 'Opcional. Se descuenta de lo recibido.'
+                  : 'Opcional. Se suma al gasto.'
+              }
+              type={commissionType}
+              onTypeChange={(t) => {
+                setCommissionType(t)
+                setCommissionTouched(true)
+              }}
+              value={commission}
+              onValueChange={(v) => {
+                setCommission(v)
+                setCommissionTouched(true)
+              }}
+              currencySymbol={accountCurrency ? getCurrency(accountCurrency).symbol : undefined}
+            />
 
             <Field label="Fecha">
               <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} />

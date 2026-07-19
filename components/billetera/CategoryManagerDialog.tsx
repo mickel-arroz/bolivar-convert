@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { Category, TransactionType, WalletApi } from '@/hooks/useWallet'
 import { CATEGORY_ICON_KEYS, getCategoryIcon } from '@/constants/walletCategories'
 import { Button } from '@/components/ui/button'
@@ -14,6 +14,7 @@ import {
 } from '@/components/ui/dialog'
 import { PencilIcon, TrashIcon } from '@/components/icons'
 import { cn } from '@/lib/utils'
+import { notify } from '@/lib/notify'
 import { Field, TypeToggle, ColorPicker } from './fields'
 import { CategoryDeleteDialog } from './CategoryDeleteDialog'
 
@@ -48,13 +49,26 @@ export function CategoryManagerDialog({ open, onOpenChange, wallet }: CategoryMa
     setColor(c.color)
   }
 
+  // No permitir dos categorías con el mismo nombre dentro del mismo tipo.
+  const duplicateName = useMemo(() => {
+    const n = name.trim().toLowerCase()
+    if (!n) return false
+    const effectiveKind = editingId
+      ? (state.categories.find((c) => c.id === editingId)?.kind ?? kind)
+      : kind
+    return state.categories.some(
+      (c) => c.id !== editingId && c.kind === effectiveKind && c.name.trim().toLowerCase() === n
+    )
+  }, [name, kind, editingId, state.categories])
+
   const handleSave = () => {
-    if (!name.trim()) return
+    if (!name.trim() || duplicateName) return
     if (editingId) {
       updateCategory(editingId, { name: name.trim(), icon, color })
     } else {
       addCategory(name, kind, icon, color)
     }
+    notify.success(editingId ? 'Categoría actualizada' : 'Categoría creada')
     resetForm()
   }
 
@@ -120,7 +134,13 @@ export function CategoryManagerDialog({ open, onOpenChange, wallet }: CategoryMa
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   placeholder={editingId ? 'Nombre de la categoría' : 'Nueva categoría'}
+                  aria-invalid={duplicateName}
                 />
+                {duplicateName && (
+                  <span className="text-xs text-destructive">
+                    Ya existe una categoría con ese nombre.
+                  </span>
+                )}
               </Field>
               <Field label="Icono">
                 <div className="grid grid-cols-5 gap-1.5">
@@ -153,7 +173,7 @@ export function CategoryManagerDialog({ open, onOpenChange, wallet }: CategoryMa
                     Cancelar edición
                   </Button>
                 )}
-                <Button onClick={handleSave} disabled={!name.trim()}>
+                <Button onClick={handleSave} disabled={!name.trim() || duplicateName}>
                   {editingId ? 'Guardar cambios' : 'Agregar categoría'}
                 </Button>
               </div>

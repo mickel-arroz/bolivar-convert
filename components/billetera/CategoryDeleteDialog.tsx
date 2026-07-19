@@ -15,6 +15,7 @@ import {
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select'
 import { AlertIcon } from '@/components/icons'
 import { cn } from '@/lib/utils'
+import { notify } from '@/lib/notify'
 import { Field } from './fields'
 
 interface CategoryDeleteDialogProps {
@@ -70,8 +71,10 @@ export function CategoryDeleteDialog({ open, onOpenChange, wallet, category }: C
     if (isLast) return
     if (hasData && mode === 'reassign' && targetId) {
       reassignCategory(category.id, targetId, strategy)
+      notify.success('Categoría reasignada y eliminada')
     } else {
       removeCategory(category.id)
+      notify.success('Categoría eliminada')
     }
     onOpenChange(false)
   }

@@ -14,6 +14,7 @@ import {
 } from '@/components/ui/dialog'
 import { ACCOUNT_ICON_KEYS, getAccountIcon } from '@/constants/walletCategories'
 import { cn } from '@/lib/utils'
+import { notify } from '@/lib/notify'
 import { Field, ColorPicker } from './fields'
 
 interface ShoppingListFormDialogProps {
@@ -50,6 +51,7 @@ export function ShoppingListFormDialog({
     } else {
       addShoppingList(name, icon, color)
     }
+    notify.success(editing ? 'Lista actualizada' : 'Lista creada')
     onOpenChange(false)
   }
 

@@ -8,7 +8,6 @@ import { ACCOUNT_ICON_MAP } from '@/constants/walletCategories'
 import { WalletIcon } from '@/components/icons'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { clampDigits } from '@/lib/numberInput'
 import {
   Dialog,
   DialogContent,
@@ -19,7 +18,9 @@ import {
 } from '@/components/ui/dialog'
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select'
 import { cn } from '@/lib/utils'
-import { Field } from './fields'
+import { Field, AmountField } from './fields'
+import { useMathInput, formatPreview } from '@/hooks/useMathInput'
+import { notify } from '@/lib/notify'
 import { formatMoney, todayInputValue } from './format'
 
 interface ConfirmPurchaseDialogProps {
@@ -102,6 +103,8 @@ export function ConfirmPurchaseDialog({
     return rateNum(rates[rateSource])
   }, [differentCur, rateSource, customRate, rates])
 
+  const customRateInput = useMathInput(customRate, setCustomRate, { maxDecimals: 4 })
+
   if (!item) return null
 
   const costNum = parseFloat(cost.replace(',', '.')) || 0
@@ -120,6 +123,7 @@ export function ConfirmPurchaseDialog({
   const handleSubmit = () => {
     if (!canSubmit) return
     confirmPurchase({ itemId: item.id, accountId, cost, rateSource, rateValue, date })
+    notify.success('Compra confirmada')
     onOpenChange(false)
   }
 
@@ -172,23 +176,29 @@ export function ConfirmPurchaseDialog({
             </Field>
 
             <div className="grid grid-cols-2 gap-3">
-              <Field label="Costo" hint={itemCur ? getCurrency(itemCur).symbol : undefined}>
-                <Input
-                  type="number"
-                  inputMode="decimal"
-                  value={cost}
-                  onChange={(e) => setCost(clampDigits(e.target.value))}
-                  placeholder="0,00"
-                  autoFocus
-                />
-              </Field>
+              <AmountField
+                label="Costo"
+                hint={itemCur ? getCurrency(itemCur).symbol : undefined}
+                value={cost}
+                onValueChange={setCost}
+                autoFocus
+              />
               <Field label="Fecha">
                 <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
               </Field>
             </div>
 
             {differentCur && (
-              <Field label="Tasa de cambio">
+              <Field
+                label="Tasa de cambio"
+                preview={
+                  rateSource === 'custom' && customRateInput.showPreview ? (
+                    <span className="mr-2 text-xs font-bold tabular-nums text-primary">
+                      = {formatPreview(customRateInput.evaluated!, 4)}
+                    </span>
+                  ) : undefined
+                }
+              >
                 <div className="flex flex-col gap-2">
                   <div className="flex flex-wrap gap-1.5">
                     {appRateOptions.map((opt) => (
@@ -220,13 +230,7 @@ export function ConfirmPurchaseDialog({
                     </button>
                   </div>
                   {rateSource === 'custom' && (
-                    <Input
-                      type="number"
-                      inputMode="decimal"
-                      value={customRate}
-                      onChange={(e) => setCustomRate(clampDigits(e.target.value, { maxDecimals: 4 }))}
-                      placeholder={customRateLabel}
-                    />
+                    <Input {...customRateInput.inputProps} placeholder={customRateLabel} />
                   )}
                 </div>
               </Field>

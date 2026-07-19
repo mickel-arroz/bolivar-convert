@@ -6,9 +6,27 @@ import { Rates, RateId } from '@/constants/rates'
 import { generateId, parseAmount } from '@/hooks/useBillSplitter'
 import { DEFAULT_CATEGORIES } from '@/constants/walletCategories'
 import { buildWalletDelta, isEmptyDelta } from '@/lib/wallet/delta'
+import { notify } from '@/lib/notify'
+import {
+  filterByRange,
+  parseSigned,
+  bsPerUnit,
+  normalize,
+  resolveCommission,
+  computeAccountBalances,
+  computeTotalsByCurrency,
+  computeStats as computeStatsCore,
+  budgetStatusForMonth as budgetStatusForMonthCore,
+} from '@/lib/wallet/compute'
+
+// Reexport de helpers compartidos para consumidores que los importan desde este módulo.
+export { monthKey, formatMonthLabel } from '@/lib/wallet/compute'
 
 /* ─── Tipos ─── */
 export type TransactionType = 'income' | 'expense'
+
+/** Cómo se interpreta el valor de una comisión: porcentaje del monto o monto fijo. */
+export type CommissionType = 'percent' | 'fixed'
 
 export interface Account {
   id: string
@@ -19,6 +37,10 @@ export interface Account {
   icon: string
   /** Color personalizado (string CSS, p.ej. 'var(--wallet-green)'). Opcional → gris. */
   color?: string
+  /** Comisión por defecto de la cuenta (valor); prellenada al crear movimientos. Opcional. */
+  commission?: string
+  /** Interpretación de `commission`: porcentaje o monto fijo. */
+  commissionType?: CommissionType
   createdAt: string
 }
 
@@ -37,6 +59,10 @@ export interface Transaction {
   accountId: string
   categoryId: string
   amount: string
+  /** Comisión (costo) del movimiento: reduce el saldo de la cuenta. Opcional. */
+  commission?: string
+  /** Interpretación de `commission`: porcentaje del monto o monto fijo. */
+  commissionType?: CommissionType
   note?: string
   date: string
   createdAt: string
@@ -55,6 +81,10 @@ export interface Transfer {
   toAmount: string
   /** Sólo presente cuando origen y destino tienen monedas distintas. */
   rate?: { source: TransferRateSource; value: string }
+  /** Comisión (costo) que paga la cuenta origen, sobre `fromAmount`. Opcional. */
+  commission?: string
+  /** Interpretación de `commission`: porcentaje de `fromAmount` o monto fijo. */
+  commissionType?: CommissionType
   note?: string
   date: string
   createdAt: string
@@ -179,6 +209,8 @@ export interface BudgetStatusRow {
   budget: Budget
   categoryName: string
   categoryIcon: string
+  /** Color asignado por el usuario a la categoría (para mostrar el icono en su color). */
+  categoryColor?: string
   actual: number
   /** Estimado del mes. */
   limit: number
@@ -247,107 +279,6 @@ export function mergeCategories(stored: Category[] | undefined): Category[] {
   return merged
 }
 
-/* ─── Helpers de fecha ─── */
-/**
- * Clave de mes 'YYYY-MM'. Para cadenas tipo 'YYYY-MM-DD' (inputs date) se cortan
- * los componentes directamente para evitar desfase de zona horaria; para objetos
- * Date se usa la hora local.
- */
-export function monthKey(isoDate: string | Date): string {
-  if (typeof isoDate === 'string') {
-    const m = isoDate.match(/^(\d{4})-(\d{2})/)
-    if (m) return `${m[1]}-${m[2]}`
-    isoDate = new Date(isoDate)
-  }
-  return `${isoDate.getFullYear()}-${String(isoDate.getMonth() + 1).padStart(2, '0')}`
-}
-
-/** Etiqueta legible de un mes 'YYYY-MM' (ej. 'jun 2026'). */
-export function formatMonthLabel(month: string): string {
-  const [y, m] = month.split('-').map(Number)
-  const d = new Date(y, (m || 1) - 1, 1)
-  return d.toLocaleDateString('es-VE', { month: 'short', year: 'numeric' })
-}
-
-/** Lista de claves de mes 'YYYY-MM' desde `startKey` hasta `endKey` (inclusive). */
-function enumerateMonths(startKey: string, endKey: string): string[] {
-  const [sy, sm] = startKey.split('-').map(Number)
-  const [ey, em] = endKey.split('-').map(Number)
-  const out: string[] = []
-  let y = sy
-  let m = sm
-  let guard = 0
-  while ((y < ey || (y === ey && m <= em)) && guard < 600) {
-    out.push(`${y}-${String(m).padStart(2, '0')}`)
-    m++
-    if (m > 12) {
-      m = 1
-      y++
-    }
-    guard++
-  }
-  return out
-}
-
-function rangeStart(range: TimeRange, now = new Date()): Date {
-  const d = new Date(now)
-  switch (range) {
-    case '1m':
-      d.setMonth(d.getMonth() - 1)
-      return d
-    case '6m':
-      d.setMonth(d.getMonth() - 6)
-      return d
-    case '1y':
-      d.setFullYear(d.getFullYear() - 1)
-      return d
-    case 'all':
-    default:
-      return new Date(0)
-  }
-}
-
-function filterByRange(transactions: Transaction[], range: TimeRange): Transaction[] {
-  if (range === 'all') return transactions
-  const start = rangeStart(range)
-  return transactions.filter((tx) => new Date(tx.date) >= start)
-}
-
-/** Parsea un número permitiendo negativos (para el carryover, que puede ser deuda). */
-function parseSigned(value: string | undefined): number {
-  const n = parseFloat(String(value ?? '0').replace(',', '.'))
-  return isNaN(n) ? 0 : n
-}
-
-/* ─── Helpers de conversión ─── */
-function rateNum(r: string | undefined): number {
-  const n = parseFloat(r ?? '0')
-  return isNaN(n) ? 0 : n
-}
-
-/** Precio en Bs. de 1 unidad de la moneda dada (VES = 1). */
-function bsPerUnit(currency: CurrencyId, rates: Rates, statsRateSource: RateId): number {
-  if (currency === 'VES') return 1
-  if (currency === 'EUR') return rateNum(rates.bcvEur)
-  // USD: usa la fuente de tasa elegida (bcvUsd o binanceUsdAvg)
-  return rateNum(rates[statsRateSource])
-}
-
-/** Normaliza un monto de `fromCur` a `toCur` pivotando por VES. 0 si falta tasa. */
-function normalize(
-  amount: number,
-  fromCur: CurrencyId,
-  toCur: CurrencyId,
-  rates: Rates,
-  statsRateSource: RateId
-): number {
-  if (fromCur === toCur) return amount
-  const rFrom = bsPerUnit(fromCur, rates, statsRateSource)
-  const rTo = bsPerUnit(toCur, rates, statsRateSource)
-  if (rFrom <= 0 || rTo <= 0) return 0
-  return (amount * rFrom) / rTo
-}
-
 /**
  * Convierte el monto de un traspaso entre cuentas.
  * - Misma moneda: idéntico.
@@ -376,6 +307,9 @@ export function useWallet() {
   const [state, setState] = useState<WalletState>(DEFAULT_STATE)
   const [loadError, setLoadError] = useState(false)
   const [syncError, setSyncError] = useState(false)
+  // Contador que aumenta tras cada sync exitoso; los tabs con endpoints dedicados
+  // lo usan como señal para re-consultar sus datos ya persistidos.
+  const [syncedVersion, setSyncedVersion] = useState(0)
 
   // Último estado confirmado en la nube; base para calcular el delta a persistir.
   const lastSyncedRef = useRef<WalletState | null>(null)
@@ -416,7 +350,10 @@ export function useWallet() {
         setState(merged)
       } catch (e) {
         console.error('[wallet load]', e)
-        if (!cancelled) setLoadError(true)
+        if (!cancelled) {
+          setLoadError(true)
+          notify.error('No se pudo cargar tu billetera', 'Intenta recargar la página.')
+        }
       } finally {
         if (!cancelled) setIsMounted(true)
       }
@@ -448,21 +385,36 @@ export function useWallet() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(delta),
         })
-        if (!res.ok) throw new Error('sync failed')
+        if (!res.ok) {
+          const body = (await res.json().catch(() => null)) as { error?: string } | null
+          throw new Error(body?.error || 'sync failed')
+        }
         lastSyncedRef.current = snapshot
         setSyncError(false)
+        setSyncedVersion((v) => v + 1)
       } catch (e) {
-        // No avanzamos lastSyncedRef: el próximo cambio reintenta el delta completo
-        // (los upserts/deletes son idempotentes, así que reenviar es seguro).
         console.error('[wallet sync]', e)
         setSyncError(true)
+        const msg = e instanceof Error ? e.message : ''
+        notify.error(
+          'No se pudieron guardar los cambios',
+          msg && msg !== 'sync failed' ? msg : 'Se reintentará automáticamente.'
+        )
       }
     })
   }, [state, isMounted])
 
   /* ── Cuentas ── */
   const addAccount = useCallback(
-    (name: string, currency: CurrencyId, openingBalance: string, icon = 'wallet', color?: string) => {
+    (
+      name: string,
+      currency: CurrencyId,
+      openingBalance: string,
+      icon = 'wallet',
+      color?: string,
+      commission?: string,
+      commissionType?: CommissionType
+    ) => {
       const trimmed = name.trim()
       if (!trimmed) return
       setState((s) => ({
@@ -476,6 +428,8 @@ export function useWallet() {
             openingBalance: openingBalance || '0',
             icon,
             color,
+            commission: commission || undefined,
+            commissionType: commission ? commissionType : undefined,
             createdAt: new Date().toISOString(),
           },
         ],
@@ -487,7 +441,9 @@ export function useWallet() {
   const updateAccount = useCallback(
     (
       id: string,
-      patch: Partial<Pick<Account, 'name' | 'currency' | 'openingBalance' | 'icon' | 'color'>>
+      patch: Partial<
+        Pick<Account, 'name' | 'currency' | 'openingBalance' | 'icon' | 'color' | 'commission' | 'commissionType'>
+      >
     ) => {
       setState((s) => ({
         ...s,
@@ -510,10 +466,15 @@ export function useWallet() {
       let movements = 0
       for (const tx of s.transactions) {
         if (tx.accountId !== id) continue
-        movements += tx.type === 'income' ? parseAmount(tx.amount) : -parseAmount(tx.amount)
+        const amt = parseAmount(tx.amount)
+        movements += tx.type === 'income' ? amt : -amt
+        movements -= resolveCommission(amt, tx.commission, tx.commissionType)
       }
       for (const tr of s.transfers) {
-        if (tr.fromAccountId === id) movements -= parseAmount(tr.fromAmount)
+        if (tr.fromAccountId === id) {
+          movements -= parseAmount(tr.fromAmount)
+          movements -= resolveCommission(parseAmount(tr.fromAmount), tr.commission, tr.commissionType)
+        }
         if (tr.toAccountId === id) movements += parseAmount(tr.toAmount)
       }
       const newOpening = targetBalance - movements
@@ -538,7 +499,16 @@ export function useWallet() {
 
   /* ── Transacciones ── */
   const addTransaction = useCallback(
-    (tx: { type: TransactionType; accountId: string; categoryId: string; amount: string; note?: string; date: string }) => {
+    (tx: {
+      type: TransactionType
+      accountId: string
+      categoryId: string
+      amount: string
+      commission?: string
+      commissionType?: CommissionType
+      note?: string
+      date: string
+    }) => {
       if (parseAmount(tx.amount) <= 0 || !tx.accountId || !tx.categoryId) return
       setState((s) => ({
         ...s,
@@ -550,6 +520,8 @@ export function useWallet() {
             accountId: tx.accountId,
             categoryId: tx.categoryId,
             amount: tx.amount,
+            commission: tx.commission || undefined,
+            commissionType: tx.commission ? tx.commissionType : undefined,
             note: tx.note?.trim() || undefined,
             date: tx.date,
             createdAt: new Date().toISOString(),
@@ -561,7 +533,15 @@ export function useWallet() {
   )
 
   const updateTransaction = useCallback(
-    (id: string, patch: Partial<Pick<Transaction, 'type' | 'accountId' | 'categoryId' | 'amount' | 'note' | 'date'>>) => {
+    (
+      id: string,
+      patch: Partial<
+        Pick<
+          Transaction,
+          'type' | 'accountId' | 'categoryId' | 'amount' | 'commission' | 'commissionType' | 'note' | 'date'
+        >
+      >
+    ) => {
       setState((s) => ({
         ...s,
         transactions: s.transactions.map((t) => (t.id === id ? { ...t, ...patch } : t)),
@@ -584,11 +564,24 @@ export function useWallet() {
       toAmount: string
       rateSource: TransferRateSource
       rateValue: number
+      /** Comisión (costo) que paga la cuenta origen, sobre `fromAmount`. */
+      commission?: string
+      commissionType?: CommissionType
       note?: string
       date: string
     }) => {
-      const { fromAccountId, toAccountId, fromAmount, toAmount, rateSource, rateValue, note, date } =
-        params
+      const {
+        fromAccountId,
+        toAccountId,
+        fromAmount,
+        toAmount,
+        rateSource,
+        rateValue,
+        commission,
+        commissionType,
+        note,
+        date,
+      } = params
       if (fromAccountId === toAccountId) return
       const amount = parseAmount(fromAmount)
       const received = parseAmount(toAmount)
@@ -606,6 +599,8 @@ export function useWallet() {
           toAmount,
           // La tasa se guarda solo como referencia cuando las monedas difieren.
           rate: sameCurrency ? undefined : { source: rateSource, value: String(rateValue) },
+          commission: commission || undefined,
+          commissionType: commission ? commissionType : undefined,
           note: note?.trim() || undefined,
           date,
           createdAt: new Date().toISOString(),
@@ -1078,24 +1073,16 @@ export function useWallet() {
   const clearAll = useCallback(() => setState({ ...DEFAULT_STATE }), [])
 
   /* ── Derivados sin tasas ── */
-  const accountBalances = useMemo<AccountBalance[]>(() => {
-    return state.accounts.map((account) => {
-      let balance = parseAmount(account.openingBalance)
-      for (const tx of state.transactions) {
-        if (tx.accountId !== account.id) continue
-        balance += tx.type === 'income' ? parseAmount(tx.amount) : -parseAmount(tx.amount)
-      }
-      for (const tr of state.transfers) {
-        if (tr.fromAccountId === account.id) balance -= parseAmount(tr.fromAmount)
-        if (tr.toAccountId === account.id) balance += parseAmount(tr.toAmount)
-      }
-      // Aportes a metas restan del saldo (positivo sale de la cuenta); retiros lo devuelven.
-      for (const gc of state.goalContributions) {
-        if (gc.accountId === account.id) balance -= parseSigned(gc.amount)
-      }
-      return { accountId: account.id, currency: account.currency, balance }
-    })
-  }, [state.accounts, state.transactions, state.transfers, state.goalContributions])
+  const accountBalances = useMemo<AccountBalance[]>(
+    () =>
+      computeAccountBalances({
+        accounts: state.accounts,
+        transactions: state.transactions,
+        transfers: state.transfers,
+        goalContributions: state.goalContributions,
+      }),
+    [state.accounts, state.transactions, state.transfers, state.goalContributions]
+  )
 
   const goalBalances = useMemo<GoalBalance[]>(() => {
     return state.goals.map((goal) => {
@@ -1107,11 +1094,10 @@ export function useWallet() {
     })
   }, [state.goals, state.goalContributions])
 
-  const totalsByCurrency = useMemo<Record<CurrencyId, number>>(() => {
-    const totals: Record<CurrencyId, number> = { VES: 0, USD: 0, EUR: 0 }
-    for (const b of accountBalances) totals[b.currency] += b.balance
-    return totals
-  }, [accountBalances])
+  const totalsByCurrency = useMemo<Record<CurrencyId, number>>(
+    () => computeTotalsByCurrency(accountBalances),
+    [accountBalances]
+  )
 
   /**
    * Patrimonio neto convertido a `currency`: suma de TODAS las cuentas normalizadas
@@ -1143,164 +1129,40 @@ export function useWallet() {
 
   /* ── Estado de presupuestos de un mes (requiere tasas) ── */
   const budgetStatusForMonth = useCallback(
-    (rates: Rates, month: string): BudgetStatusRow[] => {
-      const { statsRateSource } = state
-      const accountById = new Map(state.accounts.map((a) => [a.id, a]))
-      const categoryById = new Map(state.categories.map((c) => [c.id, c]))
-      return state.budgets
-        .filter((b) => b.month === month)
-        .map((budget) => {
-          const cat = categoryById.get(budget.categoryId)
-          let actual = 0
-          for (const tx of state.transactions) {
-            if (tx.type !== 'expense' || tx.categoryId !== budget.categoryId) continue
-            if (monthKey(tx.date) !== month) continue
-            const acct = accountById.get(tx.accountId)
-            if (!acct) continue
-            actual += normalize(
-              parseAmount(tx.amount),
-              acct.currency,
-              budget.currency,
-              rates,
-              statsRateSource
-            )
-          }
-          const limit = parseAmount(budget.limit)
-          const carryover = parseSigned(budget.carryover)
-          const effectiveLimit = limit + carryover
-          const ratio = effectiveLimit > 0 ? actual / effectiveLimit : actual > 0 ? Infinity : 0
-          return {
-            budget,
-            categoryName: cat?.name ?? 'Desconocida',
-            categoryIcon: cat?.icon ?? 'other',
-            actual,
-            limit,
-            carryover,
-            effectiveLimit,
-            ratio,
-            isOver: effectiveLimit > 0 && actual > effectiveLimit,
-          }
-        })
-    },
+    (rates: Rates, month: string): BudgetStatusRow[] =>
+      budgetStatusForMonthCore(
+        {
+          accounts: state.accounts,
+          categories: state.categories,
+          budgets: state.budgets,
+          transactions: state.transactions,
+        },
+        rates,
+        state.statsRateSource,
+        month
+      ),
     [state]
   )
 
   /* ── Estadísticas (requieren tasas en vivo) ── */
   const computeStats = useCallback(
-    (rates: Rates): StatsBundle => {
-      const { displayCurrency, statsRateSource, timeRange } = state
-      const accountById = new Map(state.accounts.map((a) => [a.id, a]))
-      const categoryById = new Map(state.categories.map((c) => [c.id, c]))
-      const txs = filterByRange(state.transactions, timeRange)
-
-      const norm = (amount: number, fromCur: CurrencyId, toCur: CurrencyId) =>
-        normalize(amount, fromCur, toCur, rates, statsRateSource)
-
-      // Ingresos vs gastos + agregados por categoría y por mes
-      const incomeVsExpense = { income: 0, expense: 0 }
-      const byCat = new Map<string, number>()
-      const byMonth = new Map<string, { income: number; expense: number }>()
-
-      for (const tx of txs) {
-        const acct = accountById.get(tx.accountId)
-        if (!acct) continue
-        const value = norm(parseAmount(tx.amount), acct.currency, displayCurrency)
-        incomeVsExpense[tx.type] += value
-        byCat.set(tx.categoryId, (byCat.get(tx.categoryId) ?? 0) + value)
-        const mk = monthKey(tx.date)
-        const bucket = byMonth.get(mk) ?? { income: 0, expense: 0 }
-        bucket[tx.type] += value
-        byMonth.set(mk, bucket)
-      }
-
-      const categorySummary: CategorySummaryRow[] = [...byCat.entries()]
-        .map(([categoryId, total]) => {
-          const cat = categoryById.get(categoryId)
-          return {
-            categoryId,
-            name: cat?.name ?? 'Desconocida',
-            icon: cat?.icon ?? 'other',
-            color: cat?.color,
-            kind: cat?.kind ?? 'expense',
-            total,
-          }
-        })
-        .sort((a, b) => b.total - a.total)
-
-      const monthlySeries: MonthlyPoint[] = [...byMonth.entries()]
-        .sort((a, b) => (a[0] < b[0] ? -1 : 1))
-        .map(([month, v]) => ({ month, label: formatMonthLabel(month), ...v }))
-
-      // Patrimonio neto (todas las cuentas, normalizado)
-      let netWorth = 0
-      for (const account of state.accounts) {
-        let balance = parseAmount(account.openingBalance)
-        for (const tx of state.transactions) {
-          if (tx.accountId !== account.id) continue
-          balance += tx.type === 'income' ? parseAmount(tx.amount) : -parseAmount(tx.amount)
+    (rates: Rates): StatsBundle =>
+      computeStatsCore(
+        {
+          accounts: state.accounts,
+          transactions: state.transactions,
+          transfers: state.transfers,
+          categories: state.categories,
+          budgets: state.budgets,
+        },
+        rates,
+        {
+          displayCurrency: state.displayCurrency,
+          statsRateSource: state.statsRateSource,
+          timeRange: state.timeRange,
         }
-        for (const tr of state.transfers) {
-          if (tr.fromAccountId === account.id) balance -= parseAmount(tr.fromAmount)
-          if (tr.toAccountId === account.id) balance += parseAmount(tr.toAmount)
-        }
-        netWorth += norm(balance, account.currency, displayCurrency)
-      }
-
-      // Serie de patrimonio neto acumulado por mes (normalizado con la tasa actual)
-      const now = new Date()
-      const currentMonthKey = monthKey(now)
-      const allDates = [
-        ...state.transactions.map((t) => t.date),
-        ...state.transfers.map((t) => t.date),
-      ]
-      const startMonthKey =
-        timeRange === 'all'
-          ? allDates.length > 0
-            ? monthKey(allDates.reduce((a, b) => (a < b ? a : b)))
-            : currentMonthKey
-          : monthKey(rangeStart(timeRange, now))
-      const netWorthSeries: NetWorthPoint[] = enumerateMonths(startMonthKey, currentMonthKey).map(
-        (m) => {
-          let total = 0
-          for (const account of state.accounts) {
-            let bal = parseAmount(account.openingBalance)
-            for (const tx of state.transactions) {
-              if (tx.accountId !== account.id || monthKey(tx.date) > m) continue
-              bal += tx.type === 'income' ? parseAmount(tx.amount) : -parseAmount(tx.amount)
-            }
-            for (const tr of state.transfers) {
-              if (monthKey(tr.date) > m) continue
-              if (tr.fromAccountId === account.id) bal -= parseAmount(tr.fromAmount)
-              if (tr.toAccountId === account.id) bal += parseAmount(tr.toAmount)
-            }
-            total += norm(bal, account.currency, displayCurrency)
-          }
-          return { month: m, label: formatMonthLabel(m), value: total }
-        }
-      )
-
-      // Presupuesto vs gasto real (mes actual)
-      const budgetStatus = budgetStatusForMonth(rates, currentMonthKey)
-
-      // ¿Tenemos todas las tasas necesarias para normalizar?
-      const usedCurrencies = new Set<CurrencyId>([displayCurrency])
-      state.accounts.forEach((a) => usedCurrencies.add(a.currency))
-      state.budgets.forEach((b) => usedCurrencies.add(b.currency))
-      const ratesAvailable = [...usedCurrencies].every(
-        (c) => bsPerUnit(c, rates, statsRateSource) > 0
-      )
-
-      return {
-        incomeVsExpense,
-        categorySummary,
-        monthlySeries,
-        netWorth,
-        netWorthSeries,
-        budgetStatus,
-        ratesAvailable,
-      }
-    },
-    [state, budgetStatusForMonth]
+      ),
+    [state]
   )
 
   return {
@@ -1308,6 +1170,7 @@ export function useWallet() {
     isMounted,
     loadError,
     syncError,
+    syncedVersion,
     hasData,
     accountBalances,
     goalBalances,

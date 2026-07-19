@@ -7,7 +7,7 @@ import { ShoppingList, ShoppingListItem, WalletApi } from '@/hooks/useWallet'
 import { DEFAULT_ACCOUNT_COLOR } from '@/constants/walletColors'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { clampDigits } from '@/lib/numberInput'
+import { useMathInput } from '@/hooks/useMathInput'
 import {
   Dialog,
   DialogContent,
@@ -107,6 +107,9 @@ export function ShoppingListDetailDialog({
     return sum
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [items, totalCurrency, usdRate, eurRate, missingRate])
+
+  const usdCustomInput = useMathInput(usdCustom, setUsdCustom, { maxDecimals: 4 })
+  const eurCustomInput = useMathInput(eurCustom, setEurCustom, { maxDecimals: 4 })
 
   if (!list) return null
 
@@ -213,15 +216,8 @@ export function ShoppingListDetailDialog({
           )}
 
           {items.length > 0 && (
-            <div className="mt-auto flex flex-col gap-2 border-t border-border/60 pt-3">
-              <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-muted-foreground tabular-nums">
-                <span className="font-bold uppercase tracking-wider">Estimado:</span>
-                {(Object.entries(subtotals) as [CurrencyId, number][]).map(([cur, t]) => (
-                  <span key={cur}>{formatMoney(t, cur)}</span>
-                ))}
-              </div>
-
-              <div className="flex flex-col gap-2 rounded-xl border border-border/60 bg-muted/30 p-3">
+            <div className="mt-auto border-t border-border/60 pt-3">
+              <div className="flex flex-col gap-2.5 rounded-xl border border-border/60 bg-muted/30 p-3">
                 <div className="flex items-center justify-between gap-2">
                   <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
                     Precio total
@@ -243,6 +239,21 @@ export function ShoppingListDetailDialog({
                       </button>
                     ))}
                   </div>
+                </div>
+
+                {/* Estimado: subtotales por moneda de los productos de la lista. */}
+                <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] tabular-nums">
+                  <span className="font-bold uppercase tracking-wider text-muted-foreground">
+                    Estimado
+                  </span>
+                  {(Object.entries(subtotals) as [CurrencyId, number][]).map(([cur, t]) => (
+                    <span
+                      key={cur}
+                      className="rounded-md bg-muted/60 px-1.5 py-0.5 font-semibold text-foreground"
+                    >
+                      {formatMoney(t, cur)}
+                    </span>
+                  ))}
                 </div>
 
                 {needUsd && (
@@ -270,14 +281,7 @@ export function ShoppingListDetailDialog({
                       </button>
                     ))}
                     {usdRateSource === 'custom' && (
-                      <Input
-                        type="number"
-                        inputMode="decimal"
-                        value={usdCustom}
-                        onChange={(e) => setUsdCustom(clampDigits(e.target.value, { maxDecimals: 4 }))}
-                        placeholder="Bs. por $"
-                        className="h-7 w-28"
-                      />
+                      <Input {...usdCustomInput.inputProps} placeholder="Bs. por $" className="h-7 w-28" />
                     )}
                   </div>
                 )}
@@ -306,23 +310,18 @@ export function ShoppingListDetailDialog({
                       </button>
                     ))}
                     {eurRateSource === 'custom' && (
-                      <Input
-                        type="number"
-                        inputMode="decimal"
-                        value={eurCustom}
-                        onChange={(e) => setEurCustom(clampDigits(e.target.value, { maxDecimals: 4 }))}
-                        placeholder="Bs. por €"
-                        className="h-7 w-28"
-                      />
+                      <Input {...eurCustomInput.inputProps} placeholder="Bs. por €" className="h-7 w-28" />
                     )}
                   </div>
                 )}
+
+                <div className="h-px bg-border/60" />
 
                 <div className="flex items-center justify-between">
                   <span className="text-sm text-muted-foreground">
                     en {getCurrency(totalCurrency).label}
                   </span>
-                  <span className="text-lg font-black tabular-nums">
+                  <span className="text-xl font-black tabular-nums">
                     {total === null ? '—' : formatMoney(total, totalCurrency)}
                   </span>
                 </div>

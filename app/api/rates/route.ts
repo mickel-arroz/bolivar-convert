@@ -1,9 +1,9 @@
 import { NextResponse } from 'next/server'
 import { getVEDataString } from '@/lib/utils'
-import { getRedis, readHistoryCached, RATES_CACHE_SECONDS } from '@/lib/rates.server'
+import { getRedis, readHistoryCached } from '@/lib/rates.server'
 import { jsonError } from '@/lib/api/route-helpers'
 
-export const revalidate = RATES_CACHE_SECONDS
+export const revalidate = 1800
 
 /**
  * Tasas para la vista actual: el registro de HOY (TZ Caracas) o, si no existe, el

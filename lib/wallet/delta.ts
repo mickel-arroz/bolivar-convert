@@ -14,6 +14,8 @@ import type {
   Budget,
   Goal,
   GoalContribution,
+  ShoppingList,
+  ShoppingListItem,
 } from '@/hooks/useWallet'
 import type { CurrencyId } from '@/constants/currencies'
 import type { RateId } from '@/constants/rates'
@@ -36,6 +38,8 @@ export interface WalletDelta {
     transfers: Transfer[]
     budgets: Budget[]
     goalContributions: GoalContribution[]
+    shoppingLists: ShoppingList[]
+    shoppingItems: ShoppingListItem[]
   }
   deletes: {
     accounts: string[]
@@ -45,6 +49,8 @@ export interface WalletDelta {
     transfers: string[]
     budgets: string[]
     goalContributions: string[]
+    shoppingLists: string[]
+    shoppingItems: string[]
   }
   prefs: WalletPrefs | null
 }
@@ -84,6 +90,8 @@ export function buildWalletDelta(prev: WalletState, next: WalletState): WalletDe
   const dTransfers = diff(prev.transfers, next.transfers)
   const dBudgets = diff(prev.budgets, next.budgets)
   const dContributions = diff(prev.goalContributions, next.goalContributions)
+  const dShoppingLists = diff(prev.shoppingLists, next.shoppingLists)
+  const dShoppingItems = diff(prev.shoppingItems, next.shoppingItems)
 
   return {
     upserts: {
@@ -94,6 +102,8 @@ export function buildWalletDelta(prev: WalletState, next: WalletState): WalletDe
       transfers: dTransfers.upserts,
       budgets: dBudgets.upserts,
       goalContributions: dContributions.upserts,
+      shoppingLists: dShoppingLists.upserts,
+      shoppingItems: dShoppingItems.upserts,
     },
     deletes: {
       accounts: dAccounts.deletes,
@@ -103,6 +113,8 @@ export function buildWalletDelta(prev: WalletState, next: WalletState): WalletDe
       transfers: dTransfers.deletes,
       budgets: dBudgets.deletes,
       goalContributions: dContributions.deletes,
+      shoppingLists: dShoppingLists.deletes,
+      shoppingItems: dShoppingItems.deletes,
     },
     prefs: prefsChanged(prev, next)
       ? {
@@ -128,12 +140,16 @@ export function isEmptyDelta(d: WalletDelta): boolean {
     u.transfers.length === 0 &&
     u.budgets.length === 0 &&
     u.goalContributions.length === 0 &&
+    u.shoppingLists.length === 0 &&
+    u.shoppingItems.length === 0 &&
     del.accounts.length === 0 &&
     del.categories.length === 0 &&
     del.goals.length === 0 &&
     del.transactions.length === 0 &&
     del.transfers.length === 0 &&
     del.budgets.length === 0 &&
-    del.goalContributions.length === 0
+    del.goalContributions.length === 0 &&
+    del.shoppingLists.length === 0 &&
+    del.shoppingItems.length === 0
   )
 }

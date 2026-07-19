@@ -194,3 +194,9 @@
 .brand-font {
   font-family: var(--font-montserrat), sans-serif !important;
 }
+
+/* Permite animar transiciones de tamaño hacia/desde palabras clave (p.ej. height:auto
+   ↔ 100dvh), de modo que ancho y alto crezcan/encojan de forma sincronizada. */
+.size-interpolate {
+  interpolate-size: allow-keywords;
+}

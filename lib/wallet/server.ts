@@ -15,6 +15,9 @@ import type {
   Budget,
   Goal,
   GoalContribution,
+  ShoppingList,
+  ShoppingListItem,
+  ShoppingPurchase,
   TransferRateSource,
 } from '@/hooks/useWallet'
 import type { CurrencyId } from '@/constants/currencies'
@@ -201,6 +204,54 @@ function rowToContribution(r: Record<string, unknown>): GoalContribution {
   }
 }
 
+function shoppingListToRow(l: ShoppingList, userId: string) {
+  return {
+    id: l.id,
+    user_id: userId,
+    name: l.name,
+    icon: nn(l.icon),
+    color: nn(l.color),
+    created_at: l.createdAt,
+  }
+}
+function rowToShoppingList(r: Record<string, unknown>): ShoppingList {
+  return {
+    id: r.id as string,
+    name: r.name as string,
+    icon: un(r.icon as string | null),
+    color: un(r.color as string | null),
+    createdAt: r.created_at as string,
+  }
+}
+
+function shoppingItemToRow(it: ShoppingListItem, userId: string) {
+  return {
+    id: it.id,
+    user_id: userId,
+    list_id: it.listId,
+    title: it.title,
+    description: nn(it.description),
+    price: it.price,
+    currency: it.currency,
+    purchased: it.purchased,
+    purchase: nn(it.purchase),
+    created_at: it.createdAt,
+  }
+}
+function rowToShoppingItem(r: Record<string, unknown>): ShoppingListItem {
+  return {
+    id: r.id as string,
+    listId: r.list_id as string,
+    title: r.title as string,
+    description: un(r.description as string | null),
+    price: r.price as string,
+    currency: r.currency as CurrencyId,
+    purchased: (r.purchased as boolean) ?? false,
+    purchase: un(r.purchase as ShoppingPurchase | null),
+    createdAt: r.created_at as string,
+  }
+}
+
 /* ───────────────────────────── Carga ───────────────────────────── */
 
 /** Lee todas las tablas del usuario y arma un `WalletState` parcial. Lanza si falla. */
@@ -208,17 +259,29 @@ export async function loadWallet(
   supabase: SupabaseClient,
   userId: string
 ): Promise<Partial<WalletState>> {
-  const [profile, accounts, categories, transactions, transfers, budgets, goals, contributions] =
-    await Promise.all([
-      supabase.from('profiles').select('*').eq('id', userId).maybeSingle(),
-      supabase.from('accounts').select('*').eq('user_id', userId),
-      supabase.from('categories').select('*').eq('user_id', userId),
-      supabase.from('transactions').select('*').eq('user_id', userId),
-      supabase.from('transfers').select('*').eq('user_id', userId),
-      supabase.from('budgets').select('*').eq('user_id', userId),
-      supabase.from('goals').select('*').eq('user_id', userId),
-      supabase.from('goal_contributions').select('*').eq('user_id', userId),
-    ])
+  const [
+    profile,
+    accounts,
+    categories,
+    transactions,
+    transfers,
+    budgets,
+    goals,
+    contributions,
+    shoppingLists,
+    shoppingItems,
+  ] = await Promise.all([
+    supabase.from('profiles').select('*').eq('id', userId).maybeSingle(),
+    supabase.from('accounts').select('*').eq('user_id', userId),
+    supabase.from('categories').select('*').eq('user_id', userId),
+    supabase.from('transactions').select('*').eq('user_id', userId),
+    supabase.from('transfers').select('*').eq('user_id', userId),
+    supabase.from('budgets').select('*').eq('user_id', userId),
+    supabase.from('goals').select('*').eq('user_id', userId),
+    supabase.from('goal_contributions').select('*').eq('user_id', userId),
+    supabase.from('shopping_lists').select('*').eq('user_id', userId),
+    supabase.from('shopping_list_items').select('*').eq('user_id', userId),
+  ])
 
   const failed = [
     profile,
@@ -229,6 +292,8 @@ export async function loadWallet(
     budgets,
     goals,
     contributions,
+    shoppingLists,
+    shoppingItems,
   ].find((r) => r.error)
   if (failed?.error) throw failed.error
 
@@ -243,6 +308,8 @@ export async function loadWallet(
     budgets: rows(budgets, rowToBudget),
     goals: rows(goals, rowToGoal),
     goalContributions: rows(contributions, rowToContribution),
+    shoppingLists: rows(shoppingLists, rowToShoppingList),
+    shoppingItems: rows(shoppingItems, rowToShoppingItem),
   }
 
   const p = profile.data as Record<string, unknown> | null
@@ -288,6 +355,7 @@ export async function applyWalletDelta(
     upsert('accounts', upserts.accounts.map((a) => accountToRow(a, userId))),
     upsert('categories', upserts.categories.map((c) => categoryToRow(c, userId))),
     upsert('goals', upserts.goals.map((g) => goalToRow(g, userId))),
+    upsert('shopping_lists', upserts.shoppingLists.map((l) => shoppingListToRow(l, userId))),
   ])
 
   // 2) Upsert de hijos
@@ -296,6 +364,7 @@ export async function applyWalletDelta(
     upsert('transfers', upserts.transfers.map((t) => transferToRow(t, userId))),
     upsert('budgets', upserts.budgets.map((b) => budgetToRow(b, userId))),
     upsert('goal_contributions', upserts.goalContributions.map((c) => contributionToRow(c, userId))),
+    upsert('shopping_list_items', upserts.shoppingItems.map((it) => shoppingItemToRow(it, userId))),
   ])
 
   // 3) Delete de hijos primero
@@ -304,6 +373,7 @@ export async function applyWalletDelta(
     del('transfers', deletes.transfers),
     del('budgets', deletes.budgets),
     del('goal_contributions', deletes.goalContributions),
+    del('shopping_list_items', deletes.shoppingItems),
   ])
 
   // 4) Delete de padres al final
@@ -311,6 +381,7 @@ export async function applyWalletDelta(
     del('accounts', deletes.accounts),
     del('categories', deletes.categories),
     del('goals', deletes.goals),
+    del('shopping_lists', deletes.shoppingLists),
   ])
 
   // 5) Preferencias

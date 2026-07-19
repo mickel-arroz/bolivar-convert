@@ -16,6 +16,8 @@ const ENTITY_KEYS = [
   'transfers',
   'budgets',
   'goalContributions',
+  'shoppingLists',
+  'shoppingItems',
 ] as const
 
 // Réplica mínima de applyWalletDelta (servidor) sobre el store en memoria.
@@ -261,6 +263,201 @@ describe('useWallet Hook', () => {
     const { result: result2 } = renderHook(() => useWallet())
     await waitFor(() => expect(result2.current.isMounted).toBe(true))
     expect(result2.current.state.accounts[0]?.name).toBe('Banco')
+  })
+})
+
+describe('useWallet — listas de compras', () => {
+  beforeEach(() => {
+    localStorage.clear()
+    cloud.store = {}
+    vi.clearAllMocks()
+  })
+
+  it('CRUD de listas y productos', async () => {
+    const { result } = renderHook(() => useWallet())
+    await waitFor(() => expect(result.current.isMounted).toBe(true))
+
+    act(() => result.current.addShoppingList('Mercado', 'shopping', 'var(--wallet-green)'))
+    expect(result.current.state.shoppingLists).toHaveLength(1)
+    const listId = result.current.state.shoppingLists[0].id
+
+    act(() => result.current.updateShoppingList(listId, { name: 'Mercado del mes' }))
+    expect(result.current.state.shoppingLists[0].name).toBe('Mercado del mes')
+
+    act(() =>
+      result.current.addShoppingItem({ listId, title: 'Arroz', price: '3', currency: 'USD' })
+    )
+    expect(result.current.state.shoppingItems).toHaveLength(1)
+    const item = result.current.state.shoppingItems[0]
+    expect(item.currency).toBe('USD')
+    expect(item.purchased).toBe(false)
+
+    act(() => result.current.updateShoppingItem(item.id, { price: '4' }))
+    expect(result.current.state.shoppingItems[0].price).toBe('4')
+
+    act(() => result.current.removeShoppingItem(item.id))
+    expect(result.current.state.shoppingItems).toHaveLength(0)
+  })
+
+  it('confirmar compra (misma moneda) crea un gasto en Compras y debita la cuenta', async () => {
+    const { result } = renderHook(() => useWallet())
+    await waitFor(() => expect(result.current.isMounted).toBe(true))
+
+    act(() => result.current.addAccount('Efectivo', 'VES', '100'))
+    const accId = result.current.state.accounts[0].id
+    act(() => result.current.addShoppingList('Bodega'))
+    const listId = result.current.state.shoppingLists[0].id
+    act(() =>
+      result.current.addShoppingItem({ listId, title: 'Pan', price: '30', currency: 'VES' })
+    )
+    const itemId = result.current.state.shoppingItems[0].id
+
+    // Costo editado a 25 (distinto del precio inicial 30)
+    act(() =>
+      result.current.confirmPurchase({
+        itemId,
+        accountId: accId,
+        cost: '25',
+        rateSource: 'custom',
+        rateValue: 0,
+        date: today,
+      })
+    )
+
+    const item = result.current.state.shoppingItems[0]
+    expect(item.purchased).toBe(true)
+    expect(item.purchase?.accountId).toBe(accId)
+    expect(item.purchase?.transactionId).toBeTruthy()
+
+    const tx = result.current.state.transactions.find((t) => t.id === item.purchase?.transactionId)
+    expect(tx?.type).toBe('expense')
+    expect(tx?.categoryId).toBe('cat_shopping')
+    expect(parseFloat(tx?.amount ?? '0')).toBe(25)
+
+    const balance = result.current.accountBalances.find((b) => b.accountId === accId)
+    expect(balance?.balance).toBe(75) // 100 - 25
+  })
+
+  it('confirmar compra con conversión debita el monto convertido a la moneda de la cuenta', async () => {
+    const { result } = renderHook(() => useWallet())
+    await waitFor(() => expect(result.current.isMounted).toBe(true))
+
+    act(() => result.current.addAccount('Bs', 'VES', '1000'))
+    const accId = result.current.state.accounts[0].id
+    act(() => result.current.addShoppingList('Compras'))
+    const listId = result.current.state.shoppingLists[0].id
+    act(() =>
+      result.current.addShoppingItem({ listId, title: 'Cable', price: '2', currency: 'USD' })
+    )
+    const itemId = result.current.state.shoppingItems[0].id
+
+    // Producto en USD, cuenta en VES, tasa personalizada 40 Bs/USD → 80 Bs
+    act(() =>
+      result.current.confirmPurchase({
+        itemId,
+        accountId: accId,
+        cost: '2',
+        rateSource: 'custom',
+        rateValue: 40,
+        date: today,
+      })
+    )
+
+    const item = result.current.state.shoppingItems[0]
+    const tx = result.current.state.transactions.find((t) => t.id === item.purchase?.transactionId)
+    expect(parseFloat(tx?.amount ?? '0')).toBe(80)
+    expect(item.purchase?.rate?.value).toBe('40')
+
+    const balance = result.current.accountBalances.find((b) => b.accountId === accId)
+    expect(balance?.balance).toBe(920) // 1000 - 80
+  })
+
+  it('deshacer compra elimina la transacción y desmarca el producto', async () => {
+    const { result } = renderHook(() => useWallet())
+    await waitFor(() => expect(result.current.isMounted).toBe(true))
+
+    act(() => result.current.addAccount('Efectivo', 'VES', '100'))
+    const accId = result.current.state.accounts[0].id
+    act(() => result.current.addShoppingList('L'))
+    const listId = result.current.state.shoppingLists[0].id
+    act(() =>
+      result.current.addShoppingItem({ listId, title: 'X', price: '30', currency: 'VES' })
+    )
+    const itemId = result.current.state.shoppingItems[0].id
+
+    act(() =>
+      result.current.confirmPurchase({
+        itemId,
+        accountId: accId,
+        cost: '30',
+        rateSource: 'custom',
+        rateValue: 0,
+        date: today,
+      })
+    )
+    expect(result.current.state.transactions).toHaveLength(1)
+
+    act(() => result.current.undoPurchase(itemId))
+    expect(result.current.state.transactions).toHaveLength(0)
+    expect(result.current.state.shoppingItems[0].purchased).toBe(false)
+    expect(result.current.state.shoppingItems[0].purchase).toBeUndefined()
+    expect(result.current.accountBalances.find((b) => b.accountId === accId)?.balance).toBe(100)
+  })
+
+  it('eliminar una lista borra sus productos y las transacciones de sus compras', async () => {
+    const { result } = renderHook(() => useWallet())
+    await waitFor(() => expect(result.current.isMounted).toBe(true))
+
+    act(() => result.current.addAccount('Efectivo', 'VES', '100'))
+    const accId = result.current.state.accounts[0].id
+    act(() => result.current.addShoppingList('L'))
+    const listId = result.current.state.shoppingLists[0].id
+    act(() =>
+      result.current.addShoppingItem({ listId, title: 'X', price: '20', currency: 'VES' })
+    )
+    const itemId = result.current.state.shoppingItems[0].id
+    act(() =>
+      result.current.confirmPurchase({
+        itemId,
+        accountId: accId,
+        cost: '20',
+        rateSource: 'custom',
+        rateValue: 0,
+        date: today,
+      })
+    )
+    expect(result.current.state.transactions).toHaveLength(1)
+
+    act(() => result.current.removeShoppingList(listId))
+    expect(result.current.state.shoppingLists).toHaveLength(0)
+    expect(result.current.state.shoppingItems).toHaveLength(0)
+    expect(result.current.state.transactions).toHaveLength(0)
+    expect(result.current.accountBalances.find((b) => b.accountId === accId)?.balance).toBe(100)
+  })
+
+  it('persiste listas y productos en la nube y los rehidrata', async () => {
+    const { result, unmount } = renderHook(() => useWallet())
+    await waitFor(() => expect(result.current.isMounted).toBe(true))
+
+    act(() => result.current.addShoppingList('Ferretería', 'home'))
+    await waitFor(() => {
+      const lists = (cloud.store.shoppingLists as { name: string }[] | undefined) ?? []
+      expect(lists.some((l) => l.name === 'Ferretería')).toBe(true)
+    })
+    const listId = result.current.state.shoppingLists[0].id
+    act(() =>
+      result.current.addShoppingItem({ listId, title: 'Tornillos', price: '5', currency: 'USD' })
+    )
+    await waitFor(() => {
+      const items = (cloud.store.shoppingItems as { title: string }[] | undefined) ?? []
+      expect(items.some((it) => it.title === 'Tornillos')).toBe(true)
+    })
+    unmount()
+
+    const { result: result2 } = renderHook(() => useWallet())
+    await waitFor(() => expect(result2.current.isMounted).toBe(true))
+    expect(result2.current.state.shoppingLists[0]?.name).toBe('Ferretería')
+    expect(result2.current.state.shoppingItems[0]?.title).toBe('Tornillos')
   })
 })
 

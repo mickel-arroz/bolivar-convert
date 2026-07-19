@@ -1,7 +1,15 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import { Goal, StatsBundle, WalletApi, monthKey, formatMonthLabel } from '@/hooks/useWallet'
+import {
+  Goal,
+  ShoppingList,
+  ShoppingListItem,
+  StatsBundle,
+  WalletApi,
+  monthKey,
+  formatMonthLabel,
+} from '@/hooks/useWallet'
 import { Rates } from '@/constants/rates'
 import { getCategoryIcon, getAccountIcon } from '@/constants/walletCategories'
 import { DEFAULT_ACCOUNT_COLOR } from '@/constants/walletColors'
@@ -25,6 +33,7 @@ import {
   AlertIcon,
   RefreshIcon,
   TransferIcon,
+  ShoppingCartIcon,
 } from '@/components/icons'
 import { cn } from '@/lib/utils'
 import { WalletDialogs } from './dialogs'
@@ -32,6 +41,11 @@ import { formatMoney } from './format'
 import { ConcludeMonthDialog } from './ConcludeMonthDialog'
 import { GoalFormDialog } from './GoalFormDialog'
 import { GoalContributionDialog } from './GoalContributionDialog'
+import { ShoppingListFormDialog } from './ShoppingListFormDialog'
+import { ShoppingListDetailDialog } from './ShoppingListDetailDialog'
+import { ShoppingItemFormDialog } from './ShoppingItemFormDialog'
+import { ShoppingItemDetailDialog } from './ShoppingItemDetailDialog'
+import { ConfirmPurchaseDialog } from './ConfirmPurchaseDialog'
 
 interface PresupuestoTabProps {
   wallet: WalletApi
@@ -41,7 +55,7 @@ interface PresupuestoTabProps {
 }
 
 export function PresupuestoTab({ wallet, stats, dialogs, rates }: PresupuestoTabProps) {
-  const { state, removeBudget, goalBalances, removeGoal } = wallet
+  const { state, removeBudget, goalBalances, removeGoal, removeShoppingList } = wallet
   const month = useMemo(() => monthKey(new Date()), [])
   const [concludeOpen, setConcludeOpen] = useState(false)
   const [goalForm, setGoalForm] = useState<{ open: boolean; editing: Goal | null }>({
@@ -51,9 +65,47 @@ export function PresupuestoTab({ wallet, stats, dialogs, rates }: PresupuestoTab
   const [contributionGoal, setContributionGoal] = useState<Goal | null>(null)
   const [pendingDeleteGoal, setPendingDeleteGoal] = useState<Goal | null>(null)
 
+  // Listas de compras
+  const [listForm, setListForm] = useState<{ open: boolean; editing: ShoppingList | null }>({
+    open: false,
+    editing: null,
+  })
+  const [detailListId, setDetailListId] = useState<string | null>(null)
+  const [itemForm, setItemForm] = useState<{
+    open: boolean
+    listId: string
+    editing: ShoppingListItem | null
+  }>({ open: false, listId: '', editing: null })
+  const [purchaseItem, setPurchaseItem] = useState<ShoppingListItem | null>(null)
+  const [itemDetailId, setItemDetailId] = useState<string | null>(null)
+  const [pendingDeleteList, setPendingDeleteList] = useState<ShoppingList | null>(null)
+
   const goalBalanceById = useMemo(
     () => new Map(goalBalances.map((b) => [b.goalId, b.balance])),
     [goalBalances]
+  )
+
+  // Productos agrupados por lista (para contadores en las tarjetas).
+  const itemsByList = useMemo(() => {
+    const map = new Map<string, ShoppingListItem[]>()
+    for (const it of state.shoppingItems) {
+      const arr = map.get(it.listId)
+      if (arr) arr.push(it)
+      else map.set(it.listId, [it])
+    }
+    return map
+  }, [state.shoppingItems])
+
+  // Lista mostrada en el detalle (derivada del estado para reflejar ediciones en vivo).
+  const detailList = useMemo(
+    () => state.shoppingLists.find((l) => l.id === detailListId) ?? null,
+    [state.shoppingLists, detailListId]
+  )
+
+  // Producto mostrado en su modal de detalle (derivado del estado).
+  const itemDetail = useMemo(
+    () => state.shoppingItems.find((it) => it.id === itemDetailId) ?? null,
+    [state.shoppingItems, itemDetailId]
   )
 
   const budgetedCategoryIds = useMemo(
@@ -341,6 +393,109 @@ export function PresupuestoTab({ wallet, stats, dialogs, rates }: PresupuestoTab
         )}
       </div>
 
+      {/* Listas de compras */}
+      <div className="flex flex-col gap-3 border-t border-border/60 pt-5">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h2 className="text-sm font-bold uppercase tracking-wider text-muted-foreground">
+              Listas de compras
+            </h2>
+            <p className="text-xs text-muted-foreground">
+              Planifica tus compras y márcalas al pagarlas con una de tus cuentas.
+            </p>
+          </div>
+          <Button onClick={() => setListForm({ open: true, editing: null })}>
+            <PlusIcon /> Nueva lista
+          </Button>
+        </div>
+
+        {state.shoppingLists.length === 0 ? (
+          <Card>
+            <CardContent className="flex flex-col items-center gap-3 py-10 text-center">
+              <ShoppingCartIcon className="size-10 text-muted-foreground/40" />
+              <p className="text-sm text-muted-foreground">
+                Crea una lista (mercado, ferretería…), agrega productos con su precio y márcalos
+                como comprados.
+              </p>
+            </CardContent>
+          </Card>
+        ) : (
+          <div className="grid gap-3 sm:grid-cols-2">
+            {state.shoppingLists.map((list) => {
+              const listItems = itemsByList.get(list.id) ?? []
+              const purchased = listItems.filter((it) => it.purchased).length
+              const accent = list.color ?? DEFAULT_ACCOUNT_COLOR
+              const ListIcon = getAccountIcon(list.icon)
+              return (
+                <Card
+                  key={list.id}
+                  style={{
+                    boxShadow: `0 0 0 2px color-mix(in oklch, ${accent} 40%, transparent)`,
+                  }}
+                >
+                  <CardContent className="flex flex-col gap-2">
+                    <div className="flex items-start justify-between gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setDetailListId(list.id)}
+                        className="flex min-w-0 flex-1 items-center gap-2.5 text-left"
+                      >
+                        <div
+                          className="flex size-9 shrink-0 items-center justify-center rounded-full"
+                          style={{
+                            backgroundColor: `color-mix(in oklch, ${accent} 18%, transparent)`,
+                            color: accent,
+                          }}
+                        >
+                          <ListIcon className="size-4" />
+                        </div>
+                        <div className="min-w-0">
+                          <p className="truncate font-bold">{list.name}</p>
+                          <p className="text-xs text-muted-foreground tabular-nums">
+                            {listItems.length === 0
+                              ? 'Sin productos'
+                              : `${purchased} de ${listItems.length} comprados`}
+                          </p>
+                        </div>
+                      </button>
+                      <Button
+                        variant="ghost"
+                        size="icon-sm"
+                        onClick={() => setPendingDeleteList(list)}
+                        aria-label="Eliminar lista"
+                      >
+                        <TrashIcon className="size-4" />
+                      </Button>
+                    </div>
+
+                    {listItems.length > 0 && (
+                      <div className="h-2 overflow-hidden rounded-full bg-muted">
+                        <div
+                          className="h-full rounded-full transition-all"
+                          style={{
+                            width: `${Math.min(100, (purchased / listItems.length) * 100)}%`,
+                            backgroundColor: accent,
+                          }}
+                        />
+                      </div>
+                    )}
+
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="mt-1 self-start"
+                      onClick={() => setDetailListId(list.id)}
+                    >
+                      <ShoppingCartIcon className="size-4" /> Ver productos
+                    </Button>
+                  </CardContent>
+                </Card>
+              )
+            })}
+          </div>
+        )}
+      </div>
+
       <ConcludeMonthDialog
         open={concludeOpen}
         onOpenChange={setConcludeOpen}
@@ -382,6 +537,79 @@ export function PresupuestoTab({ wallet, stats, dialogs, rates }: PresupuestoTab
               onClick={() => {
                 if (pendingDeleteGoal) removeGoal(pendingDeleteGoal.id)
                 setPendingDeleteGoal(null)
+              }}
+            >
+              Eliminar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <ShoppingListFormDialog
+        open={listForm.open}
+        onOpenChange={(open) => setListForm((s) => ({ ...s, open }))}
+        wallet={wallet}
+        editing={listForm.editing}
+      />
+
+      <ShoppingListDetailDialog
+        open={!!detailList}
+        onOpenChange={(o) => !o && setDetailListId(null)}
+        wallet={wallet}
+        list={detailList}
+        rates={rates}
+        onAddItem={(listId) => setItemForm({ open: true, listId, editing: null })}
+        onEditList={(list) => setListForm({ open: true, editing: list })}
+        onPurchase={(item) => setPurchaseItem(item)}
+        onOpenItem={(item) => setItemDetailId(item.id)}
+      />
+
+      <ShoppingItemDetailDialog
+        open={!!itemDetail}
+        onOpenChange={(o) => !o && setItemDetailId(null)}
+        wallet={wallet}
+        item={itemDetail}
+        onEdit={(item) => {
+          setItemDetailId(null)
+          setItemForm({ open: true, listId: item.listId, editing: item })
+        }}
+      />
+
+      <ShoppingItemFormDialog
+        open={itemForm.open}
+        onOpenChange={(open) => setItemForm((s) => ({ ...s, open }))}
+        wallet={wallet}
+        listId={itemForm.listId}
+        editing={itemForm.editing}
+      />
+
+      <ConfirmPurchaseDialog
+        open={!!purchaseItem}
+        onOpenChange={(o) => !o && setPurchaseItem(null)}
+        wallet={wallet}
+        item={purchaseItem}
+        rates={rates}
+      />
+
+      <AlertDialog
+        open={!!pendingDeleteList}
+        onOpenChange={(o) => !o && setPendingDeleteList(null)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Eliminar lista</AlertDialogTitle>
+            <AlertDialogDescription>
+              Se eliminará «{pendingDeleteList?.name}» y todos sus productos. Los gastos ya
+              registrados de sus compras también se eliminarán de tus movimientos. Esta acción no se
+              puede deshacer.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (pendingDeleteList) removeShoppingList(pendingDeleteList.id)
+                setPendingDeleteList(null)
               }}
             >
               Eliminar

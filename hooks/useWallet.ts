@@ -97,6 +97,34 @@ export interface GoalContribution {
   createdAt: string
 }
 
+export interface ShoppingList {
+  id: string
+  name: string
+  icon?: string
+  color?: string
+  createdAt: string
+}
+
+export interface ShoppingPurchase {
+  accountId: string
+  cost: string
+  rate?: { source: TransferRateSource; value: string }
+  transactionId: string
+  date: string
+}
+
+export interface ShoppingListItem {
+  id: string
+  listId: string
+  title: string
+  description?: string
+  price: string
+  currency: CurrencyId
+  purchased: boolean
+  purchase?: ShoppingPurchase
+  createdAt: string
+}
+
 export type TimeRange = '1m' | '6m' | '1y' | 'all'
 
 export interface WalletState {
@@ -107,6 +135,8 @@ export interface WalletState {
   budgets: Budget[]
   goals: Goal[]
   goalContributions: GoalContribution[]
+  shoppingLists: ShoppingList[]
+  shoppingItems: ShoppingListItem[]
   /** Meses 'YYYY-MM' cuyo presupuesto ya fue concluido (no se vuelve a avisar). */
   concludedMonths: string[]
   /** Moneda en la que se normalizan las estadísticas agregadas. */
@@ -191,6 +221,8 @@ export const DEFAULT_STATE: WalletState = {
   budgets: [],
   goals: [],
   goalContributions: [],
+  shoppingLists: [],
+  shoppingItems: [],
   concludedMonths: [],
   displayCurrency: 'VES',
   statsRateSource: 'bcvUsd',
@@ -374,6 +406,8 @@ export function useWallet() {
           budgets: loaded.budgets ?? [],
           goals: loaded.goals ?? [],
           goalContributions: loaded.goalContributions ?? [],
+          shoppingLists: loaded.shoppingLists ?? [],
+          shoppingItems: loaded.shoppingItems ?? [],
           concludedMonths: loaded.concludedMonths ?? [],
         }
         // Base = lo que realmente hay en la nube (sin el merge de categorías), para
@@ -849,6 +883,188 @@ export function useWallet() {
     })
   }, [])
 
+  /* ── Listas de compras ── */
+  const addShoppingList = useCallback((name: string, icon?: string, color?: string) => {
+    const trimmed = name.trim()
+    if (!trimmed) return
+    setState((s) => ({
+      ...s,
+      shoppingLists: [
+        ...s.shoppingLists,
+        { id: generateId(), name: trimmed, icon, color, createdAt: new Date().toISOString() },
+      ],
+    }))
+  }, [])
+
+  const updateShoppingList = useCallback(
+    (id: string, patch: Partial<Pick<ShoppingList, 'name' | 'icon' | 'color'>>) => {
+      setState((s) => ({
+        ...s,
+        shoppingLists: s.shoppingLists.map((l) => (l.id === id ? { ...l, ...patch } : l)),
+      }))
+    },
+    []
+  )
+
+  const removeShoppingList = useCallback((id: string) => {
+    setState((s) => {
+      const items = s.shoppingItems.filter((it) => it.listId === id)
+      const txIds = new Set(
+        items.map((it) => it.purchase?.transactionId).filter((t): t is string => !!t)
+      )
+      return {
+        ...s,
+        shoppingLists: s.shoppingLists.filter((l) => l.id !== id),
+        shoppingItems: s.shoppingItems.filter((it) => it.listId !== id),
+        transactions: s.transactions.filter((t) => !txIds.has(t.id)),
+      }
+    })
+  }, [])
+
+  const addShoppingItem = useCallback(
+    (item: {
+      listId: string
+      title: string
+      description?: string
+      price: string
+      currency: CurrencyId
+    }) => {
+      const trimmed = item.title.trim()
+      if (!trimmed || !item.listId) return
+      setState((s) => {
+        if (!s.shoppingLists.some((l) => l.id === item.listId)) return s
+        return {
+          ...s,
+          shoppingItems: [
+            ...s.shoppingItems,
+            {
+              id: generateId(),
+              listId: item.listId,
+              title: trimmed,
+              description: item.description?.trim() || undefined,
+              price: item.price || '0',
+              currency: item.currency,
+              purchased: false,
+              createdAt: new Date().toISOString(),
+            },
+          ],
+        }
+      })
+    },
+    []
+  )
+
+  const updateShoppingItem = useCallback(
+    (
+      id: string,
+      patch: Partial<Pick<ShoppingListItem, 'title' | 'description' | 'price' | 'currency'>>
+    ) => {
+      setState((s) => ({
+        ...s,
+        shoppingItems: s.shoppingItems.map((it) =>
+          it.id === id
+            ? {
+                ...it,
+                ...patch,
+                ...(patch.title !== undefined && { title: patch.title.trim() }),
+                ...(patch.description !== undefined && {
+                  description: patch.description.trim() || undefined,
+                }),
+              }
+            : it
+        ),
+      }))
+    },
+    []
+  )
+
+  const removeShoppingItem = useCallback((id: string) => {
+    setState((s) => {
+      const item = s.shoppingItems.find((it) => it.id === id)
+      const txId = item?.purchase?.transactionId
+      return {
+        ...s,
+        shoppingItems: s.shoppingItems.filter((it) => it.id !== id),
+        transactions: txId ? s.transactions.filter((t) => t.id !== txId) : s.transactions,
+      }
+    })
+  }, [])
+
+  const confirmPurchase = useCallback(
+    (params: {
+      itemId: string
+      accountId: string
+      cost: string
+      rateSource: TransferRateSource
+      rateValue: number
+      date: string
+    }) => {
+      const { itemId, accountId, cost, rateSource, rateValue, date } = params
+      const costNum = parseAmount(cost)
+      if (costNum <= 0) return
+      setState((s) => {
+        const item = s.shoppingItems.find((it) => it.id === itemId)
+        const account = s.accounts.find((a) => a.id === accountId)
+        if (!item || !account) return s
+        const sameCurrency = item.currency === account.currency
+        const debited = sameCurrency
+          ? costNum
+          : convertTransferAmount(costNum, item.currency, account.currency, rateValue)
+        if (debited <= 0) return s
+        const category =
+          s.categories.find((c) => c.id === 'cat_shopping') ??
+          s.categories.find((c) => c.kind === 'expense')
+        if (!category) return s
+        const txId = generateId()
+        const transaction: Transaction = {
+          id: txId,
+          type: 'expense',
+          accountId,
+          categoryId: category.id,
+          amount: String(debited),
+          note: item.title,
+          date,
+          createdAt: new Date().toISOString(),
+        }
+        return {
+          ...s,
+          transactions: [...s.transactions, transaction],
+          shoppingItems: s.shoppingItems.map((it) =>
+            it.id === itemId
+              ? {
+                  ...it,
+                  purchased: true,
+                  purchase: {
+                    accountId,
+                    cost,
+                    rate: sameCurrency ? undefined : { source: rateSource, value: String(rateValue) },
+                    transactionId: txId,
+                    date,
+                  },
+                }
+              : it
+          ),
+        }
+      })
+    },
+    []
+  )
+
+  const undoPurchase = useCallback((itemId: string) => {
+    setState((s) => {
+      const item = s.shoppingItems.find((it) => it.id === itemId)
+      if (!item || !item.purchased) return s
+      const txId = item.purchase?.transactionId
+      return {
+        ...s,
+        transactions: txId ? s.transactions.filter((t) => t.id !== txId) : s.transactions,
+        shoppingItems: s.shoppingItems.map((it) =>
+          it.id === itemId ? { ...it, purchased: false, purchase: undefined } : it
+        ),
+      }
+    })
+  }, [])
+
   /* ── Preferencias ── */
   const setDisplayCurrency = useCallback((displayCurrency: CurrencyId) =>
     setState((s) => ({ ...s, displayCurrency })), [])
@@ -1127,6 +1343,15 @@ export function useWallet() {
     removeGoal,
     moveToGoal,
     allocateExtraToGoal,
+    // Listas de compras
+    addShoppingList,
+    updateShoppingList,
+    removeShoppingList,
+    addShoppingItem,
+    updateShoppingItem,
+    removeShoppingItem,
+    confirmPurchase,
+    undoPurchase,
     // Preferencias
     setDisplayCurrency,
     setStatsRateSource,

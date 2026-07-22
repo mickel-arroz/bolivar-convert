@@ -238,6 +238,9 @@ html,
 [data-sileo-description] {
   color: var(--muted-foreground) !important;
 }
+[data-sileo-viewport] {
+  z-index: 60 !important;
+}
 
 .brand-font {
   font-family: var(--font-montserrat), sans-serif !important;

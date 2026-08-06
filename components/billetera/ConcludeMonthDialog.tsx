@@ -122,7 +122,16 @@ export function ConcludeMonthDialog({
                     onValueChange={(v) => setDest((prev) => ({ ...prev, [r.categoryId]: v as string }))}
                   >
                     <SelectTrigger>
-                      <SelectValue />
+                      <SelectValue>
+                        {(val) => {
+                          if (val === NONE) return 'Descartar'
+                          if (typeof val === 'string' && val.startsWith('goal:')) {
+                            const g = goalOptions.find((x) => `goal:${x.id}` === val)
+                            return g ? `Enviar a: ${g.name}` : 'Arrastrar al próximo mes'
+                          }
+                          return 'Arrastrar al próximo mes'
+                        }}
+                      </SelectValue>
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value={NEXT}>Arrastrar al próximo mes</SelectItem>

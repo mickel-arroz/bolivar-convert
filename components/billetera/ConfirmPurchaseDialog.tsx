@@ -111,7 +111,8 @@ export function ConfirmPurchaseDialog({
   const debited =
     itemCur && accCur ? (differentCur ? convertTransferAmount(costNum, itemCur, accCur, rateValue) : costNum) : 0
   const accountBalance = balanceByAccount.get(accountId) ?? 0
-  const canSubmit = !!accountId && costNum > 0 && (!differentCur || rateValue > 0)
+  const overBalance = !!accCur && debited > accountBalance + 1e-6
+  const canSubmit = !!accountId && costNum > 0 && (!differentCur || rateValue > 0) && !overBalance
 
   const customRateLabel =
     differentCur && itemCur && accCur
@@ -122,7 +123,11 @@ export function ConfirmPurchaseDialog({
 
   const handleSubmit = () => {
     if (!canSubmit) return
-    confirmPurchase({ itemId: item.id, accountId, cost, rateSource, rateValue, date })
+    const ok = confirmPurchase({ itemId: item.id, accountId, cost, rateSource, rateValue, date })
+    if (!ok) {
+      notify.error('El monto supera el saldo de la cuenta')
+      return
+    }
     notify.success('Compra confirmada')
     onOpenChange(false)
   }
@@ -248,9 +253,9 @@ export function ConfirmPurchaseDialog({
                   Indica una tasa de cambio para convertir a la moneda de la cuenta.
                 </p>
               )}
-              {!!accCur && debited > accountBalance && (
-                <p className="mt-1 text-xs text-amber-600 dark:text-amber-500">
-                  La compra deja la cuenta en {formatMoney(accountBalance - debited, accCur)}.
+              {overBalance && (
+                <p className="mt-1 text-xs text-destructive">
+                  El monto supera el saldo de la cuenta.
                 </p>
               )}
             </div>

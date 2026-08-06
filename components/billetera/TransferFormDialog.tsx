@@ -20,6 +20,7 @@ import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@
 import { cn } from '@/lib/utils'
 import { Field, AmountField, CommissionField } from './fields'
 import { useMathInput, formatPreview } from '@/hooks/useMathInput'
+import { resolveCommission } from '@/lib/wallet/compute'
 import { notify } from '@/lib/notify'
 import { todayInputValue } from './format'
 
@@ -36,7 +37,7 @@ function rateNum(r: string | undefined): number {
 }
 
 export function TransferFormDialog({ open, onOpenChange, wallet, rates }: TransferFormDialogProps) {
-  const { state, addTransfer } = wallet
+  const { state, accountBalances, addTransfer } = wallet
   const [fromAccountId, setFromAccountId] = useState('')
   const [toAccountId, setToAccountId] = useState('')
   const [fromAmount, setFromAmount] = useState('')
@@ -137,17 +138,22 @@ export function TransferFormDialog({ open, onOpenChange, wallet, rates }: Transf
   const fromSymbol = fromCur ? getCurrency(fromCur).symbol : ''
   const toSymbol = toCur ? getCurrency(toCur).symbol : ''
 
+  const fromBalance = accountBalances.find((b) => b.accountId === fromAccountId)?.balance ?? 0
+  const debitFrom = amountNum + resolveCommission(amountNum, commission.trim() || undefined, commissionType)
+  const overFrom = amountNum > 0 && debitFrom > fromBalance + 1e-6
+
   const canSubmit =
     !!fromAccountId &&
     !!toAccountId &&
     fromAccountId !== toAccountId &&
     amountNum > 0 &&
-    receivedNum > 0
+    receivedNum > 0 &&
+    !overFrom
 
   const handleSubmit = () => {
     if (!canSubmit) return
     const commissionValue = commission.trim() || undefined
-    addTransfer({
+    const ok = addTransfer({
       fromAccountId,
       toAccountId,
       fromAmount,
@@ -159,6 +165,10 @@ export function TransferFormDialog({ open, onOpenChange, wallet, rates }: Transf
       note,
       date,
     })
+    if (!ok) {
+      notify.error('El monto supera el saldo de la cuenta')
+      return
+    }
     notify.success('Traspaso registrado')
     onOpenChange(false)
   }
@@ -269,6 +279,11 @@ export function TransferFormDialog({ open, onOpenChange, wallet, rates }: Transf
                 }}
               />
             </div>
+            {overFrom && (
+              <span className="text-xs text-destructive">
+                El monto supera el saldo de la cuenta.
+              </span>
+            )}
 
             {differentCur && (
               <Field

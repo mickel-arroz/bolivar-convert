@@ -34,12 +34,14 @@ import {
   RefreshIcon,
   TransferIcon,
   ShoppingCartIcon,
+  TemplateIcon,
 } from '@/components/icons'
 import { cn } from '@/lib/utils'
 import { notify } from '@/lib/notify'
 import { WalletDialogs } from './dialogs'
 import { formatMoney } from './format'
 import { ConcludeMonthDialog } from './ConcludeMonthDialog'
+import { BudgetTemplatesDialog } from './BudgetTemplatesDialog'
 import { GoalFormDialog } from './GoalFormDialog'
 import { GoalContributionDialog } from './GoalContributionDialog'
 import { ShoppingListFormDialog } from './ShoppingListFormDialog'
@@ -59,6 +61,7 @@ export function PresupuestoTab({ wallet, stats, dialogs, rates }: PresupuestoTab
   const { state, removeBudget, goalBalances, removeGoal, removeShoppingList } = wallet
   const month = useMemo(() => monthKey(new Date()), [])
   const [concludeOpen, setConcludeOpen] = useState(false)
+  const [templatesOpen, setTemplatesOpen] = useState(false)
   const [goalForm, setGoalForm] = useState<{ open: boolean; editing: Goal | null }>({
     open: false,
     editing: null,
@@ -119,25 +122,56 @@ export function PresupuestoTab({ wallet, stats, dialogs, rates }: PresupuestoTab
     [state.categories, budgetedCategoryIds]
   )
 
-  // Mes pasado con presupuesto que aún no se ha concluido (el más reciente)
+  const activeTemplate = useMemo(
+    () => state.budgetTemplates.find((t) => t.id === state.activeBudgetTemplateId) ?? null,
+    [state.budgetTemplates, state.activeBudgetTemplateId]
+  )
+
+  // Mes pasado con presupuesto (de la plantilla activa) que aún no se ha concluido.
   const pastMonth = useMemo(() => {
-    const months = new Set(state.budgets.map((b) => b.month))
+    const months = new Set(
+      state.budgets
+        .filter((b) => b.templateId === state.activeBudgetTemplateId)
+        .map((b) => b.month)
+    )
     const past = [...months].filter((m) => m < month && !state.concludedMonths.includes(m)).sort()
     return past.length > 0 ? past[past.length - 1] : null
-  }, [state.budgets, state.concludedMonths, month])
+  }, [state.budgets, state.activeBudgetTemplateId, state.concludedMonths, month])
 
   return (
     <div className="flex flex-col gap-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
+        <div className="min-w-0">
           <h2 className="text-sm font-bold uppercase tracking-wider text-muted-foreground">
             Presupuesto de {formatMonthLabel(month)}
           </h2>
-          <p className="text-xs text-muted-foreground">Gasto estimado por categoría este mes.</p>
+          {activeTemplate ? (
+            <p className="flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
+              {(() => {
+                const TplIcon = getAccountIcon(activeTemplate.icon)
+                const accent = activeTemplate.color ?? DEFAULT_ACCOUNT_COLOR
+                return <TplIcon className="size-3.5 shrink-0" style={{ color: accent }} />
+              })()}
+              <span className="font-bold text-foreground">{activeTemplate.name}</span>
+              {activeTemplate.description && (
+                <span className="truncate">· {activeTemplate.description}</span>
+              )}
+            </p>
+          ) : (
+            <p className="text-xs text-muted-foreground">Gasto estimado por categoría este mes.</p>
+          )}
         </div>
-        <Button onClick={() => dialogs.openBudget()} disabled={state.categories.every((c) => c.kind !== 'expense')}>
-          <PlusIcon /> Asignar presupuesto
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" onClick={() => setTemplatesOpen(true)}>
+            <TemplateIcon /> Agregar plantilla
+          </Button>
+          <Button
+            onClick={() => dialogs.openBudget()}
+            disabled={state.categories.every((c) => c.kind !== 'expense')}
+          >
+            <PlusIcon /> Asignar presupuesto
+          </Button>
+        </div>
       </div>
 
       {/* Aviso de mes anterior por concluir */}
@@ -510,6 +544,14 @@ export function PresupuestoTab({ wallet, stats, dialogs, rates }: PresupuestoTab
         rates={rates}
         fromMonth={pastMonth}
         toMonth={month}
+      />
+
+      <BudgetTemplatesDialog
+        open={templatesOpen}
+        onOpenChange={setTemplatesOpen}
+        wallet={wallet}
+        rates={rates}
+        month={month}
       />
 
       <GoalFormDialog

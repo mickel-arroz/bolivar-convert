@@ -24,6 +24,9 @@ import type {
   BudgetStatusRow,
 } from '@/hooks/useWallet'
 
+/** Id fijo de la plantilla de presupuesto por defecto (ver migración 0004). */
+export const DEFAULT_BUDGET_TEMPLATE_ID = 'tpl_default'
+
 /* ─── Parseo numérico ─── */
 
 /** Parsea un monto (acepta coma o punto). 0 si es inválido. */

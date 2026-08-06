@@ -13,6 +13,7 @@ import type {
   Transaction,
   Transfer,
   Budget,
+  BudgetTemplate,
   Goal,
   GoalContribution,
   ShoppingList,
@@ -30,6 +31,7 @@ import {
   computeAccountBalances,
   computeTotalsByCurrency,
   computeStats,
+  DEFAULT_BUDGET_TEMPLATE_ID,
   type AccountsSummary,
   type MovementsPage,
 } from '@/lib/wallet/compute'
@@ -160,6 +162,7 @@ function budgetToRow(b: Budget, userId: string) {
   return {
     id: b.id,
     user_id: userId,
+    template_id: b.templateId,
     category_id: b.categoryId,
     month: b.month,
     limit: b.limit,
@@ -170,11 +173,36 @@ function budgetToRow(b: Budget, userId: string) {
 function rowToBudget(r: Record<string, unknown>): Budget {
   return {
     id: r.id as string,
+    templateId: (r.template_id as string | null) ?? DEFAULT_BUDGET_TEMPLATE_ID,
     categoryId: r.category_id as string,
     month: r.month as string,
     limit: r.limit as string,
     currency: r.currency as CurrencyId,
     carryover: un(r.carryover as string | null),
+  }
+}
+
+function budgetTemplateToRow(t: BudgetTemplate, userId: string) {
+  return {
+    id: t.id,
+    user_id: userId,
+    name: t.name,
+    description: nn(t.description),
+    icon: nn(t.icon),
+    color: nn(t.color),
+    is_default: t.isDefault ?? false,
+    created_at: t.createdAt,
+  }
+}
+function rowToBudgetTemplate(r: Record<string, unknown>): BudgetTemplate {
+  return {
+    id: r.id as string,
+    name: r.name as string,
+    description: un(r.description as string | null),
+    icon: un(r.icon as string | null),
+    color: un(r.color as string | null),
+    isDefault: (r.is_default as boolean) || undefined,
+    createdAt: r.created_at as string,
   }
 }
 
@@ -288,6 +316,7 @@ export async function loadWallet(
     transactions,
     transfers,
     budgets,
+    budgetTemplates,
     goals,
     contributions,
     shoppingLists,
@@ -299,6 +328,7 @@ export async function loadWallet(
     supabase.from('transactions').select('*').eq('user_id', userId),
     supabase.from('transfers').select('*').eq('user_id', userId),
     supabase.from('budgets').select('*').eq('user_id', userId),
+    supabase.from('budget_templates').select('*').eq('user_id', userId),
     supabase.from('goals').select('*').eq('user_id', userId),
     supabase.from('goal_contributions').select('*').eq('user_id', userId),
     supabase.from('shopping_lists').select('*').eq('user_id', userId),
@@ -312,6 +342,7 @@ export async function loadWallet(
     transactions,
     transfers,
     budgets,
+    budgetTemplates,
     goals,
     contributions,
     shoppingLists,
@@ -328,6 +359,7 @@ export async function loadWallet(
     transactions: rows(transactions, rowToTransaction),
     transfers: rows(transfers, rowToTransfer),
     budgets: rows(budgets, rowToBudget),
+    budgetTemplates: rows(budgetTemplates, rowToBudgetTemplate),
     goals: rows(goals, rowToGoal),
     goalContributions: rows(contributions, rowToContribution),
     shoppingLists: rows(shoppingLists, rowToShoppingList),
@@ -340,6 +372,8 @@ export async function loadWallet(
     state.statsRateSource = p.stats_rate_source as RateId
     state.timeRange = p.time_range as WalletState['timeRange']
     state.concludedMonths = (p.concluded_months as string[]) ?? []
+    state.activeBudgetTemplateId =
+      (p.active_budget_template_id as string | null) ?? DEFAULT_BUDGET_TEMPLATE_ID
   }
 
   return state
@@ -434,19 +468,20 @@ export async function assertNoDuplicateBudgetTitles(
   for (const id of delta.deletes.budgets) budgetsById.delete(id)
   for (const b of delta.upserts.budgets) budgetsById.set(b.id, b)
 
-  // Dentro de cada mes, ningún título repetido entre categorías distintas.
-  const seen = new Map<string, Map<string, string>>() // month → (title → categoryId)
+  // Dentro de cada (plantilla, mes), ningún título repetido entre categorías distintas.
+  const seen = new Map<string, Map<string, string>>() // `${templateId}:${month}` → (title → categoryId)
   for (const b of budgetsById.values()) {
     if (deletedCats.has(b.categoryId)) continue
     const title = normalizeTitle(nameByCat.get(b.categoryId))
     if (!title) continue
-    const monthMap = seen.get(b.month) ?? new Map<string, string>()
-    const owner = monthMap.get(title)
+    const scope = `${b.templateId}:${b.month}`
+    const scopeMap = seen.get(scope) ?? new Map<string, string>()
+    const owner = scopeMap.get(title)
     if (owner && owner !== b.categoryId) {
       throw new BudgetTitleConflictError()
     }
-    monthMap.set(title, b.categoryId)
-    seen.set(b.month, monthMap)
+    scopeMap.set(title, b.categoryId)
+    seen.set(scope, scopeMap)
   }
 }
 
@@ -481,6 +516,7 @@ export async function applyWalletDelta(
   await Promise.all([
     upsert('accounts', upserts.accounts.map((a) => accountToRow(a, userId))),
     upsert('categories', upserts.categories.map((c) => categoryToRow(c, userId))),
+    upsert('budget_templates', upserts.budgetTemplates.map((t) => budgetTemplateToRow(t, userId))),
     upsert('goals', upserts.goals.map((g) => goalToRow(g, userId))),
     upsert('shopping_lists', upserts.shoppingLists.map((l) => shoppingListToRow(l, userId))),
   ])
@@ -507,6 +543,7 @@ export async function applyWalletDelta(
   await Promise.all([
     del('accounts', deletes.accounts),
     del('categories', deletes.categories),
+    del('budget_templates', deletes.budgetTemplates),
     del('goals', deletes.goals),
     del('shopping_lists', deletes.shoppingLists),
   ])
@@ -521,6 +558,7 @@ export async function applyWalletDelta(
           stats_rate_source: delta.prefs.statsRateSource,
           time_range: delta.prefs.timeRange,
           concluded_months: delta.prefs.concludedMonths,
+          active_budget_template_id: delta.prefs.activeBudgetTemplateId,
           updated_at: new Date().toISOString(),
         },
         { onConflict: 'id' }
@@ -617,11 +655,14 @@ export async function loadStats(
   const transactions = ((txRes.data as Record<string, unknown>[]) ?? []).map(rowToTransaction)
   const transfers = ((trRes.data as Record<string, unknown>[]) ?? []).map(rowToTransfer)
   const categories = ((catRes.data as Record<string, unknown>[]) ?? []).map(rowToCategory)
-  const budgets = ((budgetRes.data as Record<string, unknown>[]) ?? []).map(rowToBudget)
+  const allBudgets = ((budgetRes.data as Record<string, unknown>[]) ?? []).map(rowToBudget)
 
   const p = profileRes.data as Record<string, unknown> | null
   const displayCurrency = (p?.display_currency as CurrencyId) ?? 'VES'
   const statsRateSource = (p?.stats_rate_source as RateId) ?? 'bcvUsd'
+  const activeTemplateId =
+    (p?.active_budget_template_id as string | null) ?? DEFAULT_BUDGET_TEMPLATE_ID
+  const budgets = allBudgets.filter((b) => b.templateId === activeTemplateId)
 
   return computeStats(
     { accounts, transactions, transfers, categories, budgets },

@@ -18,6 +18,7 @@ import {
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select'
 import { Field, TypeToggle, AmountPreview, CommissionField } from './fields'
 import { useMathInput } from '@/hooks/useMathInput'
+import { resolveCommission } from '@/lib/wallet/compute'
 import { notify } from '@/lib/notify'
 import { todayInputValue } from './format'
 import { AmountCalculatorDialog } from './AmountCalculatorDialog'
@@ -37,7 +38,7 @@ export function TransactionFormDialog({
   editing,
   defaultType = 'expense',
 }: TransactionFormDialogProps) {
-  const { state, addTransaction, updateTransaction } = wallet
+  const { state, accountBalances, addTransaction, updateTransaction } = wallet
   const [type, setType] = useState<TransactionType>(defaultType)
   const [accountId, setAccountId] = useState('')
   const [categoryId, setCategoryId] = useState('')
@@ -88,7 +89,12 @@ export function TransactionFormDialog({
   const amountInput = useMathInput(amount, setAmount)
 
   const accountCurrency = state.accounts.find((a) => a.id === accountId)?.currency
-  const canSubmit = parseFloat(amount.replace(',', '.')) > 0 && accountId && categoryId
+  const amountNum = parseFloat(amount.replace(',', '.')) || 0
+  const currentBalance = accountBalances.find((b) => b.accountId === accountId)?.balance ?? 0
+  const commissionNum = resolveCommission(amountNum, commission.trim() || undefined, commissionType)
+  const overBalance =
+    !editing && type === 'expense' && amountNum > 0 && amountNum + commissionNum > currentBalance + 1e-6
+  const canSubmit = amountNum > 0 && !!accountId && !!categoryId && !overBalance
 
   const handleSubmit = () => {
     if (!canSubmit) return
@@ -103,10 +109,10 @@ export function TransactionFormDialog({
       note,
       date,
     }
-    if (editing) {
-      updateTransaction(editing.id, payload)
-    } else {
-      addTransaction(payload)
+    const ok = editing ? updateTransaction(editing.id, payload) : addTransaction(payload)
+    if (!ok) {
+      notify.error('El monto supera el saldo de la cuenta')
+      return
     }
     notify.success(editing ? 'Movimiento actualizado' : 'Movimiento registrado')
     onOpenChange(false)
@@ -214,6 +220,11 @@ export function TransactionFormDialog({
                   <CalculatorIcon className="size-4" /> Calcular
                 </Button>
               </div>
+              {overBalance && (
+                <span className="text-xs text-destructive">
+                  El monto supera el saldo de la cuenta.
+                </span>
+              )}
             </Field>
 
             <CommissionField

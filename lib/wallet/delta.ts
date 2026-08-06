@@ -12,6 +12,7 @@ import type {
   Transaction,
   Transfer,
   Budget,
+  BudgetTemplate,
   Goal,
   GoalContribution,
   ShoppingList,
@@ -26,6 +27,7 @@ export interface WalletPrefs {
   statsRateSource: RateId
   timeRange: WalletState['timeRange']
   concludedMonths: string[]
+  activeBudgetTemplateId: string
 }
 
 /** Cambios a persistir: upserts (objetos de dominio, sin user_id) y deletes por id. */
@@ -37,6 +39,7 @@ export interface WalletDelta {
     transactions: Transaction[]
     transfers: Transfer[]
     budgets: Budget[]
+    budgetTemplates: BudgetTemplate[]
     goalContributions: GoalContribution[]
     shoppingLists: ShoppingList[]
     shoppingItems: ShoppingListItem[]
@@ -48,6 +51,7 @@ export interface WalletDelta {
     transactions: string[]
     transfers: string[]
     budgets: string[]
+    budgetTemplates: string[]
     goalContributions: string[]
     shoppingLists: string[]
     shoppingItems: string[]
@@ -77,6 +81,7 @@ function prefsChanged(prev: WalletState, next: WalletState): boolean {
     prev.displayCurrency !== next.displayCurrency ||
     prev.statsRateSource !== next.statsRateSource ||
     prev.timeRange !== next.timeRange ||
+    prev.activeBudgetTemplateId !== next.activeBudgetTemplateId ||
     JSON.stringify(prev.concludedMonths) !== JSON.stringify(next.concludedMonths)
   )
 }
@@ -89,6 +94,7 @@ export function buildWalletDelta(prev: WalletState, next: WalletState): WalletDe
   const dTransactions = diff(prev.transactions, next.transactions)
   const dTransfers = diff(prev.transfers, next.transfers)
   const dBudgets = diff(prev.budgets, next.budgets)
+  const dBudgetTemplates = diff(prev.budgetTemplates, next.budgetTemplates)
   const dContributions = diff(prev.goalContributions, next.goalContributions)
   const dShoppingLists = diff(prev.shoppingLists, next.shoppingLists)
   const dShoppingItems = diff(prev.shoppingItems, next.shoppingItems)
@@ -101,6 +107,7 @@ export function buildWalletDelta(prev: WalletState, next: WalletState): WalletDe
       transactions: dTransactions.upserts,
       transfers: dTransfers.upserts,
       budgets: dBudgets.upserts,
+      budgetTemplates: dBudgetTemplates.upserts,
       goalContributions: dContributions.upserts,
       shoppingLists: dShoppingLists.upserts,
       shoppingItems: dShoppingItems.upserts,
@@ -112,6 +119,7 @@ export function buildWalletDelta(prev: WalletState, next: WalletState): WalletDe
       transactions: dTransactions.deletes,
       transfers: dTransfers.deletes,
       budgets: dBudgets.deletes,
+      budgetTemplates: dBudgetTemplates.deletes,
       goalContributions: dContributions.deletes,
       shoppingLists: dShoppingLists.deletes,
       shoppingItems: dShoppingItems.deletes,
@@ -122,6 +130,7 @@ export function buildWalletDelta(prev: WalletState, next: WalletState): WalletDe
           statsRateSource: next.statsRateSource,
           timeRange: next.timeRange,
           concludedMonths: next.concludedMonths,
+          activeBudgetTemplateId: next.activeBudgetTemplateId,
         }
       : null,
   }
@@ -139,6 +148,7 @@ export function isEmptyDelta(d: WalletDelta): boolean {
     u.transactions.length === 0 &&
     u.transfers.length === 0 &&
     u.budgets.length === 0 &&
+    u.budgetTemplates.length === 0 &&
     u.goalContributions.length === 0 &&
     u.shoppingLists.length === 0 &&
     u.shoppingItems.length === 0 &&
@@ -148,6 +158,7 @@ export function isEmptyDelta(d: WalletDelta): boolean {
     del.transactions.length === 0 &&
     del.transfers.length === 0 &&
     del.budgets.length === 0 &&
+    del.budgetTemplates.length === 0 &&
     del.goalContributions.length === 0 &&
     del.shoppingLists.length === 0 &&
     del.shoppingItems.length === 0

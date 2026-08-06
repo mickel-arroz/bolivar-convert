@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { renderHook, act, waitFor } from '@testing-library/react'
 import { describe, it, expect, beforeEach, vi } from 'vitest'
-import { useWallet, convertTransferAmount } from '@/hooks/useWallet'
+import { useWallet, convertTransferAmount, DEFAULT_BUDGET_TEMPLATE_ID } from '@/hooks/useWallet'
 import { Rates } from '@/constants/rates'
 
 // "Nube" simulada: el hook llama a /api/wallet/state (GET) y /api/wallet/sync (POST).
@@ -15,6 +15,7 @@ const ENTITY_KEYS = [
   'transactions',
   'transfers',
   'budgets',
+  'budgetTemplates',
   'goalContributions',
   'shoppingLists',
   'shoppingItems',
@@ -33,6 +34,7 @@ function applyDeltaToStore(store: Record<string, any>, delta: any) {
     store.statsRateSource = delta.prefs.statsRateSource
     store.timeRange = delta.prefs.timeRange
     store.concludedMonths = delta.prefs.concludedMonths
+    store.activeBudgetTemplateId = delta.prefs.activeBudgetTemplateId
   }
 }
 
@@ -140,7 +142,7 @@ describe('useWallet Hook', () => {
     const { result } = renderHook(() => useWallet())
     await waitFor(() => expect(result.current.isMounted).toBe(true))
 
-    act(() => result.current.addAccount('Bs', 'VES', '0'))
+    act(() => result.current.addAccount('Bs', 'VES', '1000'))
     act(() => result.current.addAccount('USD', 'USD', '0'))
     const [ves, usd] = result.current.state.accounts.map((acc) => acc.id)
 
@@ -166,7 +168,7 @@ describe('useWallet Hook', () => {
     const { result } = renderHook(() => useWallet())
     await waitFor(() => expect(result.current.isMounted).toBe(true))
 
-    act(() => result.current.addAccount('Efectivo', 'VES', '0'))
+    act(() => result.current.addAccount('Efectivo', 'VES', '1000'))
     const accId = result.current.state.accounts[0].id
 
     act(() => result.current.setBudget('cat_food', new Date().toISOString().slice(0, 7), '100', 'VES'))
@@ -190,7 +192,7 @@ describe('useWallet Hook', () => {
     const { result } = renderHook(() => useWallet())
     await waitFor(() => expect(result.current.isMounted).toBe(true))
 
-    act(() => result.current.addAccount('Efectivo', 'VES', '0'))
+    act(() => result.current.addAccount('Efectivo', 'VES', '1000'))
     const accId = result.current.state.accounts[0].id
 
     const prevMonth = '2026-05'
@@ -458,6 +460,199 @@ describe('useWallet — listas de compras', () => {
     await waitFor(() => expect(result2.current.isMounted).toBe(true))
     expect(result2.current.state.shoppingLists[0]?.name).toBe('Ferretería')
     expect(result2.current.state.shoppingItems[0]?.title).toBe('Tornillos')
+  })
+})
+
+describe('useWallet — saldo nunca negativo', () => {
+  beforeEach(() => {
+    localStorage.clear()
+    cloud.store = {}
+    vi.clearAllMocks()
+  })
+
+  it('rechaza un gasto que supera el saldo de la cuenta', async () => {
+    const { result } = renderHook(() => useWallet())
+    await waitFor(() => expect(result.current.isMounted).toBe(true))
+
+    act(() => result.current.addAccount('Efectivo', 'VES', '100'))
+    const accId = result.current.state.accounts[0].id
+
+    let ok = true
+    act(() => {
+      ok = result.current.addTransaction({
+        type: 'expense',
+        accountId: accId,
+        categoryId: 'cat_food',
+        amount: '150',
+        date: today,
+      })
+    })
+    expect(ok).toBe(false)
+    expect(result.current.state.transactions).toHaveLength(0)
+    expect(result.current.accountBalances.find((b) => b.accountId === accId)?.balance).toBe(100)
+  })
+
+  it('permite el gasto exacto y bloquea el que deja saldo negativo por comisión', async () => {
+    const { result } = renderHook(() => useWallet())
+    await waitFor(() => expect(result.current.isMounted).toBe(true))
+
+    act(() => result.current.addAccount('Efectivo', 'VES', '100'))
+    const accId = result.current.state.accounts[0].id
+
+    let ok = false
+    act(() => {
+      ok = result.current.addTransaction({
+        type: 'expense',
+        accountId: accId,
+        categoryId: 'cat_food',
+        amount: '100',
+        date: today,
+      })
+    })
+    expect(ok).toBe(true)
+    expect(result.current.accountBalances.find((b) => b.accountId === accId)?.balance).toBe(0)
+
+    // Con saldo 0, cualquier gasto adicional se rechaza.
+    let ok2 = true
+    act(() => {
+      ok2 = result.current.addTransaction({
+        type: 'expense',
+        accountId: accId,
+        categoryId: 'cat_food',
+        amount: '1',
+        date: today,
+      })
+    })
+    expect(ok2).toBe(false)
+  })
+
+  it('rechaza un traspaso que deja la cuenta origen en negativo', async () => {
+    const { result } = renderHook(() => useWallet())
+    await waitFor(() => expect(result.current.isMounted).toBe(true))
+
+    act(() => result.current.addAccount('A', 'VES', '50'))
+    act(() => result.current.addAccount('B', 'VES', '0'))
+    const [a, b] = result.current.state.accounts.map((acc) => acc.id)
+
+    let ok = true
+    act(() => {
+      ok = result.current.addTransfer({
+        fromAccountId: a,
+        toAccountId: b,
+        fromAmount: '80',
+        toAmount: '80',
+        rateSource: 'custom',
+        rateValue: 0,
+        date: today,
+      })
+    })
+    expect(ok).toBe(false)
+    expect(result.current.state.transfers).toHaveLength(0)
+    expect(result.current.accountBalances.find((x) => x.accountId === a)?.balance).toBe(50)
+  })
+})
+
+describe('useWallet — plantillas de presupuesto', () => {
+  beforeEach(() => {
+    localStorage.clear()
+    cloud.store = {}
+    vi.clearAllMocks()
+  })
+
+  it('siembra la plantilla por defecto y la deja activa', async () => {
+    const { result } = renderHook(() => useWallet())
+    await waitFor(() => expect(result.current.isMounted).toBe(true))
+    expect(result.current.state.activeBudgetTemplateId).toBe(DEFAULT_BUDGET_TEMPLATE_ID)
+    expect(
+      result.current.state.budgetTemplates.some((t) => t.id === DEFAULT_BUDGET_TEMPLATE_ID)
+    ).toBe(true)
+  })
+
+  it('la misma categoría puede tener presupuesto en varias plantillas (uno por plantilla)', async () => {
+    const { result } = renderHook(() => useWallet())
+    await waitFor(() => expect(result.current.isMounted).toBe(true))
+    const month = new Date().toISOString().slice(0, 7)
+
+    let tplId = ''
+    act(() => {
+      tplId = result.current.addBudgetTemplate({ name: 'Viaje' })
+    })
+    act(() => result.current.setBudget('cat_food', month, '100', 'VES'))
+    act(() => result.current.setBudget('cat_food', month, '250', 'VES', '0', tplId))
+
+    const foodBudgets = result.current.state.budgets.filter(
+      (b) => b.categoryId === 'cat_food' && b.month === month
+    )
+    expect(foodBudgets).toHaveLength(2)
+
+    act(() => result.current.setBudget('cat_food', month, '120', 'VES'))
+    const again = result.current.state.budgets.filter(
+      (b) => b.categoryId === 'cat_food' && b.month === month
+    )
+    expect(again).toHaveLength(2)
+    expect(again.find((b) => b.templateId === DEFAULT_BUDGET_TEMPLATE_ID)?.limit).toBe('120')
+    expect(again.find((b) => b.templateId === tplId)?.limit).toBe('250')
+  })
+
+  it('applyBudgetTemplate cambia la activa y suma el carryover migrado', async () => {
+    const { result } = renderHook(() => useWallet())
+    await waitFor(() => expect(result.current.isMounted).toBe(true))
+    const month = new Date().toISOString().slice(0, 7)
+
+    let tplId = ''
+    act(() => {
+      tplId = result.current.addBudgetTemplate({ name: 'Plan B' })
+    })
+    act(() => result.current.setBudget('cat_food', month, '100', 'VES', '0', tplId))
+
+    act(() => result.current.applyBudgetTemplate(tplId, month, { cat_food: '30' }))
+    expect(result.current.state.activeBudgetTemplateId).toBe(tplId)
+    const b = result.current.state.budgets.find(
+      (x) => x.templateId === tplId && x.categoryId === 'cat_food' && x.month === month
+    )
+    expect(parseFloat(b?.carryover ?? '0')).toBe(30)
+  })
+
+  it('eliminar una plantilla borra sus presupuestos y vuelve a la predeterminada', async () => {
+    const { result } = renderHook(() => useWallet())
+    await waitFor(() => expect(result.current.isMounted).toBe(true))
+    const month = new Date().toISOString().slice(0, 7)
+
+    let tplId = ''
+    act(() => {
+      tplId = result.current.addBudgetTemplate({ name: 'Temporal' })
+    })
+    act(() => result.current.setBudget('cat_food', month, '80', 'VES', '0', tplId))
+    act(() => result.current.applyBudgetTemplate(tplId, month, {}))
+    expect(result.current.state.activeBudgetTemplateId).toBe(tplId)
+
+    act(() => result.current.removeBudgetTemplate(tplId))
+    expect(result.current.state.budgetTemplates.some((t) => t.id === tplId)).toBe(false)
+    expect(result.current.state.budgets.some((b) => b.templateId === tplId)).toBe(false)
+    expect(result.current.state.activeBudgetTemplateId).toBe(DEFAULT_BUDGET_TEMPLATE_ID)
+  })
+
+  it('persiste plantillas en la nube y las rehidrata', async () => {
+    const { result, unmount } = renderHook(() => useWallet())
+    await waitFor(() => expect(result.current.isMounted).toBe(true))
+
+    let tplId = ''
+    act(() => {
+      tplId = result.current.addBudgetTemplate({
+        name: 'Ahorro',
+        description: 'sobrio',
+        icon: 'savings',
+      })
+    })
+    await waitFor(() => {
+      const tpls = (cloud.store.budgetTemplates as { name: string }[] | undefined) ?? []
+      expect(tpls.some((t) => t.name === 'Ahorro')).toBe(true)
+    })
+    unmount()
+
+    const { result: result2 } = renderHook(() => useWallet())
+    await waitFor(() => expect(result2.current.isMounted).toBe(true))
+    expect(result2.current.state.budgetTemplates.some((t) => t.id === tplId)).toBe(true)
   })
 })
 

@@ -77,7 +77,11 @@ export function GoalContributionDialog({
 
   const handleSubmit = () => {
     if (!canSubmit) return
-    moveToGoal({ goalId: goal.id, accountId, amount, direction, note: undefined, date })
+    const ok = moveToGoal({ goalId: goal.id, accountId, amount, direction, note: undefined, date })
+    if (!ok) {
+      notify.error('El monto supera el saldo de la cuenta')
+      return
+    }
     notify.success(direction === 'in' ? 'Aporte registrado' : 'Retiro registrado')
     onOpenChange(false)
   }

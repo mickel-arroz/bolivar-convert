@@ -10,6 +10,7 @@ import {
   WALLET_STORAGE_KEY,
   mergeCategories,
   DEFAULT_STATE,
+  DEFAULT_BUDGET_TEMPLATE_ID,
   type WalletState,
 } from '@/hooks/useWallet'
 
@@ -46,10 +47,15 @@ function completeState(p: Partial<WalletState>): WalletState {
     transactions: p.transactions ?? [],
     transfers: p.transfers ?? [],
     categories: p.categories && p.categories.length > 0 ? p.categories : DEFAULT_STATE.categories,
-    budgets: p.budgets ?? [],
+    budgets: (p.budgets ?? []).map((b) => ({
+      ...b,
+      templateId: b.templateId ?? DEFAULT_BUDGET_TEMPLATE_ID,
+    })),
+    budgetTemplates: p.budgetTemplates ?? DEFAULT_STATE.budgetTemplates,
     goals: p.goals ?? [],
     goalContributions: p.goalContributions ?? [],
     concludedMonths: p.concludedMonths ?? [],
+    activeBudgetTemplateId: p.activeBudgetTemplateId ?? DEFAULT_STATE.activeBudgetTemplateId,
   }
 }
 

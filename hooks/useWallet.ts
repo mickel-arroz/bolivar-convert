@@ -17,6 +17,7 @@ import {
   computeTotalsByCurrency,
   computeStats as computeStatsCore,
   budgetStatusForMonth as budgetStatusForMonthCore,
+  DEFAULT_BUDGET_TEMPLATE_ID,
 } from '@/lib/wallet/compute'
 
 // Reexport de helpers compartidos para consumidores que los importan desde este módulo.
@@ -90,8 +91,23 @@ export interface Transfer {
   createdAt: string
 }
 
+/** Plantilla de presupuesto: un grupo de presupuestos del usuario. */
+export interface BudgetTemplate {
+  id: string
+  name: string
+  /** Descripción muy corta, mostrada en la UI. */
+  description?: string
+  icon?: string
+  color?: string
+  /** La plantilla "Predeterminada", siempre presente. */
+  isDefault?: boolean
+  createdAt: string
+}
+
 export interface Budget {
   id: string
+  /** Plantilla a la que pertenece el presupuesto. */
+  templateId: string
   categoryId: string
   /** Mes al que aplica, formato 'YYYY-MM'. */
   month: string
@@ -163,12 +179,15 @@ export interface WalletState {
   transfers: Transfer[]
   categories: Category[]
   budgets: Budget[]
+  budgetTemplates: BudgetTemplate[]
   goals: Goal[]
   goalContributions: GoalContribution[]
   shoppingLists: ShoppingList[]
   shoppingItems: ShoppingListItem[]
   /** Meses 'YYYY-MM' cuyo presupuesto ya fue concluido (no se vuelve a avisar). */
   concludedMonths: string[]
+  /** Plantilla de presupuesto activa (sus presupuestos son los del mes visibles). */
+  activeBudgetTemplateId: string
   /** Moneda en la que se normalizan las estadísticas agregadas. */
   displayCurrency: CurrencyId
   /** Tasa USD usada para normalizar estadísticas (bcvUsd o binanceUsdAvg). */
@@ -245,12 +264,24 @@ export interface StatsBundle {
 /** Clave del localStorage legado (previo a la nube). Reutilizada por la migración. */
 export const WALLET_STORAGE_KEY = 'bolivar_wallet_v1'
 
+export { DEFAULT_BUDGET_TEMPLATE_ID } from '@/lib/wallet/compute'
+
+/** Plantilla por defecto sembrada en la primera carga (id fijo, como las categorías). */
+export const DEFAULT_BUDGET_TEMPLATE: BudgetTemplate = {
+  id: DEFAULT_BUDGET_TEMPLATE_ID,
+  name: 'Predeterminada',
+  isDefault: true,
+  // Fecha fija: el sembrado es idempotente y no genera churn de sync.
+  createdAt: '1970-01-01T00:00:00.000Z',
+}
+
 export const DEFAULT_STATE: WalletState = {
   accounts: [],
   transactions: [],
   transfers: [],
   categories: DEFAULT_CATEGORIES,
   budgets: [],
+  budgetTemplates: [DEFAULT_BUDGET_TEMPLATE],
   goals: [],
   goalContributions: [],
   shoppingLists: [],
@@ -259,6 +290,25 @@ export const DEFAULT_STATE: WalletState = {
   displayCurrency: 'VES',
   statsRateSource: 'bcvUsd',
   timeRange: '1m',
+  activeBudgetTemplateId: DEFAULT_BUDGET_TEMPLATE_ID,
+}
+
+/**
+ * Garantiza el invariante de plantillas: existe la plantilla por defecto, la activa es
+ * válida, y todo presupuesto tiene `templateId` (los legados se asignan a la activa).
+ */
+export function normalizeTemplates(state: WalletState): WalletState {
+  const templates =
+    state.budgetTemplates.length > 0 ? state.budgetTemplates : [DEFAULT_BUDGET_TEMPLATE]
+  const hasDefault = templates.some((t) => t.id === DEFAULT_BUDGET_TEMPLATE_ID)
+  const budgetTemplates = hasDefault ? templates : [DEFAULT_BUDGET_TEMPLATE, ...templates]
+  const activeBudgetTemplateId = budgetTemplates.some((t) => t.id === state.activeBudgetTemplateId)
+    ? state.activeBudgetTemplateId
+    : DEFAULT_BUDGET_TEMPLATE_ID
+  const budgets = state.budgets.some((b) => !b.templateId)
+    ? state.budgets.map((b) => (b.templateId ? b : { ...b, templateId: DEFAULT_BUDGET_TEMPLATE_ID }))
+    : state.budgets
+  return { ...state, budgetTemplates, activeBudgetTemplateId, budgets }
 }
 
 /**
@@ -302,6 +352,9 @@ export function convertTransferAmount(
 /** Tipo del valor devuelto por useWallet, útil para tipar props de componentes hijos. */
 export type WalletApi = ReturnType<typeof useWallet>
 
+/** Margen para comparaciones de saldo (evita rechazos por error de coma flotante). */
+const OVERDRAW_EPS = 1e-6
+
 export function useWallet() {
   const [isMounted, setIsMounted] = useState(false)
   const [state, setState] = useState<WalletState>(DEFAULT_STATE)
@@ -310,6 +363,11 @@ export function useWallet() {
   // Contador que aumenta tras cada sync exitoso; los tabs con endpoints dedicados
   // lo usan como señal para re-consultar sus datos ya persistidos.
   const [syncedVersion, setSyncedVersion] = useState(0)
+
+  const stateRef = useRef(state)
+  useEffect(() => {
+    stateRef.current = state
+  }, [state])
 
   // Último estado confirmado en la nube; base para calcular el delta a persistir.
   const lastSyncedRef = useRef<WalletState | null>(null)
@@ -338,16 +396,25 @@ export function useWallet() {
           // las del usuario; si no hay ninguna guardada, siembra las por defecto.
           categories: mergeCategories(loaded.categories),
           budgets: loaded.budgets ?? [],
+          budgetTemplates: loaded.budgetTemplates ?? [],
           goals: loaded.goals ?? [],
           goalContributions: loaded.goalContributions ?? [],
           shoppingLists: loaded.shoppingLists ?? [],
           shoppingItems: loaded.shoppingItems ?? [],
           concludedMonths: loaded.concludedMonths ?? [],
+          activeBudgetTemplateId: loaded.activeBudgetTemplateId ?? DEFAULT_BUDGET_TEMPLATE_ID,
         }
-        // Base = lo que realmente hay en la nube (sin el merge de categorías), para
-        // que el primer sync inserte cualquier categoría por defecto nueva del código.
-        lastSyncedRef.current = { ...DEFAULT_STATE, ...loaded, categories: loaded.categories ?? [] }
-        setState(merged)
+        // Base = lo que realmente hay en la nube (sin sembrados del código), para que el
+        // primer sync inserte cualquier default nuevo (categorías / plantilla por defecto).
+        lastSyncedRef.current = {
+          ...DEFAULT_STATE,
+          ...loaded,
+          categories: loaded.categories ?? [],
+          budgetTemplates: loaded.budgetTemplates ?? [],
+          // '' fuerza el push del puntero activo si la nube aún no lo tiene.
+          activeBudgetTemplateId: loaded.activeBudgetTemplateId ?? '',
+        }
+        setState(normalizeTemplates(merged))
       } catch (e) {
         console.error('[wallet load]', e)
         if (!cancelled) {
@@ -403,6 +470,17 @@ export function useWallet() {
       }
     })
   }, [state, isMounted])
+
+  /** Saldo de una cuenta en un estado dado (fuente de verdad: computeAccountBalances). */
+  const accountBalanceOf = useCallback((accountId: string, s: WalletState): number => {
+    const found = computeAccountBalances({
+      accounts: s.accounts,
+      transactions: s.transactions,
+      transfers: s.transfers,
+      goalContributions: s.goalContributions,
+    }).find((b) => b.accountId === accountId)
+    return found?.balance ?? 0
+  }, [])
 
   /* ── Cuentas ── */
   const addAccount = useCallback(
@@ -508,12 +586,17 @@ export function useWallet() {
       commissionType?: CommissionType
       note?: string
       date: string
-    }) => {
-      if (parseAmount(tx.amount) <= 0 || !tx.accountId || !tx.categoryId) return
-      setState((s) => ({
-        ...s,
+    }): boolean => {
+      if (parseAmount(tx.amount) <= 0 || !tx.accountId || !tx.categoryId) return false
+      const s = stateRef.current
+      const amt = parseAmount(tx.amount)
+      const commission = resolveCommission(amt, tx.commission, tx.commissionType)
+      const delta = tx.type === 'income' ? amt - commission : -(amt + commission)
+      if (delta < 0 && accountBalanceOf(tx.accountId, s) + delta < -OVERDRAW_EPS) return false
+      setState((s2) => ({
+        ...s2,
         transactions: [
-          ...s.transactions,
+          ...s2.transactions,
           {
             id: generateId(),
             type: tx.type,
@@ -528,8 +611,9 @@ export function useWallet() {
           },
         ],
       }))
+      return true
     },
-    []
+    [accountBalanceOf]
   )
 
   const updateTransaction = useCallback(
@@ -541,13 +625,28 @@ export function useWallet() {
           'type' | 'accountId' | 'categoryId' | 'amount' | 'commission' | 'commissionType' | 'note' | 'date'
         >
       >
-    ) => {
-      setState((s) => ({
+    ): boolean => {
+      const s = stateRef.current
+      const old = s.transactions.find((t) => t.id === id)
+      if (!old) return false
+      const nextState: WalletState = {
         ...s,
         transactions: s.transactions.map((t) => (t.id === id ? { ...t, ...patch } : t)),
+      }
+      const affected = new Set<string>([old.accountId])
+      if (patch.accountId) affected.add(patch.accountId)
+      for (const accId of affected) {
+        const after = accountBalanceOf(accId, nextState)
+        const before = accountBalanceOf(accId, s)
+        if (after < -OVERDRAW_EPS && after < before - OVERDRAW_EPS) return false
+      }
+      setState((s2) => ({
+        ...s2,
+        transactions: s2.transactions.map((t) => (t.id === id ? { ...t, ...patch } : t)),
       }))
+      return true
     },
-    []
+    [accountBalanceOf]
   )
 
   const removeTransaction = useCallback((id: string) => {
@@ -569,7 +668,7 @@ export function useWallet() {
       commissionType?: CommissionType
       note?: string
       date: string
-    }) => {
+    }): boolean => {
       const {
         fromAccountId,
         toAccountId,
@@ -582,10 +681,15 @@ export function useWallet() {
         note,
         date,
       } = params
-      if (fromAccountId === toAccountId) return
+      if (fromAccountId === toAccountId) return false
       const amount = parseAmount(fromAmount)
       const received = parseAmount(toAmount)
-      if (amount <= 0 || received <= 0) return
+      if (amount <= 0 || received <= 0) return false
+      const s0 = stateRef.current
+      if (!s0.accounts.some((a) => a.id === fromAccountId) || !s0.accounts.some((a) => a.id === toAccountId))
+        return false
+      const debit = amount + resolveCommission(amount, commission, commissionType)
+      if (accountBalanceOf(fromAccountId, s0) - debit < -OVERDRAW_EPS) return false
       setState((s) => {
         const from = s.accounts.find((a) => a.id === fromAccountId)
         const to = s.accounts.find((a) => a.id === toAccountId)
@@ -607,8 +711,9 @@ export function useWallet() {
         }
         return { ...s, transfers: [...s.transfers, transfer] }
       })
+      return true
     },
-    []
+    [accountBalanceOf]
   )
 
   const removeTransfer = useCallback((id: string) => {
@@ -673,7 +778,9 @@ export function useWallet() {
         const budgets = [...s.budgets]
         const fromBudgets = budgets.filter((b) => b.categoryId === fromId)
         for (const fb of fromBudgets) {
-          const idx = budgets.findIndex((b) => b.categoryId === toId && b.month === fb.month)
+          const idx = budgets.findIndex(
+            (b) => b.templateId === fb.templateId && b.categoryId === toId && b.month === fb.month
+          )
           if (idx >= 0) {
             const ex = budgets[idx]
             if (budgetStrategy === 'merge') {
@@ -700,11 +807,21 @@ export function useWallet() {
     []
   )
 
-  /* ── Presupuestos (upsert por categoría + mes) ── */
+  /* ── Presupuestos (upsert por plantilla + categoría + mes) ── */
   const setBudget = useCallback(
-    (categoryId: string, month: string, limit: string, currency: CurrencyId, carryover?: string) => {
+    (
+      categoryId: string,
+      month: string,
+      limit: string,
+      currency: CurrencyId,
+      carryover?: string,
+      templateId?: string
+    ) => {
       setState((s) => {
-        const existing = s.budgets.find((b) => b.categoryId === categoryId && b.month === month)
+        const tid = templateId ?? s.activeBudgetTemplateId
+        const existing = s.budgets.find(
+          (b) => b.templateId === tid && b.categoryId === categoryId && b.month === month
+        )
         if (existing) {
           return {
             ...s,
@@ -719,7 +836,7 @@ export function useWallet() {
           ...s,
           budgets: [
             ...s.budgets,
-            { id: generateId(), categoryId, month, limit, currency, carryover },
+            { id: generateId(), templateId: tid, categoryId, month, limit, currency, carryover },
           ],
         }
       })
@@ -740,13 +857,14 @@ export function useWallet() {
   const concludeBudgetMonth = useCallback(
     (fromMonth: string, toMonth: string, carryovers: Record<string, number>) => {
       setState((s) => {
-        const fromBudgets = s.budgets.filter((b) => b.month === fromMonth)
+        const tid = s.activeBudgetTemplateId
+        const fromBudgets = s.budgets.filter((b) => b.templateId === tid && b.month === fromMonth)
         if (fromBudgets.length === 0) return s
         const budgets = [...s.budgets]
         for (const fb of fromBudgets) {
           const carry = carryovers[fb.categoryId] ?? 0
           const idx = budgets.findIndex(
-            (b) => b.categoryId === fb.categoryId && b.month === toMonth
+            (b) => b.templateId === tid && b.categoryId === fb.categoryId && b.month === toMonth
           )
           if (idx >= 0) {
             const ex = budgets[idx]
@@ -754,6 +872,7 @@ export function useWallet() {
           } else {
             budgets.push({
               id: generateId(),
+              templateId: tid,
               categoryId: fb.categoryId,
               month: toMonth,
               limit: fb.limit,
@@ -766,6 +885,91 @@ export function useWallet() {
           ? s.concludedMonths
           : [...s.concludedMonths, fromMonth]
         return { ...s, budgets, concludedMonths }
+      })
+    },
+    []
+  )
+
+  /* ── Plantillas de presupuesto (grupos de presupuestos) ── */
+  const addBudgetTemplate = useCallback(
+    (input: { name: string; description?: string; icon?: string; color?: string }): string => {
+      const id = generateId()
+      const trimmed = input.name.trim()
+      if (!trimmed) return id
+      setState((s) => ({
+        ...s,
+        budgetTemplates: [
+          ...s.budgetTemplates,
+          {
+            id,
+            name: trimmed,
+            description: input.description?.trim() || undefined,
+            icon: input.icon,
+            color: input.color,
+            createdAt: new Date().toISOString(),
+          },
+        ],
+      }))
+      return id
+    },
+    []
+  )
+
+  const updateBudgetTemplate = useCallback(
+    (id: string, patch: Partial<Pick<BudgetTemplate, 'name' | 'description' | 'icon' | 'color'>>) => {
+      setState((s) => ({
+        ...s,
+        budgetTemplates: s.budgetTemplates.map((t) =>
+          t.id === id
+            ? {
+                ...t,
+                ...patch,
+                ...(patch.name !== undefined && { name: patch.name.trim() }),
+                ...(patch.description !== undefined && {
+                  description: patch.description.trim() || undefined,
+                }),
+              }
+            : t
+        ),
+      }))
+    },
+    []
+  )
+
+  /**
+   * Elimina una plantilla (nunca la predeterminada) y, en cascada, sus presupuestos.
+   * Si era la activa, vuelve a la predeterminada.
+   */
+  const removeBudgetTemplate = useCallback((id: string) => {
+    setState((s) => {
+      const tpl = s.budgetTemplates.find((t) => t.id === id)
+      if (!tpl || tpl.isDefault) return s
+      return {
+        ...s,
+        budgetTemplates: s.budgetTemplates.filter((t) => t.id !== id),
+        budgets: s.budgets.filter((b) => b.templateId !== id),
+        activeBudgetTemplateId:
+          s.activeBudgetTemplateId === id ? DEFAULT_BUDGET_TEMPLATE_ID : s.activeBudgetTemplateId,
+      }
+    })
+  }, [])
+
+  /**
+   * Activa una plantilla para el mes. Suma el saldo/extra migrado (`carryoverByCategory`,
+   * en la moneda del destino) al carryover de cada presupuesto de la plantilla en ese mes.
+   * No borra los presupuestos de la plantilla anterior (coexisten) ni toca transacciones.
+   */
+  const applyBudgetTemplate = useCallback(
+    (templateId: string, month: string, carryoverByCategory: Record<string, string>) => {
+      setState((s) => {
+        if (!s.budgetTemplates.some((t) => t.id === templateId)) return s
+        const budgets = s.budgets.map((b) => {
+          if (b.templateId !== templateId || b.month !== month) return b
+          const add = carryoverByCategory[b.categoryId]
+          if (add === undefined) return b
+          return { ...b, carryover: String(parseSigned(b.carryover) + parseSigned(add)) }
+        })
+        return { ...s, budgets, activeBudgetTemplateId: templateId }
       })
     },
     []
@@ -827,10 +1031,15 @@ export function useWallet() {
       direction: 'in' | 'out'
       note?: string
       date: string
-    }) => {
+    }): boolean => {
       const { goalId, accountId, amount, direction, note, date } = params
       const value = parseAmount(amount)
-      if (value <= 0) return
+      if (value <= 0) return false
+      const s0 = stateRef.current
+      const g0 = s0.goals.find((g) => g.id === goalId)
+      const a0 = s0.accounts.find((a) => a.id === accountId)
+      if (!g0 || !a0 || g0.currency !== a0.currency) return false
+      if (direction === 'in' && accountBalanceOf(accountId, s0) - value < -OVERDRAW_EPS) return false
       setState((s) => {
         const goal = s.goals.find((g) => g.id === goalId)
         const account = s.accounts.find((a) => a.id === accountId)
@@ -852,8 +1061,9 @@ export function useWallet() {
           ],
         }
       })
+      return true
     },
-    []
+    [accountBalanceOf]
   )
 
   /** Asigna un extra de presupuesto a una meta (sin afectar cuentas). Usado al concluir el mes. */
@@ -993,10 +1203,20 @@ export function useWallet() {
       rateSource: TransferRateSource
       rateValue: number
       date: string
-    }) => {
+    }): boolean => {
       const { itemId, accountId, cost, rateSource, rateValue, date } = params
       const costNum = parseAmount(cost)
-      if (costNum <= 0) return
+      if (costNum <= 0) return false
+      const s0 = stateRef.current
+      const item0 = s0.shoppingItems.find((it) => it.id === itemId)
+      const account0 = s0.accounts.find((a) => a.id === accountId)
+      if (!item0 || !account0) return false
+      const debited0 =
+        item0.currency === account0.currency
+          ? costNum
+          : convertTransferAmount(costNum, item0.currency, account0.currency, rateValue)
+      if (debited0 <= 0) return false
+      if (accountBalanceOf(accountId, s0) - debited0 < -OVERDRAW_EPS) return false
       setState((s) => {
         const item = s.shoppingItems.find((it) => it.id === itemId)
         const account = s.accounts.find((a) => a.id === accountId)
@@ -1041,8 +1261,9 @@ export function useWallet() {
           ),
         }
       })
+      return true
     },
-    []
+    [accountBalanceOf]
   )
 
   const undoPurchase = useCallback((itemId: string) => {
@@ -1134,7 +1355,7 @@ export function useWallet() {
         {
           accounts: state.accounts,
           categories: state.categories,
-          budgets: state.budgets,
+          budgets: state.budgets.filter((b) => b.templateId === state.activeBudgetTemplateId),
           transactions: state.transactions,
         },
         rates,
@@ -1153,7 +1374,7 @@ export function useWallet() {
           transactions: state.transactions,
           transfers: state.transfers,
           categories: state.categories,
-          budgets: state.budgets,
+          budgets: state.budgets.filter((b) => b.templateId === state.activeBudgetTemplateId),
         },
         rates,
         {
@@ -1200,6 +1421,11 @@ export function useWallet() {
     setBudget,
     removeBudget,
     concludeBudgetMonth,
+    // Plantillas de presupuesto
+    addBudgetTemplate,
+    updateBudgetTemplate,
+    removeBudgetTemplate,
+    applyBudgetTemplate,
     // Metas
     addGoal,
     updateGoal,

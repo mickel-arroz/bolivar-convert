@@ -64,11 +64,18 @@ export function BudgetFormDialog({
     [state.categories]
   )
 
+  const selectableCategories = useMemo(() => {
+    if (!asItem) return expenseCategories
+    const taken = new Set(asItem.existingCategoryIds)
+    const editingId = asItem.editing?.categoryId
+    return expenseCategories.filter((c) => c.id === editingId || !taken.has(c.id))
+  }, [expenseCategories, asItem])
+
   useEffect(() => {
     if (!open) return
     if (asItem) {
       // eslint-disable-next-line react-hooks/set-state-in-effect
-      setCategoryId(asItem.editing?.categoryId ?? presetCategoryId ?? expenseCategories[0]?.id ?? '')
+      setCategoryId(asItem.editing?.categoryId ?? presetCategoryId ?? selectableCategories[0]?.id ?? '')
       setLimit(asItem.editing?.limit ?? '')
       setCurrency(asItem.editing?.currency ?? state.displayCurrency)
       setCarryover('')
@@ -150,7 +157,7 @@ export function BudgetFormDialog({
               <SelectTrigger>
                 <SelectValue>
                   {(val) => {
-                    const c = expenseCategories.find((x) => x.id === val)
+                    const c = selectableCategories.find((x) => x.id === val)
                     if (!c) return <span className="text-muted-foreground">Selecciona una categoría</span>
                     const Icon = CATEGORY_ICON_MAP[c.icon] ?? DotsIcon
                     return (
@@ -163,7 +170,7 @@ export function BudgetFormDialog({
                 </SelectValue>
               </SelectTrigger>
               <SelectContent>
-                {expenseCategories.map((c) => {
+                {selectableCategories.map((c) => {
                   const Icon = getCategoryIcon(c.icon)
                   return (
                     <SelectItem key={c.id} value={c.id}>

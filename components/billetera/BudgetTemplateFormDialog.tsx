@@ -230,7 +230,9 @@ export function BudgetTemplateFormDialog({
                   size="sm"
                   className="self-start"
                   onClick={() => setItemDialog({ open: true, editing: null })}
-                  disabled={state.categories.every((c) => c.kind !== 'expense')}
+                  disabled={state.categories.every(
+                    (c) => c.kind !== 'expense' || items.some((i) => i.categoryId === c.id)
+                  )}
                 >
                   <PlusIcon className="size-4" /> Agregar presupuesto
                 </Button>

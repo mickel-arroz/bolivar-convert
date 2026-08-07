@@ -16,6 +16,7 @@ const ENTITY_KEYS = [
   'transfers',
   'budgets',
   'budgetTemplates',
+  'budgetTransfers',
   'goalContributions',
   'shoppingLists',
   'shoppingItems',
@@ -594,7 +595,7 @@ describe('useWallet — plantillas de presupuesto', () => {
     expect(again.find((b) => b.templateId === tplId)?.limit).toBe('250')
   })
 
-  it('applyBudgetTemplate cambia la activa y suma el carryover migrado', async () => {
+  it('applyBudgetTemplate cambia la activa, suma el extra migrado y registra el traspaso', async () => {
     const { result } = renderHook(() => useWallet())
     await waitFor(() => expect(result.current.isMounted).toBe(true))
     const month = new Date().toISOString().slice(0, 7)
@@ -605,12 +606,37 @@ describe('useWallet — plantillas de presupuesto', () => {
     })
     act(() => result.current.setBudget('cat_food', month, '100', 'VES', '0', tplId))
 
-    act(() => result.current.applyBudgetTemplate(tplId, month, { cat_food: '30' }))
+    act(() =>
+      result.current.applyBudgetTemplate(tplId, month, [
+        {
+          fromCategoryId: 'cat_transport',
+          toCategoryId: 'cat_food',
+          extra: 30,
+          spent: 10,
+          currency: 'VES',
+        },
+      ])
+    )
     expect(result.current.state.activeBudgetTemplateId).toBe(tplId)
     const b = result.current.state.budgets.find(
       (x) => x.templateId === tplId && x.categoryId === 'cat_food' && x.month === month
     )
     expect(parseFloat(b?.carryover ?? '0')).toBe(30)
+
+    const bt = result.current.state.budgetTransfers.find(
+      (t) => t.toTemplateId === tplId && t.toCategoryId === 'cat_food'
+    )
+    expect(bt).toBeDefined()
+    expect(bt?.fromTemplateId).toBe(DEFAULT_BUDGET_TEMPLATE_ID)
+    expect(bt?.fromCategoryId).toBe('cat_transport')
+    expect(bt?.extra).toBe('30')
+    expect(bt?.spent).toBe('10')
+    expect(bt?.month).toBe(month)
+
+    const rows = result.current.budgetStatusForMonth(RATES, month)
+    const food = rows.find((r) => r.budget.categoryId === 'cat_food')
+    expect(food?.actual).toBe(10)
+    expect(food?.effectiveLimit).toBe(130)
   })
 
   it('eliminar una plantilla borra sus presupuestos y vuelve a la predeterminada', async () => {
@@ -623,7 +649,7 @@ describe('useWallet — plantillas de presupuesto', () => {
       tplId = result.current.addBudgetTemplate({ name: 'Temporal' })
     })
     act(() => result.current.setBudget('cat_food', month, '80', 'VES', '0', tplId))
-    act(() => result.current.applyBudgetTemplate(tplId, month, {}))
+    act(() => result.current.applyBudgetTemplate(tplId, month, []))
     expect(result.current.state.activeBudgetTemplateId).toBe(tplId)
 
     act(() => result.current.removeBudgetTemplate(tplId))

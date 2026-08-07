@@ -2,10 +2,17 @@
 
 import { Account, Category } from '@/hooks/useWallet'
 import { CATEGORY_ICON_MAP, ACCOUNT_ICON_MAP } from '@/constants/walletCategories'
-import { TransferIcon, PencilIcon, TrashIcon, DotsIcon, WalletIcon } from '@/components/icons'
+import {
+  TransferIcon,
+  TemplateIcon,
+  PencilIcon,
+  TrashIcon,
+  DotsIcon,
+  WalletIcon,
+} from '@/components/icons'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
-import { resolveCommission } from '@/lib/wallet/compute'
+import { resolveCommission, parseSigned, parseAmount } from '@/lib/wallet/compute'
 import { FeedItem } from './feed'
 import { formatMoney, formatDate } from './format'
 
@@ -26,6 +33,57 @@ export function MovementRow({
   onDeleteTx,
   onDeleteTransfer,
 }: MovementRowProps) {
+  if (item.kind === 'budgetTransfer') {
+    const bt = item.budgetTransfer
+    const from = categoryById.get(bt.fromCategoryId)
+    const to = categoryById.get(bt.toCategoryId)
+    const FromIcon = CATEGORY_ICON_MAP[from?.icon ?? 'other'] ?? DotsIcon
+    const ToIcon = CATEGORY_ICON_MAP[to?.icon ?? 'other'] ?? DotsIcon
+    const extra = parseSigned(bt.extra)
+    const spent = parseAmount(bt.spent)
+    const net = extra - spent
+    return (
+      <div className="flex items-center gap-3 rounded-xl border border-border/50 bg-card px-3 py-2.5">
+        <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
+          <TemplateIcon className="size-4" />
+        </div>
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-sm font-bold">Traspaso de presupuesto</p>
+          <p className="flex items-center gap-1 truncate text-xs text-muted-foreground">
+            <FromIcon className="size-3 shrink-0" />
+            {from?.name ?? '—'}
+            <span className="px-0.5">→</span>
+            <ToIcon className="size-3 shrink-0" />
+            {to?.name ?? '—'}
+            <span className="shrink-0">· {formatDate(bt.date)}</span>
+          </p>
+        </div>
+        <div className="text-right">
+          <p
+            className={cn(
+              'text-sm font-black tabular-nums',
+              net < 0 ? 'text-destructive' : 'text-green-600 dark:text-green-400'
+            )}
+          >
+            {net > 0 ? '+' : ''}
+            {formatMoney(net, bt.currency)}
+          </p>
+          {extra !== 0 && (
+            <p className="text-[11px] text-muted-foreground tabular-nums">
+              Extra {extra > 0 ? '+' : ''}
+              {formatMoney(extra, bt.currency)}
+            </p>
+          )}
+          {spent > 0 && (
+            <p className="text-[11px] text-muted-foreground tabular-nums">
+              Gasto −{formatMoney(spent, bt.currency)}
+            </p>
+          )}
+        </div>
+      </div>
+    )
+  }
+
   if (item.kind === 'transfer') {
     const tr = item.transfer
     const from = accountById.get(tr.fromAccountId)

@@ -14,6 +14,7 @@ import type {
   Transfer,
   Budget,
   BudgetTemplate,
+  BudgetTransfer,
   Goal,
   GoalContribution,
   ShoppingList,
@@ -206,6 +207,38 @@ function rowToBudgetTemplate(r: Record<string, unknown>): BudgetTemplate {
   }
 }
 
+function budgetTransferToRow(t: BudgetTransfer, userId: string) {
+  return {
+    id: t.id,
+    user_id: userId,
+    month: t.month,
+    from_template_id: t.fromTemplateId,
+    from_category_id: t.fromCategoryId,
+    to_template_id: t.toTemplateId,
+    to_category_id: t.toCategoryId,
+    extra: t.extra,
+    spent: t.spent,
+    currency: t.currency,
+    date: t.date,
+    created_at: t.createdAt,
+  }
+}
+function rowToBudgetTransfer(r: Record<string, unknown>): BudgetTransfer {
+  return {
+    id: r.id as string,
+    month: r.month as string,
+    fromTemplateId: r.from_template_id as string,
+    fromCategoryId: r.from_category_id as string,
+    toTemplateId: r.to_template_id as string,
+    toCategoryId: r.to_category_id as string,
+    extra: r.extra as string,
+    spent: r.spent as string,
+    currency: r.currency as CurrencyId,
+    date: r.date as string,
+    createdAt: r.created_at as string,
+  }
+}
+
 function goalToRow(g: Goal, userId: string) {
   return {
     id: g.id,
@@ -317,6 +350,7 @@ export async function loadWallet(
     transfers,
     budgets,
     budgetTemplates,
+    budgetTransfers,
     goals,
     contributions,
     shoppingLists,
@@ -329,6 +363,7 @@ export async function loadWallet(
     supabase.from('transfers').select('*').eq('user_id', userId),
     supabase.from('budgets').select('*').eq('user_id', userId),
     supabase.from('budget_templates').select('*').eq('user_id', userId),
+    supabase.from('budget_transfers').select('*').eq('user_id', userId),
     supabase.from('goals').select('*').eq('user_id', userId),
     supabase.from('goal_contributions').select('*').eq('user_id', userId),
     supabase.from('shopping_lists').select('*').eq('user_id', userId),
@@ -343,6 +378,7 @@ export async function loadWallet(
     transfers,
     budgets,
     budgetTemplates,
+    budgetTransfers,
     goals,
     contributions,
     shoppingLists,
@@ -360,6 +396,7 @@ export async function loadWallet(
     transfers: rows(transfers, rowToTransfer),
     budgets: rows(budgets, rowToBudget),
     budgetTemplates: rows(budgetTemplates, rowToBudgetTemplate),
+    budgetTransfers: rows(budgetTransfers, rowToBudgetTransfer),
     goals: rows(goals, rowToGoal),
     goalContributions: rows(contributions, rowToContribution),
     shoppingLists: rows(shoppingLists, rowToShoppingList),
@@ -526,6 +563,7 @@ export async function applyWalletDelta(
     upsert('transactions', upserts.transactions.map((t) => transactionToRow(t, userId))),
     upsert('transfers', upserts.transfers.map((t) => transferToRow(t, userId))),
     upsert('budgets', upserts.budgets.map((b) => budgetToRow(b, userId))),
+    upsert('budget_transfers', (upserts.budgetTransfers ?? []).map((t) => budgetTransferToRow(t, userId))),
     upsert('goal_contributions', upserts.goalContributions.map((c) => contributionToRow(c, userId))),
     upsert('shopping_list_items', upserts.shoppingItems.map((it) => shoppingItemToRow(it, userId))),
   ])
@@ -535,6 +573,7 @@ export async function applyWalletDelta(
     del('transactions', deletes.transactions),
     del('transfers', deletes.transfers),
     del('budgets', deletes.budgets),
+    del('budget_transfers', deletes.budgetTransfers ?? []),
     del('goal_contributions', deletes.goalContributions),
     del('shopping_list_items', deletes.shoppingItems),
   ])
@@ -604,16 +643,18 @@ export async function loadMovements(
   userId: string,
   opts: { page?: number; pageSize?: number; limit?: number }
 ): Promise<MovementsPage> {
-  const [txRes, trRes] = await Promise.all([
+  const [txRes, trRes, btRes] = await Promise.all([
     supabase.from('transactions').select('*').eq('user_id', userId),
     supabase.from('transfers').select('*').eq('user_id', userId),
+    supabase.from('budget_transfers').select('*').eq('user_id', userId),
   ])
-  const failed = [txRes, trRes].find((r) => r.error)
+  const failed = [txRes, trRes, btRes].find((r) => r.error)
   if (failed?.error) throw failed.error
 
   const transactions = ((txRes.data as Record<string, unknown>[]) ?? []).map(rowToTransaction)
   const transfers = ((trRes.data as Record<string, unknown>[]) ?? []).map(rowToTransfer)
-  const feed = buildFeed(transactions, transfers)
+  const budgetTransfers = ((btRes.data as Record<string, unknown>[]) ?? []).map(rowToBudgetTransfer)
+  const feed = buildFeed(transactions, transfers, budgetTransfers)
   const total = feed.length
 
   if (opts.limit !== undefined) {
@@ -640,15 +681,18 @@ export async function loadStats(
   range: TimeRange,
   rates: Rates
 ): Promise<StatsBundle> {
-  const [profileRes, accountsRes, txRes, trRes, catRes, budgetRes] = await Promise.all([
+  const [profileRes, accountsRes, txRes, trRes, catRes, budgetRes, btRes] = await Promise.all([
     supabase.from('profiles').select('*').eq('id', userId).maybeSingle(),
     supabase.from('accounts').select('*').eq('user_id', userId),
     supabase.from('transactions').select('*').eq('user_id', userId),
     supabase.from('transfers').select('*').eq('user_id', userId),
     supabase.from('categories').select('*').eq('user_id', userId),
     supabase.from('budgets').select('*').eq('user_id', userId),
+    supabase.from('budget_transfers').select('*').eq('user_id', userId),
   ])
-  const failed = [profileRes, accountsRes, txRes, trRes, catRes, budgetRes].find((r) => r.error)
+  const failed = [profileRes, accountsRes, txRes, trRes, catRes, budgetRes, btRes].find(
+    (r) => r.error
+  )
   if (failed?.error) throw failed.error
 
   const accounts = ((accountsRes.data as Record<string, unknown>[]) ?? []).map(rowToAccount)
@@ -656,6 +700,7 @@ export async function loadStats(
   const transfers = ((trRes.data as Record<string, unknown>[]) ?? []).map(rowToTransfer)
   const categories = ((catRes.data as Record<string, unknown>[]) ?? []).map(rowToCategory)
   const allBudgets = ((budgetRes.data as Record<string, unknown>[]) ?? []).map(rowToBudget)
+  const budgetTransfers = ((btRes.data as Record<string, unknown>[]) ?? []).map(rowToBudgetTransfer)
 
   const p = profileRes.data as Record<string, unknown> | null
   const displayCurrency = (p?.display_currency as CurrencyId) ?? 'VES'
@@ -665,7 +710,7 @@ export async function loadStats(
   const budgets = allBudgets.filter((b) => b.templateId === activeTemplateId)
 
   return computeStats(
-    { accounts, transactions, transfers, categories, budgets },
+    { accounts, transactions, transfers, categories, budgets, budgetTransfers },
     rates,
     { displayCurrency, statsRateSource, timeRange: range }
   )

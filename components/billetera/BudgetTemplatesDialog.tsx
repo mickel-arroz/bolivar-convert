@@ -68,13 +68,13 @@ export function BudgetTemplatesDialog({
 
   const handleActivate = (templateId: string) => {
     if (templateId === state.activeBudgetTemplateId) return
-    const hasLeftover = budgetStatusForMonth(rates, month).some(
-      (r) => Math.abs(r.effectiveLimit - r.actual) > EPS
+    const hasTransferable = budgetStatusForMonth(rates, month).some(
+      (r) => Math.abs(r.carryover - r.actual) > EPS
     )
-    if (hasLeftover) {
+    if (hasTransferable) {
       setMigration({ open: true, toTemplateId: templateId })
     } else {
-      applyBudgetTemplate(templateId, month, {})
+      applyBudgetTemplate(templateId, month, [])
       notify.success('Plantilla activada')
     }
   }

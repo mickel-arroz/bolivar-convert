@@ -118,6 +118,34 @@ export interface Budget {
   carryover?: string
 }
 
+/** Traspaso de presupuesto entre categorías al activar otra plantilla (queda en el feed). */
+export interface BudgetTransfer {
+  id: string
+  /** Mes al que aplica, formato 'YYYY-MM'. */
+  month: string
+  fromTemplateId: string
+  fromCategoryId: string
+  toTemplateId: string
+  toCategoryId: string
+  /** Extra movido (con signo) al carryover del destino, en `currency`. */
+  extra: string
+  /** Gasto trasladado: cuenta como gastado en el destino, en `currency`. */
+  spent: string
+  /** Moneda del presupuesto destino. */
+  currency: CurrencyId
+  date: string
+  createdAt: string
+}
+
+/** Entrada de un traspaso al activar una plantilla (montos en la moneda del destino). */
+export interface BudgetTransferInput {
+  fromCategoryId: string
+  toCategoryId: string
+  extra: number
+  spent: number
+  currency: CurrencyId
+}
+
 /** Meta de ahorro / alcancía. No está atada a un mes. */
 export interface Goal {
   id: string
@@ -180,6 +208,7 @@ export interface WalletState {
   categories: Category[]
   budgets: Budget[]
   budgetTemplates: BudgetTemplate[]
+  budgetTransfers: BudgetTransfer[]
   goals: Goal[]
   goalContributions: GoalContribution[]
   shoppingLists: ShoppingList[]
@@ -282,6 +311,7 @@ export const DEFAULT_STATE: WalletState = {
   categories: DEFAULT_CATEGORIES,
   budgets: [],
   budgetTemplates: [DEFAULT_BUDGET_TEMPLATE],
+  budgetTransfers: [],
   goals: [],
   goalContributions: [],
   shoppingLists: [],
@@ -397,6 +427,7 @@ export function useWallet() {
           categories: mergeCategories(loaded.categories),
           budgets: loaded.budgets ?? [],
           budgetTemplates: loaded.budgetTemplates ?? [],
+          budgetTransfers: loaded.budgetTransfers ?? [],
           goals: loaded.goals ?? [],
           goalContributions: loaded.goalContributions ?? [],
           shoppingLists: loaded.shoppingLists ?? [],
@@ -955,21 +986,45 @@ export function useWallet() {
   }, [])
 
   /**
-   * Activa una plantilla para el mes. Suma el saldo/extra migrado (`carryoverByCategory`,
-   * en la moneda del destino) al carryover de cada presupuesto de la plantilla en ese mes.
-   * No borra los presupuestos de la plantilla anterior (coexisten) ni toca transacciones.
+   * Activa una plantilla para el mes aplicando los traspasos dados: el `extra` se
+   * suma al carryover del destino y el `spent` se computa como gastado ahí (vía
+   * `BudgetTransfer`). No borra presupuestos de la plantilla anterior ni transacciones.
    */
   const applyBudgetTemplate = useCallback(
-    (templateId: string, month: string, carryoverByCategory: Record<string, string>) => {
+    (templateId: string, month: string, transfers: BudgetTransferInput[]) => {
       setState((s) => {
         if (!s.budgetTemplates.some((t) => t.id === templateId)) return s
+        const extraByCategory: Record<string, number> = {}
+        for (const t of transfers) {
+          extraByCategory[t.toCategoryId] = (extraByCategory[t.toCategoryId] ?? 0) + t.extra
+        }
         const budgets = s.budgets.map((b) => {
           if (b.templateId !== templateId || b.month !== month) return b
-          const add = carryoverByCategory[b.categoryId]
-          if (add === undefined) return b
-          return { ...b, carryover: String(parseSigned(b.carryover) + parseSigned(add)) }
+          const add = extraByCategory[b.categoryId]
+          if (!add) return b
+          return { ...b, carryover: String(parseSigned(b.carryover) + add) }
         })
-        return { ...s, budgets, activeBudgetTemplateId: templateId }
+        const date = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Caracas' })
+        const createdAt = new Date().toISOString()
+        const budgetTransfers = [
+          ...s.budgetTransfers,
+          ...transfers
+            .filter((t) => t.extra !== 0 || t.spent !== 0)
+            .map((t) => ({
+              id: generateId(),
+              month,
+              fromTemplateId: s.activeBudgetTemplateId,
+              fromCategoryId: t.fromCategoryId,
+              toTemplateId: templateId,
+              toCategoryId: t.toCategoryId,
+              extra: String(t.extra),
+              spent: String(t.spent),
+              currency: t.currency,
+              date,
+              createdAt,
+            })),
+        ]
+        return { ...s, budgets, budgetTransfers, activeBudgetTemplateId: templateId }
       })
     },
     []
@@ -1357,6 +1412,7 @@ export function useWallet() {
           categories: state.categories,
           budgets: state.budgets.filter((b) => b.templateId === state.activeBudgetTemplateId),
           transactions: state.transactions,
+          budgetTransfers: state.budgetTransfers,
         },
         rates,
         state.statsRateSource,
@@ -1375,6 +1431,7 @@ export function useWallet() {
           transfers: state.transfers,
           categories: state.categories,
           budgets: state.budgets.filter((b) => b.templateId === state.activeBudgetTemplateId),
+          budgetTransfers: state.budgetTransfers,
         },
         rates,
         {

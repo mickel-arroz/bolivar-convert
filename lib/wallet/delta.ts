@@ -13,6 +13,7 @@ import type {
   Transfer,
   Budget,
   BudgetTemplate,
+  BudgetTransfer,
   Goal,
   GoalContribution,
   ShoppingList,
@@ -40,6 +41,7 @@ export interface WalletDelta {
     transfers: Transfer[]
     budgets: Budget[]
     budgetTemplates: BudgetTemplate[]
+    budgetTransfers: BudgetTransfer[]
     goalContributions: GoalContribution[]
     shoppingLists: ShoppingList[]
     shoppingItems: ShoppingListItem[]
@@ -52,6 +54,7 @@ export interface WalletDelta {
     transfers: string[]
     budgets: string[]
     budgetTemplates: string[]
+    budgetTransfers: string[]
     goalContributions: string[]
     shoppingLists: string[]
     shoppingItems: string[]
@@ -95,6 +98,7 @@ export function buildWalletDelta(prev: WalletState, next: WalletState): WalletDe
   const dTransfers = diff(prev.transfers, next.transfers)
   const dBudgets = diff(prev.budgets, next.budgets)
   const dBudgetTemplates = diff(prev.budgetTemplates, next.budgetTemplates)
+  const dBudgetTransfers = diff(prev.budgetTransfers ?? [], next.budgetTransfers ?? [])
   const dContributions = diff(prev.goalContributions, next.goalContributions)
   const dShoppingLists = diff(prev.shoppingLists, next.shoppingLists)
   const dShoppingItems = diff(prev.shoppingItems, next.shoppingItems)
@@ -108,6 +112,7 @@ export function buildWalletDelta(prev: WalletState, next: WalletState): WalletDe
       transfers: dTransfers.upserts,
       budgets: dBudgets.upserts,
       budgetTemplates: dBudgetTemplates.upserts,
+      budgetTransfers: dBudgetTransfers.upserts,
       goalContributions: dContributions.upserts,
       shoppingLists: dShoppingLists.upserts,
       shoppingItems: dShoppingItems.upserts,
@@ -120,6 +125,7 @@ export function buildWalletDelta(prev: WalletState, next: WalletState): WalletDe
       transfers: dTransfers.deletes,
       budgets: dBudgets.deletes,
       budgetTemplates: dBudgetTemplates.deletes,
+      budgetTransfers: dBudgetTransfers.deletes,
       goalContributions: dContributions.deletes,
       shoppingLists: dShoppingLists.deletes,
       shoppingItems: dShoppingItems.deletes,
@@ -149,6 +155,7 @@ export function isEmptyDelta(d: WalletDelta): boolean {
     u.transfers.length === 0 &&
     u.budgets.length === 0 &&
     u.budgetTemplates.length === 0 &&
+    u.budgetTransfers.length === 0 &&
     u.goalContributions.length === 0 &&
     u.shoppingLists.length === 0 &&
     u.shoppingItems.length === 0 &&
@@ -159,6 +166,7 @@ export function isEmptyDelta(d: WalletDelta): boolean {
     del.transfers.length === 0 &&
     del.budgets.length === 0 &&
     del.budgetTemplates.length === 0 &&
+    del.budgetTransfers.length === 0 &&
     del.goalContributions.length === 0 &&
     del.shoppingLists.length === 0 &&
     del.shoppingItems.length === 0

@@ -52,6 +52,7 @@ function completeState(p: Partial<WalletState>): WalletState {
       templateId: b.templateId ?? DEFAULT_BUDGET_TEMPLATE_ID,
     })),
     budgetTemplates: p.budgetTemplates ?? DEFAULT_STATE.budgetTemplates,
+    budgetTransfers: p.budgetTransfers ?? [],
     goals: p.goals ?? [],
     goalContributions: p.goalContributions ?? [],
     concludedMonths: p.concludedMonths ?? [],

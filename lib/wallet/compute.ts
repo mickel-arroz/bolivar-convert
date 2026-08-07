@@ -12,6 +12,7 @@ import type {
   Transaction,
   Transfer,
   Budget,
+  BudgetTransfer,
   GoalContribution,
   Category,
   CommissionType,
@@ -152,6 +153,7 @@ export function normalize(
 export type FeedItem =
   | { kind: 'tx'; id: string; date: string; tx: Transaction }
   | { kind: 'transfer'; id: string; date: string; transfer: Transfer }
+  | { kind: 'budgetTransfer'; id: string; date: string; budgetTransfer: BudgetTransfer }
 
 /** Resumen de cuentas del tab Resumen: cuentas + balance + totales por moneda. */
 export interface AccountsSummary {
@@ -169,8 +171,12 @@ export interface MovementsPage {
   totalPages: number
 }
 
-/** Combina transacciones y traspasos en un feed único, ordenado por fecha desc. */
-export function buildFeed(transactions: Transaction[], transfers: Transfer[]): FeedItem[] {
+/** Combina transacciones, traspasos y traspasos de presupuesto en un feed único, ordenado por fecha desc. */
+export function buildFeed(
+  transactions: Transaction[],
+  transfers: Transfer[],
+  budgetTransfers: BudgetTransfer[] = []
+): FeedItem[] {
   const items: FeedItem[] = [
     ...transactions.map((tx) => ({ kind: 'tx' as const, id: tx.id, date: tx.date, tx })),
     ...transfers.map((transfer) => ({
@@ -179,8 +185,23 @@ export function buildFeed(transactions: Transaction[], transfers: Transfer[]): F
       date: transfer.date,
       transfer,
     })),
+    ...budgetTransfers.map((budgetTransfer) => ({
+      kind: 'budgetTransfer' as const,
+      id: budgetTransfer.id,
+      date: budgetTransfer.date,
+      budgetTransfer,
+    })),
   ]
-  return items.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+  const time = (s?: string) => (s ? new Date(s).getTime() : 0)
+  const createdAt = (item: FeedItem) =>
+    item.kind === 'tx'
+      ? item.tx.createdAt
+      : item.kind === 'transfer'
+        ? item.transfer.createdAt
+        : item.budgetTransfer.createdAt
+  return items.sort(
+    (a, b) => time(b.date) - time(a.date) || time(createdAt(b)) - time(createdAt(a))
+  )
 }
 
 /* ─── Balances ─── */
@@ -245,11 +266,12 @@ export interface StatsInput {
   transfers: Transfer[]
   categories: Category[]
   budgets: Budget[]
+  budgetTransfers: BudgetTransfer[]
 }
 
 /** Estado de presupuestos de un mes (requiere tasas), ordenado por título. */
 export function budgetStatusForMonth(
-  input: Pick<StatsInput, 'accounts' | 'categories' | 'budgets' | 'transactions'>,
+  input: Pick<StatsInput, 'accounts' | 'categories' | 'budgets' | 'transactions' | 'budgetTransfers'>,
   rates: Rates,
   statsRateSource: RateId,
   month: string
@@ -267,6 +289,11 @@ export function budgetStatusForMonth(
         const acct = accountById.get(tx.accountId)
         if (!acct) continue
         actual += normalize(parseAmount(tx.amount), acct.currency, budget.currency, rates, statsRateSource)
+      }
+      for (const bt of input.budgetTransfers) {
+        if (bt.toTemplateId !== budget.templateId || bt.toCategoryId !== budget.categoryId) continue
+        if (bt.month !== month) continue
+        actual += normalize(parseAmount(bt.spent), bt.currency, budget.currency, rates, statsRateSource)
       }
       const limit = parseAmount(budget.limit)
       const carryover = parseSigned(budget.carryover)

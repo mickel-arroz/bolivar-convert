@@ -38,6 +38,7 @@ import { cn } from '@/lib/utils'
 import { notify } from '@/lib/notify'
 import { WalletDialogs } from './dialogs'
 import { MovementRow } from './MovementRow'
+import { ResetWallet } from './ResetWallet'
 import { formatMoney } from './format'
 
 const NETWORTH_CURRENCY_KEY = 'bolivar_networth_currency_v1'
@@ -289,6 +290,8 @@ export function ResumenTab({ wallet, rates, dialogs }: ResumenTabProps) {
           )}
         </div>
       )}
+
+      <ResetWallet wallet={wallet} />
 
       <AlertDialog open={!!pendingDelete} onOpenChange={(o) => !o && setPendingDelete(null)}>
         <AlertDialogContent>

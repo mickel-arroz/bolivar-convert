@@ -404,48 +404,59 @@ export function useWallet() {
   // Cola para serializar las escrituras y evitar solapamientos.
   const syncQueueRef = useRef<Promise<void>>(Promise.resolve())
 
+  // Aplica el estado cargado desde la nube: hidrata `state` (con defaults sembrados)
+  // y fija la base de sync a lo que realmente hay en la nube.
+  const applyLoaded = useCallback((loaded: Partial<WalletState>) => {
+    const merged: WalletState = {
+      ...DEFAULT_STATE,
+      ...loaded,
+      // Backfill: cuentas guardadas antes de tener icono → 'wallet'
+      accounts: (loaded.accounts ?? []).map((a) => ({ ...a, icon: a.icon ?? 'wallet' })),
+      transactions: loaded.transactions ?? [],
+      transfers: loaded.transfers ?? [],
+      // Refresca las categorías por defecto (por id) desde el código y conserva
+      // las del usuario; si no hay ninguna guardada, siembra las por defecto.
+      categories: mergeCategories(loaded.categories),
+      budgets: loaded.budgets ?? [],
+      budgetTemplates: loaded.budgetTemplates ?? [],
+      budgetTransfers: loaded.budgetTransfers ?? [],
+      goals: loaded.goals ?? [],
+      goalContributions: loaded.goalContributions ?? [],
+      shoppingLists: loaded.shoppingLists ?? [],
+      shoppingItems: loaded.shoppingItems ?? [],
+      concludedMonths: loaded.concludedMonths ?? [],
+      activeBudgetTemplateId: loaded.activeBudgetTemplateId ?? DEFAULT_BUDGET_TEMPLATE_ID,
+    }
+    // Base = lo que realmente hay en la nube (sin sembrados del código), para que el
+    // primer sync inserte cualquier default nuevo (categorías / plantilla por defecto).
+    lastSyncedRef.current = {
+      ...DEFAULT_STATE,
+      ...loaded,
+      categories: loaded.categories ?? [],
+      budgetTemplates: loaded.budgetTemplates ?? [],
+      // '' fuerza el push del puntero activo si la nube aún no lo tiene.
+      activeBudgetTemplateId: loaded.activeBudgetTemplateId ?? '',
+    }
+    setState(normalizeTemplates(merged))
+  }, [])
+
+  // Carga (o recarga) la billetera desde nuestra API. Devuelve false si no hay sesión.
+  const hydrate = useCallback(async (): Promise<boolean> => {
+    const res = await fetch('/api/wallet/state')
+    if (res.status === 401) return false // sin sesión
+    if (!res.ok) throw new Error('No se pudo cargar la billetera')
+    const loaded = (await res.json()) as Partial<WalletState>
+    applyLoaded(loaded)
+    return true
+  }, [applyLoaded])
+
   // Hidratar desde nuestra API al montar (el cliente no habla con Supabase directo;
   // el middleware protege /billetera, así que aquí hay sesión).
   useEffect(() => {
     let cancelled = false
     ;(async () => {
       try {
-        const res = await fetch('/api/wallet/state')
-        if (res.status === 401) return // sin sesión
-        if (!res.ok) throw new Error('No se pudo cargar la billetera')
-        const loaded = (await res.json()) as Partial<WalletState>
-        if (cancelled) return
-        const merged: WalletState = {
-          ...DEFAULT_STATE,
-          ...loaded,
-          // Backfill: cuentas guardadas antes de tener icono → 'wallet'
-          accounts: (loaded.accounts ?? []).map((a) => ({ ...a, icon: a.icon ?? 'wallet' })),
-          transactions: loaded.transactions ?? [],
-          transfers: loaded.transfers ?? [],
-          // Refresca las categorías por defecto (por id) desde el código y conserva
-          // las del usuario; si no hay ninguna guardada, siembra las por defecto.
-          categories: mergeCategories(loaded.categories),
-          budgets: loaded.budgets ?? [],
-          budgetTemplates: loaded.budgetTemplates ?? [],
-          budgetTransfers: loaded.budgetTransfers ?? [],
-          goals: loaded.goals ?? [],
-          goalContributions: loaded.goalContributions ?? [],
-          shoppingLists: loaded.shoppingLists ?? [],
-          shoppingItems: loaded.shoppingItems ?? [],
-          concludedMonths: loaded.concludedMonths ?? [],
-          activeBudgetTemplateId: loaded.activeBudgetTemplateId ?? DEFAULT_BUDGET_TEMPLATE_ID,
-        }
-        // Base = lo que realmente hay en la nube (sin sembrados del código), para que el
-        // primer sync inserte cualquier default nuevo (categorías / plantilla por defecto).
-        lastSyncedRef.current = {
-          ...DEFAULT_STATE,
-          ...loaded,
-          categories: loaded.categories ?? [],
-          budgetTemplates: loaded.budgetTemplates ?? [],
-          // '' fuerza el push del puntero activo si la nube aún no lo tiene.
-          activeBudgetTemplateId: loaded.activeBudgetTemplateId ?? '',
-        }
-        setState(normalizeTemplates(merged))
+        await hydrate()
       } catch (e) {
         console.error('[wallet load]', e)
         if (!cancelled) {
@@ -459,7 +470,7 @@ export function useWallet() {
     return () => {
       cancelled = true
     }
-  }, [])
+  }, [hydrate])
 
   // Persistir en la nube el delta respecto al último estado confirmado, vía /api/wallet/sync.
   useEffect(() => {
@@ -1348,6 +1359,42 @@ export function useWallet() {
 
   const clearAll = useCallback(() => setState({ ...DEFAULT_STATE }), [])
 
+  /**
+   * Restablece la billetera en la nube y re-hidrata desde el servidor.
+   * - 'money': vacía saldos, presupuestos, metas y movimientos (conserva los elementos).
+   * - 'all': borra todo, dejando al usuario como recién registrado.
+   * Devuelve true si tuvo éxito. Al re-hidratar, ajusta `state` y la base de sync a la
+   * verdad del servidor para que ningún delta posterior re-suba lo eliminado.
+   */
+  const resetWallet = useCallback(
+    async (mode: 'money' | 'all'): Promise<boolean> => {
+      try {
+        const res = await fetch('/api/wallet/reset', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ mode }),
+        })
+        if (!res.ok) {
+          const body = (await res.json().catch(() => null)) as { error?: string } | null
+          throw new Error(body?.error || 'reset failed')
+        }
+        await hydrate()
+        setSyncError(false)
+        setSyncedVersion((v) => v + 1)
+        return true
+      } catch (e) {
+        console.error('[wallet reset]', e)
+        const msg = e instanceof Error ? e.message : ''
+        notify.error(
+          'No se pudo restablecer la billetera',
+          msg && msg !== 'reset failed' ? msg : 'Intenta de nuevo.'
+        )
+        return false
+      }
+    },
+    [hydrate]
+  )
+
   /* ── Derivados sin tasas ── */
   const accountBalances = useMemo<AccountBalance[]>(
     () =>
@@ -1503,5 +1550,6 @@ export function useWallet() {
     setStatsRateSource,
     setTimeRange,
     clearAll,
+    resetWallet,
   }
 }

@@ -608,6 +608,95 @@ export async function applyWalletDelta(
   if (errors.length > 0) throw errors[0]
 }
 
+/* ─────────────────────────── Restablecer billetera ─────────────────────────── */
+
+/**
+ * Vacía el dinero del usuario sin borrar los elementos: borra movimientos, traspasos,
+ * traspasos de presupuesto y aportes a metas; pone en cero saldos de cuentas y montos
+ * de presupuestos; y revierte las compras a "pendiente". Cuentas, categorías,
+ * presupuestos, plantillas, metas y listas de compras siguen existiendo.
+ * Todo scoped a `userId` (RLS refuerza el aislamiento).
+ */
+export async function resetWalletMoney(supabase: SupabaseClient, userId: string): Promise<void> {
+  const errors: unknown[] = []
+  const check = (res: { error: unknown }) => {
+    if (res.error) errors.push(res.error)
+  }
+  const del = async (table: string) =>
+    check(await supabase.from(table).delete().eq('user_id', userId))
+  const update = async (table: string, values: Record<string, unknown>) =>
+    check(await supabase.from(table).update(values).eq('user_id', userId))
+
+  // 1) Borrar movimientos y demás registros de dinero.
+  await Promise.all([
+    del('transactions'),
+    del('transfers'),
+    del('budget_transfers'),
+    del('goal_contributions'),
+  ])
+
+  // 2) Poner en cero los montos de los elementos conservados.
+  await Promise.all([
+    update('accounts', { opening_balance: '0' }),
+    update('budgets', { limit: '0', carryover: null }),
+    update('shopping_list_items', { purchased: false, purchase: null }),
+  ])
+
+  if (errors.length > 0) throw errors[0]
+}
+
+/**
+ * Borra absolutamente toda la data de la billetera del usuario y resetea sus
+ * preferencias, dejándolo como recién registrado. No re-siembra categorías ni la
+ * plantilla por defecto: el cliente las siembra al re-hidratar y el siguiente sync
+ * las sube (igual que en un login nuevo). Scoped a `userId` (RLS refuerza).
+ */
+export async function resetWalletAll(supabase: SupabaseClient, userId: string): Promise<void> {
+  const errors: unknown[] = []
+  const check = (res: { error: unknown }) => {
+    if (res.error) errors.push(res.error)
+  }
+  const del = async (table: string) =>
+    check(await supabase.from(table).delete().eq('user_id', userId))
+
+  // Borrado FK-seguro: hijos primero.
+  await Promise.all([
+    del('transactions'),
+    del('transfers'),
+    del('budgets'),
+    del('budget_transfers'),
+    del('goal_contributions'),
+    del('shopping_list_items'),
+  ])
+
+  // Luego los padres.
+  await Promise.all([
+    del('accounts'),
+    del('categories'),
+    del('budget_templates'),
+    del('goals'),
+    del('shopping_lists'),
+  ])
+
+  // Resetear preferencias a los valores por defecto (conserva profiles.id → auth.users).
+  check(
+    await supabase.from('profiles').upsert(
+      {
+        id: userId,
+        display_currency: 'VES',
+        stats_rate_source: 'bcvUsd',
+        time_range: '1m',
+        concluded_months: [],
+        active_budget_template_id: DEFAULT_BUDGET_TEMPLATE_ID,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: 'id' }
+    )
+  )
+
+  if (errors.length > 0) throw errors[0]
+}
+
 /* ─────────────────── Lecturas por tab (endpoints dedicados) ─────────────────── */
 
 /** Carga cuentas con su balance calculado (incluye traspasos y aportes a metas). */

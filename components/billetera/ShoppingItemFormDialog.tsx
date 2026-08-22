@@ -5,6 +5,7 @@ import { CurrencyId, getCurrency } from '@/constants/currencies'
 import { ShoppingListItem, WalletApi } from '@/hooks/useWallet'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { Textarea } from '@/components/ui/textarea'
 import {
   Dialog,
   DialogContent,
@@ -15,10 +16,17 @@ import {
 } from '@/components/ui/dialog'
 import { cn } from '@/lib/utils'
 import { notify } from '@/lib/notify'
+import {
+  SHOPPING_PRIORITIES,
+  PRIORITY_LABELS,
+  DEFAULT_SHOPPING_PRIORITY,
+  ShoppingPriority,
+  normalizePriority,
+} from '@/constants/shoppingPriority'
 import { Field, AmountField, CurrencyToggle } from './fields'
 
 const TITLE_MAX = 60
-const DESC_MAX = 200
+const DESC_MAX = 300
 
 interface ShoppingItemFormDialogProps {
   open: boolean
@@ -40,6 +48,7 @@ export function ShoppingItemFormDialog({
   const [description, setDescription] = useState('')
   const [price, setPrice] = useState('')
   const [currency, setCurrency] = useState<CurrencyId>('VES')
+  const [priority, setPriority] = useState<ShoppingPriority>(DEFAULT_SHOPPING_PRIORITY)
 
   useEffect(() => {
     if (open) {
@@ -48,6 +57,7 @@ export function ShoppingItemFormDialog({
       setDescription(editing?.description ?? '')
       setPrice(editing?.price ?? '')
       setCurrency(editing?.currency ?? 'VES')
+      setPriority(normalizePriority(editing?.priority))
     }
   }, [open, editing])
 
@@ -70,9 +80,17 @@ export function ShoppingItemFormDialog({
         description,
         price: price || '0',
         currency,
+        priority,
       })
     } else {
-      addShoppingItem({ listId, title, description: description || undefined, price: price || '0', currency })
+      addShoppingItem({
+        listId,
+        title,
+        description: description || undefined,
+        price: price || '0',
+        currency,
+        priority,
+      })
     }
     notify.success(editing ? 'Producto actualizado' : 'Producto añadido')
     onOpenChange(false)
@@ -104,18 +122,36 @@ export function ShoppingItemFormDialog({
           </Field>
 
           <Field label="Descripción" hint={`Opcional · ${description.length}/${DESC_MAX}`}>
-            <textarea
+            <Textarea
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               placeholder="Marca, cantidad, detalles…"
               rows={2}
               maxLength={DESC_MAX}
-              className={cn(
-                'w-full min-w-0 resize-none rounded-lg border border-input bg-transparent px-2.5 py-1.5 text-base transition-colors outline-none',
-                'placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50',
-                'md:text-sm dark:bg-input/30'
-              )}
             />
+          </Field>
+
+          <Field label="Prioridad" hint="1 es la más importante; 4 la menos.">
+            <div className="grid grid-cols-4 gap-1 rounded-lg bg-muted/50 p-1">
+              {SHOPPING_PRIORITIES.map((p) => (
+                <button
+                  key={p}
+                  type="button"
+                  onClick={() => setPriority(p)}
+                  className={cn(
+                    'flex flex-col items-center gap-0.5 rounded-md py-1.5 text-sm font-bold transition-all',
+                    priority === p
+                      ? 'bg-background text-foreground shadow-sm'
+                      : 'text-muted-foreground hover:text-foreground'
+                  )}
+                >
+                  <span>{p}</span>
+                  <span className="text-[10px] font-medium uppercase tracking-wide">
+                    {PRIORITY_LABELS[p]}
+                  </span>
+                </button>
+              ))}
+            </div>
           </Field>
 
           <div className="grid grid-cols-2 gap-3">

@@ -79,7 +79,7 @@ export function ShoppingItemDetailDialog({
                 <p className="mb-1 text-xs font-bold uppercase tracking-wider text-muted-foreground">
                   Descripción
                 </p>
-                <p className="break-words text-foreground">{item.description}</p>
+                <p className="whitespace-pre-line break-words text-foreground">{item.description}</p>
               </div>
             )}
             <Row label="Precio" value={formatMoney(price, item.currency)} />

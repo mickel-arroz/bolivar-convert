@@ -16,6 +16,7 @@ import {
   DialogDescription,
 } from '@/components/ui/dialog'
 import { CheckIcon, PlusIcon, PencilIcon, MaximizeIcon, MinimizeIcon } from '@/components/icons'
+import { PRIORITY_COLORS, PRIORITY_LABELS, normalizePriority } from '@/constants/shoppingPriority'
 import { cn } from '@/lib/utils'
 import { formatMoney } from './format'
 
@@ -59,10 +60,19 @@ export function ShoppingListDetailDialog({
   const [eurRateSource, setEurRateSource] = useState<EurRateSource>('bcvEur')
   const [eurCustom, setEurCustom] = useState('')
 
-  const items = useMemo(
-    () => (list ? state.shoppingItems.filter((it) => it.listId === list.id) : []),
-    [list, state.shoppingItems]
-  )
+  const items = useMemo(() => {
+    if (!list) return []
+    const priceOf = (it: ShoppingListItem) => parseFloat(String(it.price).replace(',', '.')) || 0
+    return state.shoppingItems
+      .filter((it) => it.listId === list.id)
+      .sort((a, b) => {
+        const pr = normalizePriority(a.priority) - normalizePriority(b.priority)
+        if (pr !== 0) return pr
+        const price = priceOf(a) - priceOf(b)
+        if (price !== 0) return price
+        return a.title.localeCompare(b.title, 'es', { sensitivity: 'base' })
+      })
+  }, [list, state.shoppingItems])
 
   const subtotals = useMemo(() => {
     const acc: Partial<Record<CurrencyId, number>> = {}
@@ -157,7 +167,14 @@ export function ShoppingListDetailDialog({
         </button>
 
         <DialogHeader className="pr-16">
-          <DialogTitle className="break-words">{list.name}</DialogTitle>
+          <DialogTitle className="flex items-center gap-2 break-words">
+            <span
+              aria-hidden
+              className="inline-block size-3 shrink-0 rounded-[4px]"
+              style={{ backgroundColor: accent }}
+            />
+            {list.name}
+          </DialogTitle>
           <DialogDescription>
             {items.length === 0
               ? 'Aún no hay productos en esta lista.'
@@ -179,10 +196,12 @@ export function ShoppingListDetailDialog({
             <ul className={cn('gap-2', fullscreen ? 'grid grid-cols-1 md:grid-cols-2' : 'flex flex-col')}>
               {items.map((it) => {
                 const price = parseFloat(String(it.price).replace(',', '.')) || 0
+                const pr = normalizePriority(it.priority)
                 return (
                   <li
                     key={it.id}
-                    className="flex items-center gap-3 rounded-xl border border-border/60 p-3 transition-colors hover:border-foreground/30"
+                    style={{ borderLeftColor: accent }}
+                    className="flex items-center gap-3 rounded-xl border border-l-2 border-border/60 p-3 transition-colors hover:border-foreground/30"
                   >
                     <button
                       type="button"
@@ -219,11 +238,20 @@ export function ShoppingListDetailDialog({
                           {formatMoney(price, it.currency)}
                         </span>
                       </div>
-                      {it.description && (
-                        <span className="truncate text-xs text-muted-foreground">
-                          {it.description}
+                      <div className="mt-1 flex items-center gap-2">
+                        <span
+                          title={`Prioridad ${pr} · ${PRIORITY_LABELS[pr]}`}
+                          className="flex size-4 shrink-0 items-center justify-center rounded-[4px] text-[10px] font-bold leading-none text-white"
+                          style={{ backgroundColor: PRIORITY_COLORS[pr] }}
+                        >
+                          {pr}
                         </span>
-                      )}
+                        {it.description && (
+                          <span className="truncate text-xs text-muted-foreground">
+                            {it.description}
+                          </span>
+                        )}
+                      </div>
                     </button>
                   </li>
                 )
@@ -233,7 +261,10 @@ export function ShoppingListDetailDialog({
 
           {items.length > 0 && (
             <div className="mt-auto border-t border-border/60 pt-3">
-              <div className="flex flex-col gap-2.5 rounded-xl border border-border/60 bg-muted/30 p-3">
+              <div
+                style={{ boxShadow: `0 0 0 1px color-mix(in oklch, ${accent} 35%, transparent)` }}
+                className="flex flex-col gap-2.5 rounded-xl border border-border/60 bg-muted/30 p-3"
+              >
                 <div className="flex items-center justify-between gap-2">
                   <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
                     Precio total

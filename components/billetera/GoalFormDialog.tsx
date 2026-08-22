@@ -5,6 +5,7 @@ import { CurrencyId } from '@/constants/currencies'
 import { Goal, WalletApi } from '@/hooks/useWallet'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { Textarea } from '@/components/ui/textarea'
 import {
   Dialog,
   DialogContent,
@@ -18,6 +19,8 @@ import { cn } from '@/lib/utils'
 import { notify } from '@/lib/notify'
 import { Field, AmountField, CurrencyToggle, ColorPicker } from './fields'
 
+const DESC_MAX = 300
+
 interface GoalFormDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
@@ -30,6 +33,7 @@ export function GoalFormDialog({ open, onOpenChange, wallet, editing }: GoalForm
   const [name, setName] = useState('')
   const [currency, setCurrency] = useState<CurrencyId>('VES')
   const [target, setTarget] = useState('')
+  const [description, setDescription] = useState('')
   const [icon, setIcon] = useState('wallet')
   const [color, setColor] = useState<string | undefined>(undefined)
 
@@ -39,6 +43,7 @@ export function GoalFormDialog({ open, onOpenChange, wallet, editing }: GoalForm
       setName(editing?.name ?? '')
       setCurrency(editing?.currency ?? 'VES')
       setTarget(editing?.target ?? '')
+      setDescription(editing?.description ?? '')
       setIcon(editing?.icon ?? 'wallet')
       setColor(editing?.color)
     }
@@ -47,9 +52,16 @@ export function GoalFormDialog({ open, onOpenChange, wallet, editing }: GoalForm
   const handleSubmit = () => {
     if (!name.trim()) return
     if (editing) {
-      updateGoal(editing.id, { name: name.trim(), currency, target: target || undefined, icon, color })
+      updateGoal(editing.id, {
+        name: name.trim(),
+        currency,
+        target: target || undefined,
+        description: description.trim() || undefined,
+        icon,
+        color,
+      })
     } else {
-      addGoal(name, currency, target, icon, color)
+      addGoal(name, currency, target, icon, color, description)
     }
     notify.success(editing ? 'Meta actualizada' : 'Meta creada')
     onOpenChange(false)
@@ -85,6 +97,16 @@ export function GoalFormDialog({ open, onOpenChange, wallet, editing }: GoalForm
             value={target}
             onValueChange={setTarget}
           />
+
+          <Field label="Descripción" hint={`Opcional · ${description.length}/${DESC_MAX}`}>
+            <Textarea
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              placeholder="Notas sobre esta meta…"
+              rows={2}
+              maxLength={DESC_MAX}
+            />
+          </Field>
 
           <Field label="Icono">
             <div className="grid grid-cols-5 gap-1.5">

@@ -153,6 +153,8 @@ export interface Goal {
   currency: CurrencyId
   /** Objetivo opcional (para la barra de progreso). */
   target?: string
+  /** Descripción opcional (máx. 300 caracteres). */
+  description?: string
   icon?: string
   color?: string
   createdAt: string
@@ -194,6 +196,8 @@ export interface ShoppingListItem {
   description?: string
   price: string
   currency: CurrencyId
+  /** Prioridad 1 (alta) a 4 (baja). Obligatoria; por defecto 4. */
+  priority: number
   purchased: boolean
   purchase?: ShoppingPurchase
   createdAt: string
@@ -1043,7 +1047,14 @@ export function useWallet() {
 
   /* ── Metas / Alcancías ── */
   const addGoal = useCallback(
-    (name: string, currency: CurrencyId, target?: string, icon?: string, color?: string) => {
+    (
+      name: string,
+      currency: CurrencyId,
+      target?: string,
+      icon?: string,
+      color?: string,
+      description?: string
+    ) => {
       const trimmed = name.trim()
       if (!trimmed) return
       setState((s) => ({
@@ -1055,6 +1066,7 @@ export function useWallet() {
             name: trimmed,
             currency,
             target: target || undefined,
+            description: description?.trim() || undefined,
             icon,
             color,
             createdAt: new Date().toISOString(),
@@ -1066,7 +1078,10 @@ export function useWallet() {
   )
 
   const updateGoal = useCallback(
-    (id: string, patch: Partial<Pick<Goal, 'name' | 'currency' | 'target' | 'icon' | 'color'>>) => {
+    (
+      id: string,
+      patch: Partial<Pick<Goal, 'name' | 'currency' | 'target' | 'description' | 'icon' | 'color'>>
+    ) => {
       setState((s) => ({
         ...s,
         goals: s.goals.map((g) => (g.id === id ? { ...g, ...patch } : g)),
@@ -1199,6 +1214,7 @@ export function useWallet() {
       description?: string
       price: string
       currency: CurrencyId
+      priority: number
     }) => {
       const trimmed = item.title.trim()
       if (!trimmed || !item.listId) return
@@ -1215,6 +1231,7 @@ export function useWallet() {
               description: item.description?.trim() || undefined,
               price: item.price || '0',
               currency: item.currency,
+              priority: item.priority,
               purchased: false,
               createdAt: new Date().toISOString(),
             },
@@ -1228,7 +1245,9 @@ export function useWallet() {
   const updateShoppingItem = useCallback(
     (
       id: string,
-      patch: Partial<Pick<ShoppingListItem, 'title' | 'description' | 'price' | 'currency'>>
+      patch: Partial<
+        Pick<ShoppingListItem, 'title' | 'description' | 'price' | 'currency' | 'priority'>
+      >
     ) => {
       setState((s) => ({
         ...s,

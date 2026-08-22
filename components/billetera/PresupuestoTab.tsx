@@ -418,6 +418,12 @@ export function PresupuestoTab({ wallet, stats, dialogs, rates }: PresupuestoTab
                       </div>
                     )}
 
+                    {goal.description && (
+                      <p className="line-clamp-2 whitespace-pre-line text-xs text-muted-foreground">
+                        {goal.description}
+                      </p>
+                    )}
+
                     <Button
                       variant="outline"
                       size="sm"

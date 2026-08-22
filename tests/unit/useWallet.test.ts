@@ -288,11 +288,18 @@ describe('useWallet — listas de compras', () => {
     expect(result.current.state.shoppingLists[0].name).toBe('Mercado del mes')
 
     act(() =>
-      result.current.addShoppingItem({ listId, title: 'Arroz', price: '3', currency: 'USD' })
+      result.current.addShoppingItem({
+        listId,
+        title: 'Arroz',
+        price: '3',
+        currency: 'USD',
+        priority: 2,
+      })
     )
     expect(result.current.state.shoppingItems).toHaveLength(1)
     const item = result.current.state.shoppingItems[0]
     expect(item.currency).toBe('USD')
+    expect(item.priority).toBe(2)
     expect(item.purchased).toBe(false)
 
     act(() => result.current.updateShoppingItem(item.id, { price: '4' }))
@@ -311,7 +318,7 @@ describe('useWallet — listas de compras', () => {
     act(() => result.current.addShoppingList('Bodega'))
     const listId = result.current.state.shoppingLists[0].id
     act(() =>
-      result.current.addShoppingItem({ listId, title: 'Pan', price: '30', currency: 'VES' })
+      result.current.addShoppingItem({ listId, title: 'Pan', price: '30', currency: 'VES', priority: 4 })
     )
     const itemId = result.current.state.shoppingItems[0].id
 
@@ -350,7 +357,7 @@ describe('useWallet — listas de compras', () => {
     act(() => result.current.addShoppingList('Compras'))
     const listId = result.current.state.shoppingLists[0].id
     act(() =>
-      result.current.addShoppingItem({ listId, title: 'Cable', price: '2', currency: 'USD' })
+      result.current.addShoppingItem({ listId, title: 'Cable', price: '2', currency: 'USD', priority: 4 })
     )
     const itemId = result.current.state.shoppingItems[0].id
 
@@ -384,7 +391,7 @@ describe('useWallet — listas de compras', () => {
     act(() => result.current.addShoppingList('L'))
     const listId = result.current.state.shoppingLists[0].id
     act(() =>
-      result.current.addShoppingItem({ listId, title: 'X', price: '30', currency: 'VES' })
+      result.current.addShoppingItem({ listId, title: 'X', price: '30', currency: 'VES', priority: 4 })
     )
     const itemId = result.current.state.shoppingItems[0].id
 
@@ -416,7 +423,7 @@ describe('useWallet — listas de compras', () => {
     act(() => result.current.addShoppingList('L'))
     const listId = result.current.state.shoppingLists[0].id
     act(() =>
-      result.current.addShoppingItem({ listId, title: 'X', price: '20', currency: 'VES' })
+      result.current.addShoppingItem({ listId, title: 'X', price: '20', currency: 'VES', priority: 4 })
     )
     const itemId = result.current.state.shoppingItems[0].id
     act(() =>
@@ -449,7 +456,7 @@ describe('useWallet — listas de compras', () => {
     })
     const listId = result.current.state.shoppingLists[0].id
     act(() =>
-      result.current.addShoppingItem({ listId, title: 'Tornillos', price: '5', currency: 'USD' })
+      result.current.addShoppingItem({ listId, title: 'Tornillos', price: '5', currency: 'USD', priority: 4 })
     )
     await waitFor(() => {
       const items = (cloud.store.shoppingItems as { title: string }[] | undefined) ?? []

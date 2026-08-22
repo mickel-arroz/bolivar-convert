@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { Category, TransactionType, WalletApi } from '@/hooks/useWallet'
 import { CATEGORY_ICON_KEYS, getCategoryIcon } from '@/constants/walletCategories'
 import { Button } from '@/components/ui/button'
@@ -12,7 +12,7 @@ import {
   DialogTitle,
   DialogDescription,
 } from '@/components/ui/dialog'
-import { PencilIcon, TrashIcon } from '@/components/icons'
+import { PencilIcon, TrashIcon, MaximizeIcon, MinimizeIcon } from '@/components/icons'
 import { cn } from '@/lib/utils'
 import { notify } from '@/lib/notify'
 import { Field, TypeToggle, ColorPicker } from './fields'
@@ -32,6 +32,12 @@ export function CategoryManagerDialog({ open, onOpenChange, wallet }: CategoryMa
   const [icon, setIcon] = useState(CATEGORY_ICON_KEYS[0])
   const [color, setColor] = useState<string | undefined>(undefined)
   const [pendingDelete, setPendingDelete] = useState<Category | null>(null)
+  const [fullscreen, setFullscreen] = useState(false)
+  const formRef = useRef<HTMLDivElement>(null)
+
+  const editingCategory = editingId
+    ? state.categories.find((c) => c.id === editingId)
+    : undefined
 
   const resetForm = () => {
     setEditingId(null)
@@ -47,6 +53,15 @@ export function CategoryManagerDialog({ open, onOpenChange, wallet }: CategoryMa
     setKind(c.kind)
     setIcon(c.icon)
     setColor(c.color)
+    requestAnimationFrame(() => {
+      formRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      formRef.current?.querySelector('input')?.focus()
+    })
+  }
+
+  const handleOpenChange = (o: boolean) => {
+    if (!o) setFullscreen(false)
+    onOpenChange(o)
   }
 
   // No permitir dos categorías con el mismo nombre dentro del mismo tipo.
@@ -117,15 +132,43 @@ export function CategoryManagerDialog({ open, onOpenChange, wallet }: CategoryMa
 
   return (
     <>
-      <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent>
-          <DialogHeader>
+      <Dialog open={open} onOpenChange={handleOpenChange}>
+        <DialogContent
+          className={cn(
+            'size-interpolate duration-500',
+            fullscreen
+              ? 'h-[100dvh] w-screen max-h-[100dvh] max-w-[100vw] rounded-none border-0'
+              : ''
+          )}
+        >
+          <button
+            type="button"
+            onClick={() => setFullscreen((f) => !f)}
+            aria-label={fullscreen ? 'Salir de pantalla completa' : 'Pantalla completa'}
+            className="absolute right-11 top-4 rounded-lg p-1 text-muted-foreground outline-none transition-colors hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50"
+          >
+            {fullscreen ? <MinimizeIcon className="size-4" /> : <MaximizeIcon className="size-4" />}
+          </button>
+
+          <DialogHeader className="pr-16">
             <DialogTitle>Categorías</DialogTitle>
             <DialogDescription>Crea y organiza tus categorías de gastos e ingresos.</DialogDescription>
           </DialogHeader>
 
-          <div className="flex flex-col gap-5">
-            <div className="flex flex-col gap-3 rounded-xl border border-border/60 bg-muted/20 p-3">
+          <div className={cn('flex flex-col gap-5', fullscreen && 'md:flex-row md:items-start md:gap-6')}>
+            <div
+              ref={formRef}
+              className={cn(
+                'flex flex-col gap-3 rounded-xl border p-3 transition-colors',
+                fullscreen && 'self-start md:sticky md:top-0 md:w-[400px] md:shrink-0',
+                editingId
+                  ? 'border-primary/50 bg-primary/5 ring-2 ring-primary/20'
+                  : 'border-border/60 bg-muted/20'
+              )}
+            >
+              <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                {editingId ? `Editando: ${editingCategory?.name ?? ''}` : 'Nueva categoría'}
+              </span>
               <Field label="Tipo">
                 <TypeToggle value={kind} onChange={setKind} />
               </Field>
@@ -179,8 +222,10 @@ export function CategoryManagerDialog({ open, onOpenChange, wallet }: CategoryMa
               </div>
             </div>
 
-            {renderGroup('expense', 'Gastos')}
-            {renderGroup('income', 'Ingresos')}
+            <div className={cn('flex flex-col gap-5', fullscreen && 'md:flex-1 md:min-w-0')}>
+              {renderGroup('expense', 'Gastos')}
+              {renderGroup('income', 'Ingresos')}
+            </div>
           </div>
         </DialogContent>
       </Dialog>

@@ -163,7 +163,7 @@ export function PresupuestoTab({ wallet, stats, dialogs, rates }: PresupuestoTab
         </div>
         <div className="flex items-center gap-2">
           <Button variant="outline" onClick={() => setTemplatesOpen(true)}>
-            <TemplateIcon /> Agregar plantilla
+            <TemplateIcon /> Plantillas
           </Button>
           <Button
             onClick={() => dialogs.openBudget()}

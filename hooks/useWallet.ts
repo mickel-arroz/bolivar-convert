@@ -1246,7 +1246,7 @@ export function useWallet() {
     (
       id: string,
       patch: Partial<
-        Pick<ShoppingListItem, 'title' | 'description' | 'price' | 'currency' | 'priority'>
+        Pick<ShoppingListItem, 'listId' | 'title' | 'description' | 'price' | 'currency' | 'priority'>
       >
     ) => {
       setState((s) => ({

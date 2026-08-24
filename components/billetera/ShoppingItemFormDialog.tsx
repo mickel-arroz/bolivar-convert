@@ -14,6 +14,15 @@ import {
   DialogDescription,
   DialogFooter,
 } from '@/components/ui/dialog'
+import {
+  Select,
+  SelectTrigger,
+  SelectValue,
+  SelectContent,
+  SelectItem,
+} from '@/components/ui/select'
+import { ACCOUNT_ICON_MAP } from '@/constants/walletCategories'
+import { WalletIcon } from '@/components/icons'
 import { cn } from '@/lib/utils'
 import { notify } from '@/lib/notify'
 import {
@@ -49,6 +58,7 @@ export function ShoppingItemFormDialog({
   const [price, setPrice] = useState('')
   const [currency, setCurrency] = useState<CurrencyId>('VES')
   const [priority, setPriority] = useState<ShoppingPriority>(DEFAULT_SHOPPING_PRIORITY)
+  const [targetListId, setTargetListId] = useState(listId)
 
   useEffect(() => {
     if (open) {
@@ -58,17 +68,24 @@ export function ShoppingItemFormDialog({
       setPrice(editing?.price ?? '')
       setCurrency(editing?.currency ?? 'VES')
       setPriority(normalizePriority(editing?.priority))
+      setTargetListId(editing?.listId ?? listId)
     }
-  }, [open, editing])
+  }, [open, editing, listId])
+
+  const lists = useMemo(
+    () => [...state.shoppingLists].sort((a, b) => a.name.localeCompare(b.name)),
+    [state.shoppingLists]
+  )
+  const showListSelect = !!editing && lists.length > 1
 
   const duplicate = useMemo(() => {
     const t = title.trim().toLowerCase()
     if (!t) return false
     return state.shoppingItems.some(
       (it) =>
-        it.listId === listId && it.id !== editing?.id && it.title.trim().toLowerCase() === t
+        it.listId === targetListId && it.id !== editing?.id && it.title.trim().toLowerCase() === t
     )
-  }, [title, state.shoppingItems, listId, editing])
+  }, [title, state.shoppingItems, targetListId, editing])
 
   const canSubmit = !!title.trim() && !duplicate
 
@@ -76,6 +93,7 @@ export function ShoppingItemFormDialog({
     if (!canSubmit) return
     if (editing) {
       updateShoppingItem(editing.id, {
+        listId: targetListId,
         title: title.trim(),
         description,
         price: price || '0',
@@ -92,7 +110,13 @@ export function ShoppingItemFormDialog({
         priority,
       })
     }
-    notify.success(editing ? 'Producto actualizado' : 'Producto añadido')
+    notify.success(
+      editing
+        ? targetListId !== editing.listId
+          ? 'Producto movido'
+          : 'Producto actualizado'
+        : 'Producto añadido'
+    )
     onOpenChange(false)
   }
 
@@ -130,6 +154,39 @@ export function ShoppingItemFormDialog({
               maxLength={DESC_MAX}
             />
           </Field>
+
+          {showListSelect && (
+            <Field label="Lista">
+              <Select value={targetListId} onValueChange={(v) => setTargetListId(v as string)}>
+                <SelectTrigger>
+                  <SelectValue>
+                    {(val) => {
+                      const l = lists.find((x) => x.id === val)
+                      if (!l) return <span className="text-muted-foreground">Selecciona una lista</span>
+                      const Icon = ACCOUNT_ICON_MAP[l.icon ?? ''] ?? WalletIcon
+                      return (
+                        <span className="flex items-center gap-2">
+                          <Icon className="size-4" />
+                          {l.name}
+                        </span>
+                      )
+                    }}
+                  </SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  {lists.map((l) => {
+                    const Icon = ACCOUNT_ICON_MAP[l.icon ?? ''] ?? WalletIcon
+                    return (
+                      <SelectItem key={l.id} value={l.id}>
+                        <Icon className="size-4" />
+                        {l.name}
+                      </SelectItem>
+                    )
+                  })}
+                </SelectContent>
+              </Select>
+            </Field>
+          )}
 
           <Field label="Prioridad" hint="1 es la más importante; 4 la menos.">
             <div className="grid grid-cols-4 gap-1 rounded-lg bg-muted/50 p-1">

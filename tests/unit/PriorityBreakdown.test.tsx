@@ -13,6 +13,10 @@ function Harness({ byPriority }: { byPriority: PriorityTotal[] }) {
   return <PriorityBreakdown byPriority={byPriority} displayCurrency="VES" open={open} onOpenChange={setOpen} />
 }
 
+function expand() {
+  fireEvent.click(screen.getByText('Por prioridad'))
+}
+
 describe('PriorityBreakdown', () => {
   it('no se renderiza cuando solo hay una prioridad presente', () => {
     const { container } = render(
@@ -33,13 +37,13 @@ describe('PriorityBreakdown', () => {
     expect(container).toBeEmptyDOMElement()
   })
 
-  it('colapsado muestra la etiqueta y un punto por prioridad, sin las filas', () => {
+  it('colapsado muestra la etiqueta y un punto por prioridad, sin las cards', () => {
     render(<Harness byPriority={[row(1, 500, 300), row(4, 300, 0)]} />)
 
     expect(screen.getByText('Por prioridad')).toBeInTheDocument()
     expect(screen.getAllByTestId('priority-dot')).toHaveLength(2)
+    expect(screen.queryByTestId('priority-card')).not.toBeInTheDocument()
     expect(screen.queryByText('Alta')).not.toBeInTheDocument()
-    expect(screen.queryByText('restante')).not.toBeInTheDocument()
   })
 
   it('atenúa el punto de una prioridad sin restante', () => {
@@ -50,39 +54,56 @@ describe('PriorityBreakdown', () => {
     expect(dots[1]).toHaveAttribute('data-covered', 'true')
   })
 
-  it('al abrirlo muestra los encabezados y una fila por prioridad', () => {
+  it('al abrirlo muestra una card por prioridad con el restante y el total', () => {
     render(<Harness byPriority={[row(1, 500, 300), row(4, 300, 0)]} />)
-    fireEvent.click(screen.getByText('Por prioridad'))
+    expand()
 
-    expect(screen.getByText('total')).toBeInTheDocument()
-    expect(screen.getByText('restante')).toBeInTheDocument()
-
-    const rows = screen.getAllByTestId('priority-row')
-    expect(rows).toHaveLength(2)
-    expect(rows[0]).toHaveTextContent('1')
-    expect(rows[0]).toHaveTextContent('Alta')
-    expect(rows[0]).toHaveTextContent('Bs. 500,00')
-    expect(rows[0]).toHaveTextContent('Bs. 300,00')
-    expect(rows[1]).toHaveTextContent('Mínima')
+    const cards = screen.getAllByTestId('priority-card')
+    expect(cards).toHaveLength(2)
+    expect(cards[0]).toHaveTextContent('1')
+    expect(cards[0]).toHaveTextContent('Alta')
+    expect(cards[0]).toHaveTextContent('Bs. 300,00')
+    expect(cards[0]).toHaveTextContent('de Bs. 500,00')
+    expect(cards[1]).toHaveTextContent('Mínima')
+    expect(cards[1]).toHaveTextContent('de Bs. 300,00')
   })
 
-  it('atenúa la fila de una prioridad completamente comprada', () => {
+  it('atenúa la card de una prioridad completamente comprada', () => {
     render(<Harness byPriority={[row(1, 500, 300), row(4, 300, 0)]} />)
-    fireEvent.click(screen.getByText('Por prioridad'))
+    expand()
 
-    const rows = screen.getAllByTestId('priority-row')
-    expect(rows[0]).toHaveAttribute('data-covered', 'false')
-    expect(rows[1]).toHaveAttribute('data-covered', 'true')
+    const cards = screen.getAllByTestId('priority-card')
+    expect(cards[0]).toHaveAttribute('data-covered', 'false')
+    expect(cards[1]).toHaveAttribute('data-covered', 'true')
   })
 
-  it('muestra un guion cuando falta la tasa', () => {
+  it('la barra refleja la proporción ya comprada', () => {
+    render(<Harness byPriority={[row(1, 500, 300), row(2, 400, 400), row(4, 300, 0)]} />)
+    expand()
+
+    const bars = screen.getAllByTestId('priority-progress')
+    expect(bars[0]).toHaveStyle({ width: '40%' })
+    expect(bars[1]).toHaveStyle({ width: '0%' })
+    expect(bars[2]).toHaveStyle({ width: '100%' })
+  })
+
+  it('no dibuja barra cuando falta la tasa', () => {
     render(<Harness byPriority={[row(1, null, null), row(3, null, null)]} />)
-    fireEvent.click(screen.getByText('Por prioridad'))
+    expand()
 
-    const rows = screen.getAllByTestId('priority-row')
-    expect(rows[0]).toHaveTextContent('—')
-    expect(rows[0]).not.toHaveTextContent('Bs.')
-    expect(rows[0]).toHaveAttribute('data-covered', 'false')
+    const cards = screen.getAllByTestId('priority-card')
+    expect(cards[0]).toHaveTextContent('—')
+    expect(cards[0]).not.toHaveTextContent('Bs.')
+    expect(cards[0]).toHaveAttribute('data-covered', 'false')
+    expect(screen.queryByTestId('priority-progress')).not.toBeInTheDocument()
+  })
+
+  it('no divide por cero cuando el total de una prioridad es cero', () => {
+    render(<Harness byPriority={[row(1, 0, 0), row(2, 100, 100)]} />)
+    expand()
+
+    const bars = screen.getAllByTestId('priority-progress')
+    expect(bars[0]).toHaveStyle({ width: '0%' })
   })
 
   it('formatea las cifras en la moneda de visualización', () => {
@@ -95,8 +116,8 @@ describe('PriorityBreakdown', () => {
       />
     )
 
-    const rows = screen.getAllByTestId('priority-row')
-    expect(rows[0]).toHaveTextContent('$ 20.00')
-    expect(rows[0]).toHaveTextContent('$ 12.00')
+    const cards = screen.getAllByTestId('priority-card')
+    expect(cards[0]).toHaveTextContent('$ 12.00')
+    expect(cards[0]).toHaveTextContent('de $ 20.00')
   })
 })

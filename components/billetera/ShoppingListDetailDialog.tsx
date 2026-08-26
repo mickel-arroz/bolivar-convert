@@ -17,8 +17,10 @@ import {
 } from '@/components/ui/dialog'
 import { CheckIcon, PlusIcon, PencilIcon, MaximizeIcon, MinimizeIcon } from '@/components/icons'
 import { PRIORITY_COLORS, PRIORITY_LABELS, normalizePriority } from '@/constants/shoppingPriority'
+import { computeShoppingTotals, type ResolvedRates } from '@/lib/wallet/shoppingTotals'
 import { cn } from '@/lib/utils'
 import { formatMoney } from './format'
+import { PriorityBreakdown } from './PriorityBreakdown'
 
 interface ShoppingListDetailDialogProps {
   open: boolean
@@ -53,6 +55,7 @@ export function ShoppingListDetailDialog({
 }: ShoppingListDetailDialogProps) {
   const { state, undoPurchase } = wallet
   const [fullscreen, setFullscreen] = useState(false)
+  const [breakdownOpen, setBreakdownOpen] = useState(false)
 
   const [totalCurrency, setTotalCurrency] = useState<CurrencyId>('VES')
   const [usdRateSource, setUsdRateSource] = useState<UsdRateSource>('bcvUsd')
@@ -95,44 +98,17 @@ export function ShoppingListDetailDialog({
   const usdRate = usdRateSource === 'custom' ? rateNum(usdCustom) : rateNum(rates[usdRateSource])
   const eurRate = eurRateSource === 'custom' ? rateNum(eurCustom) : rateNum(rates.bcvEur)
 
-  const bsPerUnit = (cur: CurrencyId): number => {
-    if (cur === 'VES') return 1
-    if (cur === 'USD') return usdRate
-    return eurRate
-  }
+  const resolvedRates = useMemo<ResolvedRates>(
+    () => ({ VES: 1, USD: usdRate, EUR: eurRate }),
+    [usdRate, eurRate]
+  )
 
   const missingRate = (needUsd && usdRate <= 0) || (needEur && eurRate <= 0)
 
-  const total = useMemo(() => {
-    if (missingRate) return null
-    const rTo = bsPerUnit(totalCurrency)
-    if (rTo <= 0) return null
-    let sum = 0
-    for (const it of items) {
-      const price = parseFloat(String(it.price).replace(',', '.')) || 0
-      const rFrom = bsPerUnit(it.currency)
-      if (rFrom <= 0) return null
-      sum += (price * rFrom) / rTo
-    }
-    return sum
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [items, totalCurrency, usdRate, eurRate, missingRate])
-
-  const remaining = useMemo(() => {
-    if (missingRate) return null
-    const rTo = bsPerUnit(totalCurrency)
-    if (rTo <= 0) return null
-    let sum = 0
-    for (const it of items) {
-      if (it.purchased) continue
-      const price = parseFloat(String(it.price).replace(',', '.')) || 0
-      const rFrom = bsPerUnit(it.currency)
-      if (rFrom <= 0) return null
-      sum += (price * rFrom) / rTo
-    }
-    return sum
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [items, totalCurrency, usdRate, eurRate, missingRate])
+  const totals = useMemo(
+    () => computeShoppingTotals(items, resolvedRates, totalCurrency),
+    [items, resolvedRates, totalCurrency]
+  )
 
   const usdCustomInput = useMathInput(usdCustom, setUsdCustom, { maxDecimals: 4 })
   const eurCustomInput = useMathInput(eurCustom, setEurCustom, { maxDecimals: 4 })
@@ -143,7 +119,10 @@ export function ShoppingListDetailDialog({
   const accent = list.color ?? DEFAULT_ACCOUNT_COLOR
 
   const handleOpenChange = (o: boolean) => {
-    if (!o) setFullscreen(false)
+    if (!o) {
+      setFullscreen(false)
+      setBreakdownOpen(false)
+    }
     onOpenChange(o)
   }
 
@@ -364,19 +343,26 @@ export function ShoppingListDetailDialog({
 
                 <div className="h-px bg-border/60" />
 
+                <PriorityBreakdown
+                  byPriority={totals.byPriority}
+                  displayCurrency={totalCurrency}
+                  open={breakdownOpen}
+                  onOpenChange={setBreakdownOpen}
+                />
+
                 <div className="flex items-center justify-between">
                   <span className="text-sm text-muted-foreground">
                     en {getCurrency(totalCurrency).label}
                   </span>
                   <span className="text-xl font-black tabular-nums">
-                    {total === null ? '—' : formatMoney(total, totalCurrency)}
+                    {totals.total === null ? '—' : formatMoney(totals.total, totalCurrency)}
                   </span>
                 </div>
 
                 <div className="flex items-center justify-between">
                   <span className="text-sm font-bold text-muted-foreground">Restante por pagar</span>
                   <span className="text-xl font-black tabular-nums text-primary">
-                    {remaining === null ? '—' : formatMoney(remaining, totalCurrency)}
+                    {totals.remaining === null ? '—' : formatMoney(totals.remaining, totalCurrency)}
                   </span>
                 </div>
                 {missingRate && (

@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useWallet, Account, Transaction, TransactionType } from '@/hooks/useWallet'
 import { useRates } from '@/hooks/useRates'
 import { SectionHeader } from '@/components/SectionHeader'
@@ -20,10 +20,34 @@ import { TransferFormDialog } from './TransferFormDialog'
 import { CategoryManagerDialog } from './CategoryManagerDialog'
 import { BudgetFormDialog } from './BudgetFormDialog'
 
+const ACTIVE_TAB_KEY = 'billetera_active_tab'
+
+const WALLET_TABS: WalletTab[] = ['resumen', 'movimientos', 'estadisticas', 'presupuesto']
+
+const isWalletTab = (value: string | null): value is WalletTab =>
+  value !== null && (WALLET_TABS as string[]).includes(value)
+
 export function Billetera() {
   const wallet = useWallet()
   const { rates } = useRates()
   const [activeTab, setActiveTab] = useState<WalletTab>('resumen')
+  useEffect(() => {
+    const saved = localStorage.getItem(ACTIVE_TAB_KEY)
+    if (isWalletTab(saved)) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setActiveTab(saved)
+    }
+  }, [])
+
+  const handleTabChange = (value: string) => {
+    if (!isWalletTab(value)) return
+    setActiveTab(value)
+    try {
+      localStorage.setItem(ACTIVE_TAB_KEY, value)
+    } catch {
+      /* ignore */
+    }
+  }
 
   const { computeStats } = wallet
   const stats = useMemo(() => computeStats(rates), [computeStats, rates])
@@ -85,7 +109,7 @@ export function Billetera() {
           <Loader size="lg" />
         </div>
       ) : (
-        <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as WalletTab)}>
+        <Tabs value={activeTab} onValueChange={handleTabChange}>
           <TabsList>
             <TabsTab value="resumen">
               <WalletIcon className="size-4" /> <span className="hidden sm:inline">Resumen</span>

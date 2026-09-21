@@ -172,6 +172,13 @@ describe('buildAdvicePrompt', () => {
     expect(prompt).toContain(String(ADVICE_MAX_LENGTH))
   })
 
+  it('fija el tono venezolano coloquial', () => {
+    const prompt = buildAdvicePrompt(buildAdvicePayload(input(), RATES))
+
+    expect(prompt).toContain('venezolano')
+    expect(prompt).toContain('coloquial venezolana')
+  })
+
   it('incluye los agregados y ningún detalle de transacciones', () => {
     const prompt = buildAdvicePrompt(buildAdvicePayload(input(), RATES))
 

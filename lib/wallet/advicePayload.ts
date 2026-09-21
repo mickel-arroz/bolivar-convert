@@ -151,6 +151,7 @@ export function buildAdvicePayload(input: AdviceInput, rates: Rates): AdvicePayl
 export function buildAdvicePrompt(payload: AdvicePayload, now: Date = new Date()): string {
   return [
     'Eres un asesor financiero personal venezolano. Hablas en español de Venezuela, tuteando, claro y concreto.',
+    'Suenas como un pana que sabe de plata: usa el habla coloquial venezolana con naturalidad ("chamo", "pana", "real", "vaina", "burda"), sin forzarla ni caricaturizarla.',
     `Hoy es ${monthKey(now)}. Las cifras agregadas están en ${payload.currency} salvo donde se indique otra moneda.`,
     '',
     'Datos del usuario (agregados, sin detalle de movimientos):',

@@ -611,13 +611,21 @@ export function useWallet() {
     })
   }, [])
 
-  /** Elimina la cuenta y, en cascada, sus transacciones y traspasos asociados. */
+  /**
+   * Elimina la cuenta y, en cascada, sus transacciones y traspasos asociados.
+   * Los aportes a metas NO se cascadean: se desligan de la cuenta (`accountId`
+   * queda sin definir), igual que los extras de presupuesto. El dinero se queda
+   * en la meta y deja de contar como **En metas** de ninguna cuenta (ADR 0002).
+   */
   const removeAccount = useCallback((id: string) => {
     setState((s) => ({
       ...s,
       accounts: s.accounts.filter((a) => a.id !== id),
       transactions: s.transactions.filter((t) => t.accountId !== id),
       transfers: s.transfers.filter((t) => t.fromAccountId !== id && t.toAccountId !== id),
+      goalContributions: s.goalContributions.map((gc) =>
+        gc.accountId === id ? { ...gc, accountId: undefined } : gc
+      ),
     }))
   }, [])
 

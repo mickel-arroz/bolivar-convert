@@ -703,3 +703,96 @@ describe('convertTransferAmount', () => {
     expect(convertTransferAmount(10, 'USD', 'EUR', 0.9)).toBe(9)
   })
 })
+
+describe('useWallet — borrado de cuenta y aportes a metas', () => {
+  beforeEach(() => {
+    localStorage.clear()
+    cloud.store = {}
+    vi.clearAllMocks()
+  })
+
+  it('desliga los aportes de la cuenta borrada sin tocar el saldo de la meta', async () => {
+    const { result } = renderHook(() => useWallet())
+    await waitFor(() => expect(result.current.isMounted).toBe(true))
+
+    act(() => result.current.addAccount('Banco', 'USD', '500'))
+    act(() => result.current.addGoal('Viaje', 'USD', '1000'))
+    const accountId = result.current.state.accounts[0].id
+    const goalId = result.current.state.goals[0].id
+
+    act(() => {
+      result.current.moveToGoal({
+        goalId,
+        accountId,
+        amount: '200',
+        direction: 'in',
+        date: today,
+      })
+    })
+    expect(result.current.goalBalances.find((g) => g.goalId === goalId)?.balance).toBe(200)
+
+    act(() => result.current.removeAccount(accountId))
+
+    expect(result.current.state.accounts).toHaveLength(0)
+    expect(result.current.state.goalContributions).toHaveLength(1)
+    expect(result.current.state.goalContributions[0].accountId).toBeUndefined()
+    expect(result.current.goalBalances.find((g) => g.goalId === goalId)?.balance).toBe(200)
+  })
+
+  it('no toca los aportes de otras cuentas', async () => {
+    const { result } = renderHook(() => useWallet())
+    await waitFor(() => expect(result.current.isMounted).toBe(true))
+
+    act(() => result.current.addAccount('A', 'USD', '500'))
+    act(() => result.current.addAccount('B', 'USD', '500'))
+    act(() => result.current.addGoal('Viaje', 'USD', '1000'))
+    const [a, b] = result.current.state.accounts.map((acc) => acc.id)
+    const goalId = result.current.state.goals[0].id
+
+    act(() => {
+      result.current.moveToGoal({ goalId, accountId: a, amount: '100', direction: 'in', date: today })
+    })
+    act(() => {
+      result.current.moveToGoal({ goalId, accountId: b, amount: '50', direction: 'in', date: today })
+    })
+
+    act(() => result.current.removeAccount(a))
+
+    const contributions = result.current.state.goalContributions
+    expect(contributions).toHaveLength(2)
+    expect(contributions.filter((gc) => gc.accountId === b)).toHaveLength(1)
+    expect(contributions.filter((gc) => gc.accountId === undefined)).toHaveLength(1)
+    expect(result.current.goalBalances.find((g) => g.goalId === goalId)?.balance).toBe(150)
+  })
+
+  it('sube el desligado a la nube como upsert, no como borrado', async () => {
+    const { result } = renderHook(() => useWallet())
+    await waitFor(() => expect(result.current.isMounted).toBe(true))
+
+    act(() => result.current.addAccount('Banco', 'USD', '500'))
+    act(() => result.current.addGoal('Viaje', 'USD', '1000'))
+    const accountId = result.current.state.accounts[0].id
+    const goalId = result.current.state.goals[0].id
+    act(() => {
+      result.current.moveToGoal({
+        goalId,
+        accountId,
+        amount: '200',
+        direction: 'in',
+        date: today,
+      })
+    })
+    await waitFor(() => {
+      expect((cloud.store.goalContributions as any[] | undefined) ?? []).toHaveLength(1)
+    })
+
+    act(() => result.current.removeAccount(accountId))
+
+    await waitFor(() => {
+      expect((cloud.store.accounts as any[] | undefined) ?? []).toHaveLength(0)
+    })
+    const stored = (cloud.store.goalContributions as any[] | undefined) ?? []
+    expect(stored).toHaveLength(1)
+    expect(stored[0].accountId).toBeUndefined()
+  })
+})

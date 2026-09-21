@@ -40,10 +40,12 @@ export function legacyItemCount(state: Partial<WalletState> | null): number {
 }
 
 function completeState(p: Partial<WalletState>): WalletState {
+  const accounts = p.accounts ?? []
+  const accountIds = new Set(accounts.map((a) => a.id))
   return {
     ...DEFAULT_STATE,
     ...p,
-    accounts: p.accounts ?? [],
+    accounts,
     transactions: p.transactions ?? [],
     transfers: p.transfers ?? [],
     categories: p.categories && p.categories.length > 0 ? p.categories : DEFAULT_STATE.categories,
@@ -54,7 +56,11 @@ function completeState(p: Partial<WalletState>): WalletState {
     budgetTemplates: p.budgetTemplates ?? DEFAULT_STATE.budgetTemplates,
     budgetTransfers: p.budgetTransfers ?? [],
     goals: p.goals ?? [],
-    goalContributions: p.goalContributions ?? [],
+    // El legado pudo quedar con aportes apuntando a cuentas ya borradas: se
+    // suben desligados, no huérfanos (ADR 0002).
+    goalContributions: (p.goalContributions ?? []).map((gc) =>
+      gc.accountId && !accountIds.has(gc.accountId) ? { ...gc, accountId: undefined } : gc
+    ),
     concludedMonths: p.concludedMonths ?? [],
     activeBudgetTemplateId: p.activeBudgetTemplateId ?? DEFAULT_STATE.activeBudgetTemplateId,
   }

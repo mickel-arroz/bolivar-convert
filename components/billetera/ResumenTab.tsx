@@ -55,6 +55,13 @@ export function ResumenTab({ wallet, rates, dialogs }: ResumenTabProps) {
   const { state, removeAccount } = wallet
   const [pendingDelete, setPendingDelete] = useState<Account | null>(null)
 
+  const pendingDeleteHasGoalMoney = useMemo(
+    () =>
+      !!pendingDelete &&
+      state.goalContributions.some((gc) => gc.accountId === pendingDelete.id),
+    [pendingDelete, state.goalContributions]
+  )
+
   const [netWorthCurrency, setNetWorthCurrency] = useState<CurrencyId>('USD')
   useEffect(() => {
     const saved = localStorage.getItem(NETWORTH_CURRENCY_KEY)
@@ -299,6 +306,8 @@ export function ResumenTab({ wallet, rates, dialogs }: ResumenTabProps) {
             <AlertDialogTitle>Eliminar cuenta</AlertDialogTitle>
             <AlertDialogDescription>
               Se eliminará «{pendingDelete?.name}» junto con todos sus movimientos y traspasos asociados.
+              {pendingDeleteHasGoalMoney &&
+                ' Lo que apartaste en metas de ahorro se queda en sus metas y deja de contar como En metas de ninguna cuenta.'}{' '}
               Esta acción no se puede deshacer.
             </AlertDialogDescription>
           </AlertDialogHeader>

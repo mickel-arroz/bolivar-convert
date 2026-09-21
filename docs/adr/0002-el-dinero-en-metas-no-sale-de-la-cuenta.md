@@ -53,5 +53,10 @@ De ahí se sigue el resto:
   tienen cuenta: ese dinero cuenta en la meta pero no aparece como **En metas** de
   ninguna cuenta. La suma de "En metas" sobre todas las cuentas puede ser menor que
   la suma de los saldos de las metas, y es correcto que así sea.
+- Borrar una cuenta no cascadea sus aportes: los **desliga** (`accountId` queda sin
+  definir), que es el mismo caso anterior. El saldo de la meta no se mueve — ahorrar
+  y luego cerrar la cuenta de donde salió el dinero no debe hacer encoger la meta —
+  y el aporte deja de atribuirse a ninguna cuenta. El diálogo de borrado lo dice
+  cuando la cuenta tiene algo apartado.
 - Si algún día hacen falta bloqueos manuales, sin meta detrás, esta decisión ya no
   alcanza: **En metas** dejaría de ser el nombre cierto y haría falta persistir algo.

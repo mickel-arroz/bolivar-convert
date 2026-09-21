@@ -38,7 +38,7 @@ export function TransactionFormDialog({
   editing,
   defaultType = 'expense',
 }: TransactionFormDialogProps) {
-  const { state, accountBalances, addTransaction, updateTransaction } = wallet
+  const { state, accountFunds, addTransaction, updateTransaction } = wallet
   const [type, setType] = useState<TransactionType>(defaultType)
   const [accountId, setAccountId] = useState('')
   const [categoryId, setCategoryId] = useState('')
@@ -90,10 +90,11 @@ export function TransactionFormDialog({
 
   const accountCurrency = state.accounts.find((a) => a.id === accountId)?.currency
   const amountNum = parseFloat(amount.replace(',', '.')) || 0
-  const currentBalance = accountBalances.find((b) => b.accountId === accountId)?.balance ?? 0
+  // El **Disponible** de la cuenta: lo apartado en metas no se puede gastar (ADR 0002).
+  const currentAvailable = accountFunds.find((f) => f.accountId === accountId)?.available ?? 0
   const commissionNum = resolveCommission(amountNum, commission.trim() || undefined, commissionType)
   const overBalance =
-    !editing && type === 'expense' && amountNum > 0 && amountNum + commissionNum > currentBalance + 1e-6
+    !editing && type === 'expense' && amountNum > 0 && amountNum + commissionNum > currentAvailable + 1e-6
   const canSubmit = amountNum > 0 && !!accountId && !!categoryId && !overBalance
 
   const handleSubmit = () => {
@@ -111,7 +112,7 @@ export function TransactionFormDialog({
     }
     const ok = editing ? updateTransaction(editing.id, payload) : addTransaction(payload)
     if (!ok) {
-      notify.error('El monto supera el saldo de la cuenta')
+      notify.error('El monto supera el Disponible de la cuenta')
       return
     }
     notify.success(editing ? 'Movimiento actualizado' : 'Movimiento registrado')
@@ -222,7 +223,7 @@ export function TransactionFormDialog({
               </div>
               {overBalance && (
                 <span className="text-xs text-destructive">
-                  El monto supera el saldo de la cuenta.
+                  El monto supera el Disponible de la cuenta.
                 </span>
               )}
             </Field>

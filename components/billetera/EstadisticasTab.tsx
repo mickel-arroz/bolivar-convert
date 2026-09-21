@@ -4,6 +4,7 @@ import { useMemo } from 'react'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, AreaChart, Area, LineChart, Line } from 'recharts'
 import { StatsBundle, TimeRange, WalletApi } from '@/hooks/useWallet'
 import { useWalletResource } from '@/hooks/useWalletResource'
+import { useAdvice } from '@/hooks/useAdvice'
 import { EstadisticasSkeleton } from './skeletons'
 import { getCurrency } from '@/constants/currencies'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
@@ -17,6 +18,7 @@ import { getCategoryIcon } from '@/constants/walletCategories'
 import { ChartPieIcon } from '@/components/icons'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
+import { AdviceCard } from './AdviceCard'
 import { CurrencyToggle } from './fields'
 import { formatMoney } from './format'
 
@@ -66,6 +68,7 @@ function compact(value: number): string {
 export function EstadisticasTab({ wallet }: EstadisticasTabProps) {
   const { state, setTimeRange, setDisplayCurrency, setStatsRateSource } = wallet
   const cur = state.displayCurrency
+  const { advice } = useAdvice()
 
   const { data } = useWalletResource<StatsBundle>(
     `/api/wallet/stats?range=${state.timeRange}`,
@@ -149,6 +152,8 @@ export function EstadisticasTab({ wallet }: EstadisticasTabProps) {
 
   return (
     <div className="flex flex-col gap-6">
+      <AdviceCard title="En qué se te fue el dinero" text={advice.stats} />
+
       {/* Controles */}
       <div className="flex flex-col gap-3">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">

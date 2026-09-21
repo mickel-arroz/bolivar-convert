@@ -105,7 +105,7 @@ describe('useWallet Hook', () => {
       })
     )
 
-    const balance = result.current.accountBalances.find((b) => b.accountId === accId)
+    const balance = result.current.accountFunds.find((b) => b.accountId === accId)
     expect(balance?.balance).toBe(120) // 100 + 50 - 30
   })
 
@@ -129,8 +129,8 @@ describe('useWallet Hook', () => {
       })
     )
 
-    const balA = result.current.accountBalances.find((x) => x.accountId === a)?.balance
-    const balB = result.current.accountBalances.find((x) => x.accountId === b)?.balance
+    const balA = result.current.accountFunds.find((x) => x.accountId === a)?.balance
+    const balB = result.current.accountFunds.find((x) => x.accountId === b)?.balance
     expect(balA).toBe(60)
     expect(balB).toBe(40)
 
@@ -345,7 +345,7 @@ describe('useWallet — listas de compras', () => {
     expect(tx?.categoryId).toBe('cat_shopping')
     expect(parseFloat(tx?.amount ?? '0')).toBe(25)
 
-    const balance = result.current.accountBalances.find((b) => b.accountId === accId)
+    const balance = result.current.accountFunds.find((b) => b.accountId === accId)
     expect(balance?.balance).toBe(75) // 100 - 25
   })
 
@@ -379,7 +379,7 @@ describe('useWallet — listas de compras', () => {
     expect(parseFloat(tx?.amount ?? '0')).toBe(80)
     expect(item.purchase?.rate?.value).toBe('40')
 
-    const balance = result.current.accountBalances.find((b) => b.accountId === accId)
+    const balance = result.current.accountFunds.find((b) => b.accountId === accId)
     expect(balance?.balance).toBe(920) // 1000 - 80
   })
 
@@ -412,7 +412,7 @@ describe('useWallet — listas de compras', () => {
     expect(result.current.state.transactions).toHaveLength(0)
     expect(result.current.state.shoppingItems[0].purchased).toBe(false)
     expect(result.current.state.shoppingItems[0].purchase).toBeUndefined()
-    expect(result.current.accountBalances.find((b) => b.accountId === accId)?.balance).toBe(100)
+    expect(result.current.accountFunds.find((b) => b.accountId === accId)?.balance).toBe(100)
   })
 
   it('eliminar una lista borra sus productos y las transacciones de sus compras', async () => {
@@ -443,7 +443,7 @@ describe('useWallet — listas de compras', () => {
     expect(result.current.state.shoppingLists).toHaveLength(0)
     expect(result.current.state.shoppingItems).toHaveLength(0)
     expect(result.current.state.transactions).toHaveLength(0)
-    expect(result.current.accountBalances.find((b) => b.accountId === accId)?.balance).toBe(100)
+    expect(result.current.accountFunds.find((b) => b.accountId === accId)?.balance).toBe(100)
   })
 
   it('persiste listas y productos en la nube y los rehidrata', async () => {
@@ -498,7 +498,7 @@ describe('useWallet — saldo nunca negativo', () => {
     })
     expect(ok).toBe(false)
     expect(result.current.state.transactions).toHaveLength(0)
-    expect(result.current.accountBalances.find((b) => b.accountId === accId)?.balance).toBe(100)
+    expect(result.current.accountFunds.find((b) => b.accountId === accId)?.balance).toBe(100)
   })
 
   it('permite el gasto exacto y bloquea el que deja saldo negativo por comisión', async () => {
@@ -519,7 +519,7 @@ describe('useWallet — saldo nunca negativo', () => {
       })
     })
     expect(ok).toBe(true)
-    expect(result.current.accountBalances.find((b) => b.accountId === accId)?.balance).toBe(0)
+    expect(result.current.accountFunds.find((b) => b.accountId === accId)?.balance).toBe(0)
 
     // Con saldo 0, cualquier gasto adicional se rechaza.
     let ok2 = true
@@ -557,7 +557,7 @@ describe('useWallet — saldo nunca negativo', () => {
     })
     expect(ok).toBe(false)
     expect(result.current.state.transfers).toHaveLength(0)
-    expect(result.current.accountBalances.find((x) => x.accountId === a)?.balance).toBe(50)
+    expect(result.current.accountFunds.find((x) => x.accountId === a)?.balance).toBe(50)
   })
 })
 
@@ -702,6 +702,80 @@ describe('convertTransferAmount', () => {
   })
   it('divisa → divisa: multiplica (destino por unidad origen)', () => {
     expect(convertTransferAmount(10, 'USD', 'EUR', 0.9)).toBe(9)
+  })
+})
+
+describe('useWallet — Saldo de la cuenta, En metas y Disponible', () => {
+  beforeEach(() => {
+    localStorage.clear()
+    cloud.store = {}
+    vi.clearAllMocks()
+  })
+
+  it('aportar a una meta baja el Disponible y deja el Saldo de la cuenta intacto', async () => {
+    const { result } = renderHook(() => useWallet())
+    await waitFor(() => expect(result.current.isMounted).toBe(true))
+
+    act(() => result.current.addAccount('Banco', 'USD', '500'))
+    act(() => result.current.addGoal('Viaje', 'USD', '1000'))
+    const accountId = result.current.state.accounts[0].id
+    const goalId = result.current.state.goals[0].id
+
+    act(() => {
+      result.current.moveToGoal({ goalId, accountId, amount: '200', direction: 'in', date: today })
+    })
+
+    const funds = result.current.accountFunds.find((f) => f.accountId === accountId)
+    expect(funds?.balance).toBe(500)
+    expect(funds?.inGoals).toBe(200)
+    expect(funds?.available).toBe(300)
+  })
+
+  it('guardar el diálogo de editar cuenta sin cambios no mueve el saldo', async () => {
+    const { result } = renderHook(() => useWallet())
+    await waitFor(() => expect(result.current.isMounted).toBe(true))
+
+    act(() => result.current.addAccount('Banco', 'USD', '500'))
+    act(() => result.current.addGoal('Viaje', 'USD', '1000'))
+    const accountId = result.current.state.accounts[0].id
+    const goalId = result.current.state.goals[0].id
+    act(() => {
+      result.current.addTransaction({
+        type: 'expense',
+        accountId,
+        categoryId: 'cat_food',
+        amount: '50',
+        date: today,
+      })
+    })
+    act(() => {
+      result.current.moveToGoal({ goalId, accountId, amount: '200', direction: 'in', date: today })
+    })
+
+    // El diálogo prellena con el Saldo de la cuenta y se guarda sin tocarlo.
+    const prefilled = result.current.accountFunds.find((f) => f.accountId === accountId)!.balance
+    act(() => result.current.setAccountBalance(accountId, prefilled))
+
+    const after = result.current.accountFunds.find((f) => f.accountId === accountId)
+    expect(after?.balance).toBe(prefilled)
+    expect(after?.inGoals).toBe(200)
+    expect(after?.available).toBe(250)
+  })
+
+  it('el Patrimonio neto incluye el dinero apartado en metas', async () => {
+    const { result } = renderHook(() => useWallet())
+    await waitFor(() => expect(result.current.isMounted).toBe(true))
+
+    act(() => result.current.addAccount('Banco', 'USD', '500'))
+    act(() => result.current.addGoal('Viaje', 'USD', '1000'))
+    const accountId = result.current.state.accounts[0].id
+    const goalId = result.current.state.goals[0].id
+    act(() => {
+      result.current.moveToGoal({ goalId, accountId, amount: '200', direction: 'in', date: today })
+    })
+
+    expect(result.current.netWorthIn('USD', RATES).value).toBe(500)
+    expect(result.current.computeStats(RATES).netWorth).toBe(500)
   })
 })
 

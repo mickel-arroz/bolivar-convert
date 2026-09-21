@@ -11,6 +11,7 @@ import {
   formatMonthLabel,
 } from '@/hooks/useWallet'
 import { Rates } from '@/constants/rates'
+import { useAdvice } from '@/hooks/useAdvice'
 import { getCategoryIcon, getAccountIcon } from '@/constants/walletCategories'
 import { DEFAULT_ACCOUNT_COLOR } from '@/constants/walletColors'
 import { Card, CardContent } from '@/components/ui/card'
@@ -39,11 +40,13 @@ import {
 import { cn } from '@/lib/utils'
 import { notify } from '@/lib/notify'
 import { WalletDialogs } from './dialogs'
+import { AdviceCard } from './AdviceCard'
 import { formatMoney } from './format'
 import { ConcludeMonthDialog } from './ConcludeMonthDialog'
 import { BudgetTemplatesDialog } from './BudgetTemplatesDialog'
 import { GoalFormDialog } from './GoalFormDialog'
 import { GoalContributionDialog } from './GoalContributionDialog'
+import { ShoppingSummaryButton } from './ShoppingSummaryButton'
 import { ShoppingListFormDialog } from './ShoppingListFormDialog'
 import { ShoppingListDetailDialog } from './ShoppingListDetailDialog'
 import { ShoppingItemFormDialog } from './ShoppingItemFormDialog'
@@ -59,6 +62,7 @@ interface PresupuestoTabProps {
 
 export function PresupuestoTab({ wallet, stats, dialogs, rates }: PresupuestoTabProps) {
   const { state, removeBudget, goalBalances, removeGoal, removeShoppingList } = wallet
+  const { advice } = useAdvice()
   const month = useMemo(() => monthKey(new Date()), [])
   const [concludeOpen, setConcludeOpen] = useState(false)
   const [templatesOpen, setTemplatesOpen] = useState(false)
@@ -140,6 +144,8 @@ export function PresupuestoTab({ wallet, stats, dialogs, rates }: PresupuestoTab
 
   return (
     <div className="flex flex-col gap-5">
+      <AdviceCard title="Qué ajustar este mes" text={advice.budget} />
+
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="min-w-0">
           <h2 className="text-sm font-bold uppercase tracking-wider text-muted-foreground">
@@ -451,9 +457,17 @@ export function PresupuestoTab({ wallet, stats, dialogs, rates }: PresupuestoTab
               Planifica tus compras y márcalas al pagarlas con una de tus cuentas.
             </p>
           </div>
-          <Button onClick={() => setListForm({ open: true, editing: null })}>
-            <PlusIcon /> Nueva lista
-          </Button>
+          <div className="flex flex-wrap items-center gap-2">
+            <ShoppingSummaryButton
+              lists={state.shoppingLists}
+              items={state.shoppingItems}
+              rates={rates}
+              preferredCurrency={state.displayCurrency}
+            />
+            <Button onClick={() => setListForm({ open: true, editing: null })}>
+              <PlusIcon /> Nueva lista
+            </Button>
+          </div>
         </div>
 
         {state.shoppingLists.length === 0 ? (

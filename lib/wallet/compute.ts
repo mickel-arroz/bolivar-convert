@@ -18,6 +18,7 @@ import type {
   CommissionType,
   TimeRange,
   AccountBalance,
+  AccountFunds,
   StatsBundle,
   CategorySummaryRow,
   MonthlyPoint,
@@ -155,11 +156,13 @@ export type FeedItem =
   | { kind: 'transfer'; id: string; date: string; transfer: Transfer }
   | { kind: 'budgetTransfer'; id: string; date: string; budgetTransfer: BudgetTransfer }
 
-/** Resumen de cuentas del tab Resumen: cuentas + balance + totales por moneda. */
+/** Resumen de cuentas del tab Resumen: cuentas + sus tres cifras + totales por moneda. */
 export interface AccountsSummary {
   accounts: Account[]
-  balances: AccountBalance[]
+  funds: AccountFunds[]
   totalsByCurrency: Record<CurrencyId, number>
+  /** Lo que está En metas, por moneda: la línea que explica el Patrimonio neto. */
+  inGoalsByCurrency: Record<CurrencyId, number>
 }
 
 /** Resultado paginado de movimientos (feed = transacciones + traspasos). */
@@ -206,20 +209,29 @@ export function buildFeed(
 
 /* ─── Balances ─── */
 
-/** Datos mínimos para computar balances de cuentas. */
+/** Datos mínimos para computar el Saldo de la cuenta. */
 export interface BalanceInput {
   accounts: Account[]
   transactions: Transaction[]
   transfers: Transfer[]
+}
+
+/** Lo que además hace falta para repartir el saldo entre Disponible y En metas. */
+export interface FundsInput extends BalanceInput {
   goalContributions: GoalContribution[]
 }
 
-/** Saldo de cada cuenta = apertura + ingresos − gastos ± traspasos − aportes a metas. */
-export function computeAccountBalances({
+/**
+ * **Saldo de la cuenta** = apertura + ingresos − gastos ± traspasos.
+ *
+ * Las metas de ahorro NO entran: aportar a una meta no mueve dinero del banco
+ * (ADR 0002). Para repartir este saldo entre Disponible y En metas, ver
+ * {@link computeAccountFunds}.
+ */
+function computeAccountBalances({
   accounts,
   transactions,
   transfers,
-  goalContributions,
 }: BalanceInput): AccountBalance[] {
   return accounts.map((account) => {
     let balance = parseAmount(account.openingBalance)
@@ -236,17 +248,41 @@ export function computeAccountBalances({
       }
       if (tr.toAccountId === account.id) balance += parseAmount(tr.toAmount)
     }
-    for (const gc of goalContributions) {
-      if (gc.accountId === account.id) balance -= parseSigned(gc.amount)
-    }
     return { accountId: account.id, currency: account.currency, balance }
   })
 }
 
-/** Totales por moneda a partir de los balances de cuenta. */
+/**
+ * Las tres cifras de cada cuenta: **Saldo de la cuenta**, **En metas** y **Disponible**.
+ *
+ * Reusa {@link computeAccountBalances} para el saldo y solo le resta lo apartado, de
+ * modo que Saldo = Disponible + En metas por construcción. Los aportes sin cuenta
+ * (los que vienen de mandar el sobrante de un mes a una meta) no se atribuyen a
+ * ninguna: la suma de En metas puede quedar por debajo de la suma de las metas.
+ */
+export function computeAccountFunds({ goalContributions, ...balanceInput }: FundsInput): AccountFunds[] {
+  const inGoalsByAccount = new Map<string, number>()
+  for (const gc of goalContributions) {
+    if (!gc.accountId) continue
+    inGoalsByAccount.set(gc.accountId, (inGoalsByAccount.get(gc.accountId) ?? 0) + parseSigned(gc.amount))
+  }
+  return computeAccountBalances(balanceInput).map((b) => {
+    const inGoals = inGoalsByAccount.get(b.accountId) ?? 0
+    return { ...b, inGoals, available: b.balance - inGoals }
+  })
+}
+
+/** Totales por moneda a partir del Saldo de la cuenta (las metas cuentan como patrimonio). */
 export function computeTotalsByCurrency(balances: AccountBalance[]): Record<CurrencyId, number> {
   const totals: Record<CurrencyId, number> = { VES: 0, USD: 0, EUR: 0 }
   for (const b of balances) totals[b.currency] += b.balance
+  return totals
+}
+
+/** Totales por moneda de lo que está **En metas**, para explicar el Patrimonio neto. */
+export function computeInGoalsByCurrency(funds: AccountFunds[]): Record<CurrencyId, number> {
+  const totals: Record<CurrencyId, number> = { VES: 0, USD: 0, EUR: 0 }
+  for (const f of funds) totals[f.currency] += f.inGoals
   return totals
 }
 

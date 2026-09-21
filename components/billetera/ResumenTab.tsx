@@ -4,8 +4,6 @@ import { useMemo, useState } from 'react'
 import { Account, WalletApi } from '@/hooks/useWallet'
 import { Rates } from '@/constants/rates'
 import { getCurrency, CURRENCIES, type CurrencyId } from '@/constants/currencies'
-import { getAccountIcon } from '@/constants/walletCategories'
-import { DEFAULT_ACCOUNT_COLOR } from '@/constants/walletColors'
 import { useWalletResource } from '@/hooks/useWalletResource'
 import {
   bsPerUnit,
@@ -13,6 +11,7 @@ import {
   type AccountsSummary,
   type FeedItem,
 } from '@/lib/wallet/compute'
+import type { AccountFunds } from '@/hooks/useWallet'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { ResumenSkeleton, MovementListSkeleton } from './skeletons'
@@ -33,10 +32,10 @@ import {
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
 } from '@/components/ui/dropdown-menu'
-import { PlusIcon, TransferIcon, PencilIcon, TrashIcon, WalletIcon, DotsIcon } from '@/components/icons'
-import { cn } from '@/lib/utils'
+import { PlusIcon, TransferIcon, WalletIcon, DotsIcon, TargetIcon } from '@/components/icons'
 import { notify } from '@/lib/notify'
 import { WalletDialogs } from './dialogs'
+import { AccountCard } from './AccountCard'
 import { MovementRow } from './MovementRow'
 import { ResetWallet } from './ResetWallet'
 import { formatMoney } from './format'
@@ -82,8 +81,8 @@ export function ResumenTab({ wallet, rates, dialogs }: ResumenTabProps) {
   const totals = accountsData?.totalsByCurrency ?? { VES: 0, USD: 0, EUR: 0 }
   const recentFeed = recentData?.items ?? []
 
-  const balanceById = useMemo(
-    () => new Map((accountsData?.balances ?? []).map((b) => [b.accountId, b.balance])),
+  const fundsById = useMemo(
+    () => new Map<string, AccountFunds>((accountsData?.funds ?? []).map((f) => [f.accountId, f])),
     [accountsData]
   )
   const accountById = useMemo(
@@ -95,16 +94,21 @@ export function ResumenTab({ wallet, rates, dialogs }: ResumenTabProps) {
     [state.categories]
   )
 
+  // El Patrimonio neto incluye el dinero apartado en metas: ahorrar no empobrece
+  // (ADR 0002). `inGoals` es la parte de esa cifra que no está Disponible.
   const netWorthCalc = useMemo(() => {
     const t = accountsData?.totalsByCurrency ?? { VES: 0, USD: 0, EUR: 0 }
+    const g = accountsData?.inGoalsByCurrency ?? { VES: 0, USD: 0, EUR: 0 }
     const ratesAvailable = ALL_CURRENCIES.filter((c) => (t[c] ?? 0) !== 0)
       .concat(netWorthCurrency)
       .every((c) => bsPerUnit(c, rates, state.statsRateSource) > 0)
     let value = 0
+    let inGoals = 0
     ALL_CURRENCIES.forEach((c) => {
       value += normalize(t[c] ?? 0, c, netWorthCurrency, rates, state.statsRateSource)
+      inGoals += normalize(g[c] ?? 0, c, netWorthCurrency, rates, state.statsRateSource)
     })
-    return { value, ratesAvailable }
+    return { value, inGoals, ratesAvailable }
   }, [accountsData, netWorthCurrency, rates, state.statsRateSource])
 
   if (!accountsData) {
@@ -142,9 +146,19 @@ export function ResumenTab({ wallet, rates, dialogs }: ResumenTabProps) {
             </DropdownMenu>
           </div>
           {netWorthCalc.ratesAvailable ? (
-            <p className="text-3xl font-black tracking-tight tabular-nums">
-              {formatMoney(netWorthCalc.value, netWorthCurrency)}
-            </p>
+            <div className="flex flex-col gap-0.5">
+              <p className="text-3xl font-black tracking-tight tabular-nums">
+                {formatMoney(netWorthCalc.value, netWorthCurrency)}
+              </p>
+              {netWorthCalc.inGoals !== 0 && (
+                <p className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground">
+                  <TargetIcon className="size-3.5 shrink-0" />
+                  <span className="tabular-nums">
+                    De lo cual {formatMoney(netWorthCalc.inGoals, netWorthCurrency)} en metas
+                  </span>
+                </p>
+              )}
+            </div>
           ) : (
             <p className="text-2xl font-black text-muted-foreground">
               {getCurrency(netWorthCurrency).symbol}{' '}
@@ -205,62 +219,16 @@ export function ResumenTab({ wallet, rates, dialogs }: ResumenTabProps) {
       ) : (
         <div className="grid gap-3 sm:grid-cols-2">
           {accounts.map((account) => {
-            const balance = balanceById.get(account.id) ?? 0
-            const AccIcon = getAccountIcon(account.icon)
-            const accent = account.color ?? DEFAULT_ACCOUNT_COLOR
+            const funds = fundsById.get(account.id)
             return (
-              <Card
+              <AccountCard
                 key={account.id}
-                style={{
-                  boxShadow: `0 0 0 2px color-mix(in oklch, ${accent} 40%, transparent)`,
-                }}
-              >
-                <CardContent className="flex flex-col gap-2">
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="flex min-w-0 items-center gap-2.5">
-                      <div
-                        className="flex size-9 shrink-0 items-center justify-center rounded-full"
-                        style={{
-                          backgroundColor: `color-mix(in oklch, ${accent} 18%, transparent)`,
-                          color: accent,
-                        }}
-                      >
-                        <AccIcon className="size-4" />
-                      </div>
-                      <div className="min-w-0">
-                        <p className="truncate font-bold">{account.name}</p>
-                        <p className="text-xs text-muted-foreground">{getCurrency(account.currency).label}</p>
-                      </div>
-                    </div>
-                    <div className="flex items-center">
-                      <Button
-                        variant="ghost"
-                        size="icon-sm"
-                        onClick={() => dialogs.openEditAccount(account)}
-                        aria-label="Editar cuenta"
-                      >
-                        <PencilIcon className="size-4" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon-sm"
-                        onClick={() => setPendingDelete(account)}
-                        aria-label="Eliminar cuenta"
-                      >
-                        <TrashIcon className="size-4" />
-                      </Button>
-                    </div>
-                  </div>
-                  <p
-                    className={cn(
-                      'text-2xl font-black tabular-nums',
-                      balance < 0 ? 'text-destructive' : 'text-foreground'
-                    )}
-                  >
-                    {formatMoney(balance, account.currency)}
-                  </p>
-                </CardContent>
-              </Card>
+                account={account}
+                available={funds?.available ?? 0}
+                inGoals={funds?.inGoals ?? 0}
+                onEdit={() => dialogs.openEditAccount(account)}
+                onDelete={() => setPendingDelete(account)}
+              />
             )
           })}
         </div>

@@ -89,3 +89,13 @@ _Avoid_: restante global, pendiente total
 **Comprados** / **Por comprar**:
 Los dos conteos de productos de una lista: cuántos ya se pagaron y cuántos no.
 _Avoid_: completados, pendientes, hechos
+
+### Consejos
+
+**Consejo**:
+Un párrafo corto generado a partir de los datos agregados del usuario, que se muestra arriba de una pestaña. Hay dos: el de Estadísticas mira hacia atrás y el de Presupuesto hacia adelante. Se refresca al entrar si el guardado pasó de 7 días, y lo nuevo se ve en la visita siguiente.
+_Avoid_: recomendación, insight, tip, análisis
+
+**Texto genérico**:
+El consejo que vive en el código y se muestra cuando no hay nada guardado, cuando el usuario no tiene datos suficientes o cuando la generación falla. Nunca es un error ni un espacio vacío.
+_Avoid_: placeholder, fallback, texto por defecto

@@ -43,16 +43,18 @@ export function ConfirmPurchaseDialog({
   item,
   rates,
 }: ConfirmPurchaseDialogProps) {
-  const { state, accountBalances, confirmPurchase } = wallet
+  const { state, accountFunds, confirmPurchase } = wallet
   const [accountId, setAccountId] = useState('')
   const [cost, setCost] = useState('')
   const [rateSource, setRateSource] = useState<TransferRateSource>('custom')
   const [customRate, setCustomRate] = useState('')
   const [date, setDate] = useState(todayInputValue())
 
-  const balanceByAccount = useMemo(
-    () => new Map(accountBalances.map((b) => [b.accountId, b.balance])),
-    [accountBalances]
+  // El **Disponible** de cada cuenta: lo apartado en metas no se puede gastar sin
+  // retirarlo antes, así que es contra esta cifra que se valida el débito (ADR 0002).
+  const availableByAccount = useMemo(
+    () => new Map(accountFunds.map((f) => [f.accountId, f.available])),
+    [accountFunds]
   )
 
   const account = state.accounts.find((a) => a.id === accountId)
@@ -110,8 +112,8 @@ export function ConfirmPurchaseDialog({
   const costNum = parseFloat(cost.replace(',', '.')) || 0
   const debited =
     itemCur && accCur ? (differentCur ? convertTransferAmount(costNum, itemCur, accCur, rateValue) : costNum) : 0
-  const accountBalance = balanceByAccount.get(accountId) ?? 0
-  const overBalance = !!accCur && debited > accountBalance + 1e-6
+  const accountAvailable = availableByAccount.get(accountId) ?? 0
+  const overBalance = !!accCur && debited > accountAvailable + 1e-6
   const canSubmit = !!accountId && costNum > 0 && (!differentCur || rateValue > 0) && !overBalance
 
   const customRateLabel =
@@ -125,7 +127,7 @@ export function ConfirmPurchaseDialog({
     if (!canSubmit) return
     const ok = confirmPurchase({ itemId: item.id, accountId, cost, rateSource, rateValue, date })
     if (!ok) {
-      notify.error('El monto supera el saldo de la cuenta')
+      notify.error('El monto supera el Disponible de la cuenta')
       return
     }
     notify.success('Compra confirmada')
@@ -160,7 +162,7 @@ export function ConfirmPurchaseDialog({
                       return (
                         <span className="flex items-center gap-2">
                           <Icon className="size-4" />
-                          {a.name} · {formatMoney(balanceByAccount.get(a.id) ?? 0, a.currency)}
+                          {a.name} · {formatMoney(availableByAccount.get(a.id) ?? 0, a.currency)}
                         </span>
                       )
                     }}
@@ -172,7 +174,7 @@ export function ConfirmPurchaseDialog({
                     return (
                       <SelectItem key={a.id} value={a.id}>
                         <Icon className="size-4" />
-                        {a.name} · {formatMoney(balanceByAccount.get(a.id) ?? 0, a.currency)}
+                        {a.name} · {formatMoney(availableByAccount.get(a.id) ?? 0, a.currency)}
                       </SelectItem>
                     )
                   })}
@@ -255,7 +257,7 @@ export function ConfirmPurchaseDialog({
               )}
               {overBalance && (
                 <p className="mt-1 text-xs text-destructive">
-                  El monto supera el saldo de la cuenta.
+                  El monto supera el Disponible de la cuenta.
                 </p>
               )}
             </div>

@@ -26,7 +26,7 @@ interface AccountFormDialogProps {
 }
 
 export function AccountFormDialog({ open, onOpenChange, wallet, editing }: AccountFormDialogProps) {
-  const { addAccount, updateAccount, setAccountBalance, accountBalances } = wallet
+  const { addAccount, updateAccount, setAccountBalance, accountFunds } = wallet
   const [name, setName] = useState('')
   const [currency, setCurrency] = useState<CurrencyId>('VES')
   const [balance, setBalance] = useState('')
@@ -35,11 +35,12 @@ export function AccountFormDialog({ open, onOpenChange, wallet, editing }: Accou
   const [commission, setCommission] = useState('')
   const [commissionType, setCommissionType] = useState<CommissionType>('percent')
 
-  // Saldo actual calculado de la cuenta en edición (para precargar el campo "Saldo").
+  // El campo "Saldo" significa **Saldo de la cuenta**: quien lo abre está cuadrando
+  // contra su banco, y su banco no sabe nada de sus metas de ahorro (ADR 0002).
   const editingBalance = useMemo(() => {
     if (!editing) return 0
-    return accountBalances.find((b) => b.accountId === editing.id)?.balance ?? 0
-  }, [editing, accountBalances])
+    return accountFunds.find((f) => f.accountId === editing.id)?.balance ?? 0
+  }, [editing, accountFunds])
 
   // Sincronizar el formulario al abrir / cambiar el objeto en edición
   useEffect(() => {
@@ -129,10 +130,10 @@ export function AccountFormDialog({ open, onOpenChange, wallet, editing }: Accou
           </Field>
 
           <AmountField
-            label="Saldo"
+            label="Saldo de la cuenta"
             hint={
               editing
-                ? 'Saldo actual. Si lo cambias, se ajusta al nuevo valor y los movimientos futuros lo afectan desde ahí.'
+                ? 'Lo que dice tu banco, metas de ahorro incluidas. Si lo cambias, se ajusta al nuevo valor y los movimientos futuros lo afectan desde ahí.'
                 : 'Opcional. El saldo se ajusta con tus movimientos.'
             }
             value={balance}

@@ -18,7 +18,7 @@ import {
   bsPerUnit,
   normalize,
   resolveCommission,
-  computeAccountBalances,
+  computeAccountFunds,
   computeTotalsByCurrency,
   computeStats as computeStatsCore,
   budgetStatusForMonth as budgetStatusForMonthCore,
@@ -241,7 +241,16 @@ export interface WalletState {
 export interface AccountBalance {
   accountId: string
   currency: CurrencyId
+  /** **Saldo de la cuenta**: lo que diría el banco. Las metas no entran (ADR 0002). */
   balance: number
+}
+
+/** Las tres cifras de una cuenta. `balance` siempre es `available + inGoals`. */
+export interface AccountFunds extends AccountBalance {
+  /** **En metas**: lo que esta cuenta tiene apartado en metas de ahorro. */
+  inGoals: number
+  /** **Disponible**: lo que el usuario puede gastar hoy de esta cuenta. */
+  available: number
 }
 
 export interface GoalBalance {
@@ -531,15 +540,19 @@ export function useWallet() {
     })
   }, [state, isMounted])
 
-  /** Saldo de una cuenta en un estado dado (fuente de verdad: computeAccountBalances). */
-  const accountBalanceOf = useCallback((accountId: string, s: WalletState): number => {
-    const found = computeAccountBalances({
+/**
+   * **Disponible** de una cuenta en un estado dado: lo que se puede gastar de ella.
+   * Es la cifra contra la que se valida cualquier débito, porque el dinero apartado
+   * en metas no se puede gastar sin retirarlo antes (ADR 0002).
+   */
+  const accountAvailableOf = useCallback((accountId: string, s: WalletState): number => {
+    const found = computeAccountFunds({
       accounts: s.accounts,
       transactions: s.transactions,
       transfers: s.transfers,
       goalContributions: s.goalContributions,
     }).find((b) => b.accountId === accountId)
-    return found?.balance ?? 0
+    return found?.available ?? 0
   }, [])
 
   /* ── Cuentas ── */
@@ -660,7 +673,7 @@ export function useWallet() {
       const amt = parseAmount(tx.amount)
       const commission = resolveCommission(amt, tx.commission, tx.commissionType)
       const delta = tx.type === 'income' ? amt - commission : -(amt + commission)
-      if (delta < 0 && accountBalanceOf(tx.accountId, s) + delta < -OVERDRAW_EPS) return false
+      if (delta < 0 && accountAvailableOf(tx.accountId, s) + delta < -OVERDRAW_EPS) return false
       setState((s2) => ({
         ...s2,
         transactions: [
@@ -681,7 +694,7 @@ export function useWallet() {
       }))
       return true
     },
-    [accountBalanceOf]
+    [accountAvailableOf]
   )
 
   const updateTransaction = useCallback(
@@ -704,8 +717,8 @@ export function useWallet() {
       const affected = new Set<string>([old.accountId])
       if (patch.accountId) affected.add(patch.accountId)
       for (const accId of affected) {
-        const after = accountBalanceOf(accId, nextState)
-        const before = accountBalanceOf(accId, s)
+        const after = accountAvailableOf(accId, nextState)
+        const before = accountAvailableOf(accId, s)
         if (after < -OVERDRAW_EPS && after < before - OVERDRAW_EPS) return false
       }
       setState((s2) => ({
@@ -714,7 +727,7 @@ export function useWallet() {
       }))
       return true
     },
-    [accountBalanceOf]
+    [accountAvailableOf]
   )
 
   const removeTransaction = useCallback((id: string) => {
@@ -757,7 +770,7 @@ export function useWallet() {
       if (!s0.accounts.some((a) => a.id === fromAccountId) || !s0.accounts.some((a) => a.id === toAccountId))
         return false
       const debit = amount + resolveCommission(amount, commission, commissionType)
-      if (accountBalanceOf(fromAccountId, s0) - debit < -OVERDRAW_EPS) return false
+      if (accountAvailableOf(fromAccountId, s0) - debit < -OVERDRAW_EPS) return false
       setState((s) => {
         const from = s.accounts.find((a) => a.id === fromAccountId)
         const to = s.accounts.find((a) => a.id === toAccountId)
@@ -781,7 +794,7 @@ export function useWallet() {
       })
       return true
     },
-    [accountBalanceOf]
+    [accountAvailableOf]
   )
 
   const removeTransfer = useCallback((id: string) => {
@@ -1142,7 +1155,7 @@ export function useWallet() {
       const g0 = s0.goals.find((g) => g.id === goalId)
       const a0 = s0.accounts.find((a) => a.id === accountId)
       if (!g0 || !a0 || g0.currency !== a0.currency) return false
-      if (direction === 'in' && accountBalanceOf(accountId, s0) - value < -OVERDRAW_EPS) return false
+      if (direction === 'in' && accountAvailableOf(accountId, s0) - value < -OVERDRAW_EPS) return false
       setState((s) => {
         const goal = s.goals.find((g) => g.id === goalId)
         const account = s.accounts.find((a) => a.id === accountId)
@@ -1166,7 +1179,7 @@ export function useWallet() {
       })
       return true
     },
-    [accountBalanceOf]
+    [accountAvailableOf]
   )
 
   /** Asigna un extra de presupuesto a una meta (sin afectar cuentas). Usado al concluir el mes. */
@@ -1323,7 +1336,7 @@ export function useWallet() {
           ? costNum
           : convertTransferAmount(costNum, item0.currency, account0.currency, rateValue)
       if (debited0 <= 0) return false
-      if (accountBalanceOf(accountId, s0) - debited0 < -OVERDRAW_EPS) return false
+      if (accountAvailableOf(accountId, s0) - debited0 < -OVERDRAW_EPS) return false
       setState((s) => {
         const item = s.shoppingItems.find((it) => it.id === itemId)
         const account = s.accounts.find((a) => a.id === accountId)
@@ -1370,7 +1383,7 @@ export function useWallet() {
       })
       return true
     },
-    [accountBalanceOf]
+    [accountAvailableOf]
   )
 
   const undoPurchase = useCallback((itemId: string) => {
@@ -1440,9 +1453,9 @@ export function useWallet() {
   )
 
   /* ── Derivados sin tasas ── */
-  const accountBalances = useMemo<AccountBalance[]>(
+  const accountFunds = useMemo<AccountFunds[]>(
     () =>
-      computeAccountBalances({
+      computeAccountFunds({
         accounts: state.accounts,
         transactions: state.transactions,
         transfers: state.transfers,
@@ -1462,8 +1475,8 @@ export function useWallet() {
   }, [state.goals, state.goalContributions])
 
   const totalsByCurrency = useMemo<Record<CurrencyId, number>>(
-    () => computeTotalsByCurrency(accountBalances),
-    [accountBalances]
+    () => computeTotalsByCurrency(accountFunds),
+    [accountFunds]
   )
 
   /**
@@ -1474,17 +1487,17 @@ export function useWallet() {
   const netWorthIn = useCallback(
     (currency: CurrencyId, rates: Rates): { value: number; ratesAvailable: boolean } => {
       const usedCurrencies = new Set<CurrencyId>([currency])
-      for (const b of accountBalances) usedCurrencies.add(b.currency)
+      for (const b of accountFunds) usedCurrencies.add(b.currency)
       const ratesAvailable = [...usedCurrencies].every(
         (c) => bsPerUnit(c, rates, state.statsRateSource) > 0
       )
       let value = 0
-      for (const b of accountBalances) {
+      for (const b of accountFunds) {
         value += normalize(b.balance, b.currency, currency, rates, state.statsRateSource)
       }
       return { value, ratesAvailable }
     },
-    [accountBalances, state.statsRateSource]
+    [accountFunds, state.statsRateSource]
   )
 
   const filteredTransactions = useMemo(
@@ -1541,7 +1554,7 @@ export function useWallet() {
     syncError,
     syncedVersion,
     hasData,
-    accountBalances,
+    accountFunds,
     goalBalances,
     totalsByCurrency,
     netWorthIn,

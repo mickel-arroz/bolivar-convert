@@ -37,7 +37,7 @@ function rateNum(r: string | undefined): number {
 }
 
 export function TransferFormDialog({ open, onOpenChange, wallet, rates }: TransferFormDialogProps) {
-  const { state, accountBalances, addTransfer } = wallet
+  const { state, accountFunds, addTransfer } = wallet
   const [fromAccountId, setFromAccountId] = useState('')
   const [toAccountId, setToAccountId] = useState('')
   const [fromAmount, setFromAmount] = useState('')
@@ -138,9 +138,10 @@ export function TransferFormDialog({ open, onOpenChange, wallet, rates }: Transf
   const fromSymbol = fromCur ? getCurrency(fromCur).symbol : ''
   const toSymbol = toCur ? getCurrency(toCur).symbol : ''
 
-  const fromBalance = accountBalances.find((b) => b.accountId === fromAccountId)?.balance ?? 0
+  // El **Disponible** de la cuenta origen: lo apartado en metas no se traspasa (ADR 0002).
+  const fromAvailable = accountFunds.find((f) => f.accountId === fromAccountId)?.available ?? 0
   const debitFrom = amountNum + resolveCommission(amountNum, commission.trim() || undefined, commissionType)
-  const overFrom = amountNum > 0 && debitFrom > fromBalance + 1e-6
+  const overFrom = amountNum > 0 && debitFrom > fromAvailable + 1e-6
 
   const canSubmit =
     !!fromAccountId &&
@@ -166,7 +167,7 @@ export function TransferFormDialog({ open, onOpenChange, wallet, rates }: Transf
       date,
     })
     if (!ok) {
-      notify.error('El monto supera el saldo de la cuenta')
+      notify.error('El monto supera el Disponible de la cuenta')
       return
     }
     notify.success('Traspaso registrado')
@@ -281,7 +282,7 @@ export function TransferFormDialog({ open, onOpenChange, wallet, rates }: Transf
             </div>
             {overFrom && (
               <span className="text-xs text-destructive">
-                El monto supera el saldo de la cuenta.
+                El monto supera el Disponible de la cuenta.
               </span>
             )}
 

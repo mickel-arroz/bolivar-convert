@@ -102,3 +102,87 @@ export function computeShoppingTotals(
     byPriority,
   }
 }
+
+/* ─── Resumen de todas las listas ─── */
+
+/** Un producto con la lista a la que pertenece, para totalizar varias listas juntas. */
+export interface AllListsItem extends ShoppingTotalsItem {
+  listId: string
+}
+
+/** Una fila del resumen: qué lleva una lista y cuánto cuesta. */
+export interface ShoppingListSummaryRow {
+  listId: string
+  name: string
+  /** **Comprados**: productos ya pagados. */
+  purchased: number
+  /** **Por comprar**: productos que faltan por pagar. */
+  pending: number
+  /** **Precio total** de la lista. `null` si falta una tasa. */
+  total: number | null
+}
+
+export interface AllListsTotals {
+  /** Una fila por lista con productos, en el orden en que llegaron las listas. */
+  rows: ShoppingListSummaryRow[]
+  /** **Precio total de todas las listas**. `null` si falta una tasa. */
+  total: number | null
+  /** **Restante total por pagar**. `null` si falta una tasa. */
+  remaining: number | null
+  /** Desglose por prioridad del total global. Omite las prioridades vacías. */
+  byPriority: PriorityTotal[]
+  /** Falta alguna tasa: el resumen no puede dar cifras, solo conteos. */
+  incomplete: boolean
+}
+
+/**
+ * Totaliza todas las listas juntas en `displayCurrency`.
+ *
+ * El total global se calcula sobre todos los productos de una vez, no sumando las filas
+ * por lista ni las del desglose, para que el redondeo de las filas no lo arrastre
+ * (ADR 0001). Una lista sin productos no aporta fila. Si falta la tasa de alguna moneda
+ * en uso, todas las cifras quedan en `null` y `incomplete` lo anuncia: los conteos de
+ * cada lista siguen siendo ciertos porque no dependen de las tasas.
+ */
+export function computeAllListsTotals(
+  lists: { id: string; name: string }[],
+  items: AllListsItem[],
+  resolvedRates: ResolvedRates,
+  displayCurrency: CurrencyId
+): AllListsTotals {
+  // Un solo recorrido: los productos de listas que ya no existen no cuentan ni en
+  // su fila ni en el total.
+  const known = new Set(lists.map((l) => l.id))
+  const itemsByList = new Map<string, AllListsItem[]>()
+  const globalItems: AllListsItem[] = []
+  for (const it of items) {
+    if (!known.has(it.listId)) continue
+    globalItems.push(it)
+    const bucket = itemsByList.get(it.listId)
+    if (bucket) bucket.push(it)
+    else itemsByList.set(it.listId, [it])
+  }
+
+  const global = computeShoppingTotals(globalItems, resolvedRates, displayCurrency)
+
+  const rows: ShoppingListSummaryRow[] = []
+  for (const list of lists) {
+    const listItems = itemsByList.get(list.id)
+    if (!listItems || listItems.length === 0) continue
+    rows.push({
+      listId: list.id,
+      name: list.name,
+      purchased: listItems.filter((it) => it.purchased).length,
+      pending: listItems.filter((it) => !it.purchased).length,
+      total: computeShoppingTotals(listItems, resolvedRates, displayCurrency).total,
+    })
+  }
+
+  return {
+    rows,
+    total: global.total,
+    remaining: global.remaining,
+    byPriority: global.byPriority,
+    incomplete: global.total === null,
+  }
+}

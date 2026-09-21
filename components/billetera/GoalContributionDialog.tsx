@@ -36,7 +36,7 @@ export function GoalContributionDialog({
   wallet,
   goal,
 }: GoalContributionDialogProps) {
-  const { state, accountBalances, goalBalances, moveToGoal } = wallet
+  const { state, accountFunds, goalBalances, moveToGoal } = wallet
   const [direction, setDirection] = useState<Direction>('in')
   const [accountId, setAccountId] = useState('')
   const [amount, setAmount] = useState('')
@@ -48,9 +48,11 @@ export function GoalContributionDialog({
     [goal, state.accounts]
   )
 
-  const balanceByAccount = useMemo(
-    () => new Map(accountBalances.map((b) => [b.accountId, b.balance])),
-    [accountBalances]
+  // El **Disponible** de cada cuenta: lo apartado en metas no se puede gastar sin
+  // retirarlo antes, así que es contra esta cifra que se valida el débito (ADR 0002).
+  const availableByAccount = useMemo(
+    () => new Map(accountFunds.map((f) => [f.accountId, f.available])),
+    [accountFunds]
   )
   const goalBalance = useMemo(
     () => (goal ? (goalBalances.find((b) => b.goalId === goal.id)?.balance ?? 0) : 0),
@@ -70,8 +72,8 @@ export function GoalContributionDialog({
   if (!goal) return null
 
   const amountNum = parseFloat(amount.replace(',', '.')) || 0
-  const accountBalance = balanceByAccount.get(accountId) ?? 0
-  const overAccount = direction === 'in' && amountNum > accountBalance
+  const accountAvailable = availableByAccount.get(accountId) ?? 0
+  const overAccount = direction === 'in' && amountNum > accountAvailable
   const overGoal = direction === 'out' && amountNum > goalBalance
   const canSubmit = !!accountId && amountNum > 0 && !overAccount && !overGoal
 
@@ -79,7 +81,7 @@ export function GoalContributionDialog({
     if (!canSubmit) return
     const ok = moveToGoal({ goalId: goal.id, accountId, amount, direction, note: undefined, date })
     if (!ok) {
-      notify.error('El monto supera el saldo de la cuenta')
+      notify.error('El monto supera el Disponible de la cuenta')
       return
     }
     notify.success(direction === 'in' ? 'Aporte registrado' : 'Retiro registrado')
@@ -137,7 +139,7 @@ export function GoalContributionDialog({
                       return (
                         <span className="flex items-center gap-2">
                           <Icon className="size-4" />
-                          {a.name} · {formatMoney(balanceByAccount.get(a.id) ?? 0, a.currency)}
+                          {a.name} · {formatMoney(availableByAccount.get(a.id) ?? 0, a.currency)}
                         </span>
                       )
                     }}
@@ -149,7 +151,7 @@ export function GoalContributionDialog({
                     return (
                       <SelectItem key={a.id} value={a.id}>
                         <Icon className="size-4" />
-                        {a.name} · {formatMoney(balanceByAccount.get(a.id) ?? 0, a.currency)}
+                        {a.name} · {formatMoney(availableByAccount.get(a.id) ?? 0, a.currency)}
                       </SelectItem>
                     )
                   })}
@@ -177,7 +179,7 @@ export function GoalContributionDialog({
               </div>
               {overAccount && (
                 <p className="mt-1 text-xs text-destructive">
-                  El monto supera el saldo disponible de la cuenta.
+                  El monto supera el Disponible de la cuenta.
                 </p>
               )}
               {overGoal && (

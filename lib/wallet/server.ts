@@ -30,7 +30,8 @@ import { DEFAULT_DISPLAY_CURRENCY, isCurrencyId } from '@/lib/wallet/displayCurr
 import type { StatsBundle, TimeRange } from '@/hooks/useWallet'
 import {
   buildFeed,
-  computeAccountBalances,
+  computeAccountFunds,
+  computeInGoalsByCurrency,
   computeTotalsByCurrency,
   computeStats,
   DEFAULT_BUDGET_TEMPLATE_ID,
@@ -683,13 +684,14 @@ export async function resetWalletAll(supabase: SupabaseClient, userId: string): 
     del('shopping_list_items'),
   ])
 
-  // Luego los padres.
+  // Luego los padres. El consejo también se va: hablaba de datos que ya no existen.
   await Promise.all([
     del('accounts'),
     del('categories'),
     del('budget_templates'),
     del('goals'),
     del('shopping_lists'),
+    del('advice'),
   ])
 
   // Resetear preferencias a los valores por defecto (conserva profiles.id → auth.users).
@@ -714,7 +716,7 @@ export async function resetWalletAll(supabase: SupabaseClient, userId: string): 
 
 /* ─────────────────── Lecturas por tab (endpoints dedicados) ─────────────────── */
 
-/** Carga cuentas con su balance calculado (incluye traspasos y aportes a metas). */
+/** Carga cuentas con sus tres cifras: Saldo de la cuenta, En metas y Disponible. */
 export async function loadAccountsSummary(
   supabase: SupabaseClient,
   userId: string
@@ -733,8 +735,13 @@ export async function loadAccountsSummary(
   const transfers = ((trRes.data as Record<string, unknown>[]) ?? []).map(rowToTransfer)
   const goalContributions = ((gcRes.data as Record<string, unknown>[]) ?? []).map(rowToContribution)
 
-  const balances = computeAccountBalances({ accounts, transactions, transfers, goalContributions })
-  return { accounts, balances, totalsByCurrency: computeTotalsByCurrency(balances) }
+  const funds = computeAccountFunds({ accounts, transactions, transfers, goalContributions })
+  return {
+    accounts,
+    funds,
+    totalsByCurrency: computeTotalsByCurrency(funds),
+    inGoalsByCurrency: computeInGoalsByCurrency(funds),
+  }
 }
 
 /**
@@ -819,3 +826,4 @@ export async function loadStats(
     { displayCurrency, statsRateSource, timeRange: range }
   )
 }
+

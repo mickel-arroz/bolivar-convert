@@ -7,8 +7,16 @@ Billetera personal para Venezuela: registra dinero y compras en bolívares y div
 ### Monedas y tasas
 
 **Moneda de visualización**:
-La moneda a la que se convierten los montos mostrados en un bloque de la UI, elegida por el usuario. Distinta de la moneda propia de cada monto.
+La moneda a la que se convierten los montos mostrados en un bloque de la UI. Distinta de la moneda propia de cada monto.
 _Avoid_: moneda base, moneda del total
+
+**Moneda de visualización preferida**:
+La Moneda de visualización que el usuario eligió para toda la app. Es el default de cada bloque que convierte y la única que se guarda por usuario. De fábrica es el dólar.
+_Avoid_: moneda global, moneda por defecto, moneda del perfil
+
+**Override de moneda**:
+La Moneda de visualización que un bloque concreto usa en vez de la preferida, porque el usuario se la cambió ahí. Un bloque sin override sigue a la preferida, también cuando esta cambia después; elegir la preferida en un bloque es precisamente quitarle el override. Hoy existen dos: el del Patrimonio neto y el del Precio total de una lista de compras.
+_Avoid_: moneda local, moneda de la vista, excepción
 
 **Fuente de tasa**:
 De dónde sale la tasa usada en una conversión: BCV, Binance o personalizada (escrita a mano por el usuario).

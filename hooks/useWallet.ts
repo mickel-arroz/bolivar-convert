@@ -6,6 +6,11 @@ import { Rates, RateId } from '@/constants/rates'
 import { generateId, parseAmount } from '@/hooks/useBillSplitter'
 import { DEFAULT_CATEGORIES } from '@/constants/walletCategories'
 import { buildWalletDelta, isEmptyDelta } from '@/lib/wallet/delta'
+import {
+  DEFAULT_DISPLAY_CURRENCY,
+  clearLegacyNetWorthCurrency,
+  readLegacyNetWorthCurrency,
+} from '@/lib/wallet/displayCurrency'
 import { notify } from '@/lib/notify'
 import {
   filterByRange,
@@ -179,6 +184,8 @@ export interface ShoppingList {
   icon?: string
   color?: string
   createdAt: string
+  /** Override de la moneda del Precio total de esta lista. */
+  totalCurrencyOverride?: CurrencyId
 }
 
 export interface ShoppingPurchase {
@@ -221,8 +228,10 @@ export interface WalletState {
   concludedMonths: string[]
   /** Plantilla de presupuesto activa (sus presupuestos son los del mes visibles). */
   activeBudgetTemplateId: string
-  /** Moneda en la que se normalizan las estadísticas agregadas. */
+  /** Moneda de visualización preferida: el default de todos los bloques que convierten. */
   displayCurrency: CurrencyId
+  /** Override de la moneda del Patrimonio neto. */
+  netWorthCurrencyOverride?: CurrencyId
   /** Tasa USD usada para normalizar estadísticas (bcvUsd o binanceUsdAvg). */
   statsRateSource: RateId
   timeRange: TimeRange
@@ -321,7 +330,7 @@ export const DEFAULT_STATE: WalletState = {
   shoppingLists: [],
   shoppingItems: [],
   concludedMonths: [],
-  displayCurrency: 'VES',
+  displayCurrency: DEFAULT_DISPLAY_CURRENCY,
   statsRateSource: 'bcvUsd',
   timeRange: '1m',
   activeBudgetTemplateId: DEFAULT_BUDGET_TEMPLATE_ID,
@@ -430,6 +439,10 @@ export function useWallet() {
       shoppingItems: loaded.shoppingItems ?? [],
       concludedMonths: loaded.concludedMonths ?? [],
       activeBudgetTemplateId: loaded.activeBudgetTemplateId ?? DEFAULT_BUDGET_TEMPLATE_ID,
+      // La moneda de patrimonio vivía en localStorage antes de la nube. Si el perfil
+      // aún no tiene override, se sube la elección vieja; la clave se borra al sincronizar.
+      netWorthCurrencyOverride:
+        loaded.netWorthCurrencyOverride ?? readLegacyNetWorthCurrency(localStorage) ?? undefined,
     }
     // Base = lo que realmente hay en la nube (sin sembrados del código), para que el
     // primer sync inserte cualquier default nuevo (categorías / plantilla por defecto).
@@ -503,6 +516,7 @@ export function useWallet() {
           throw new Error(body?.error || 'sync failed')
         }
         lastSyncedRef.current = snapshot
+        clearLegacyNetWorthCurrency(localStorage)
         setSyncError(false)
         setSyncedVersion((v) => v + 1)
       } catch (e) {
@@ -1191,7 +1205,7 @@ export function useWallet() {
   }, [])
 
   const updateShoppingList = useCallback(
-    (id: string, patch: Partial<Pick<ShoppingList, 'name' | 'icon' | 'color'>>) => {
+    (id: string, patch: Partial<Pick<ShoppingList, 'name' | 'icon' | 'color' | 'totalCurrencyOverride'>>) => {
       setState((s) => ({
         ...s,
         shoppingLists: s.shoppingLists.map((l) => (l.id === id ? { ...l, ...patch } : l)),
@@ -1377,6 +1391,9 @@ export function useWallet() {
   /* ── Preferencias ── */
   const setDisplayCurrency = useCallback((displayCurrency: CurrencyId) =>
     setState((s) => ({ ...s, displayCurrency })), [])
+
+  const setNetWorthCurrency = useCallback((netWorthCurrencyOverride: CurrencyId | undefined) =>
+    setState((s) => ({ ...s, netWorthCurrencyOverride })), [])
 
   const setStatsRateSource = useCallback((statsRateSource: RateId) =>
     setState((s) => ({ ...s, statsRateSource })), [])
@@ -1574,6 +1591,7 @@ export function useWallet() {
     undoPurchase,
     // Preferencias
     setDisplayCurrency,
+    setNetWorthCurrency,
     setStatsRateSource,
     setTimeRange,
     clearAll,

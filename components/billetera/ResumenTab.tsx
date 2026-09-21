@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useState, useEffect } from 'react'
+import { useMemo, useState } from 'react'
 import { Account, WalletApi } from '@/hooks/useWallet'
 import { Rates } from '@/constants/rates'
 import { getCurrency, CURRENCIES, type CurrencyId } from '@/constants/currencies'
@@ -40,8 +40,7 @@ import { WalletDialogs } from './dialogs'
 import { MovementRow } from './MovementRow'
 import { ResetWallet } from './ResetWallet'
 import { formatMoney } from './format'
-
-const NETWORTH_CURRENCY_KEY = 'bolivar_networth_currency_v1'
+import { nextOverride, resolveDisplayCurrency } from '@/lib/wallet/displayCurrency'
 
 const ALL_CURRENCIES: CurrencyId[] = ['VES', 'USD', 'EUR']
 
@@ -52,7 +51,7 @@ interface ResumenTabProps {
 }
 
 export function ResumenTab({ wallet, rates, dialogs }: ResumenTabProps) {
-  const { state, removeAccount } = wallet
+  const { state, removeAccount, setNetWorthCurrency } = wallet
   const [pendingDelete, setPendingDelete] = useState<Account | null>(null)
 
   const pendingDeleteHasGoalMoney = useMemo(
@@ -62,21 +61,12 @@ export function ResumenTab({ wallet, rates, dialogs }: ResumenTabProps) {
     [pendingDelete, state.goalContributions]
   )
 
-  const [netWorthCurrency, setNetWorthCurrency] = useState<CurrencyId>('USD')
-  useEffect(() => {
-    const saved = localStorage.getItem(NETWORTH_CURRENCY_KEY)
-    if (saved === 'VES' || saved === 'USD' || saved === 'EUR') {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      setNetWorthCurrency(saved)
-    }
-  }, [])
+  const netWorthCurrency = resolveDisplayCurrency(
+    state.netWorthCurrencyOverride,
+    state.displayCurrency
+  )
   const handleNetWorthCurrency = (c: CurrencyId) => {
-    setNetWorthCurrency(c)
-    try {
-      localStorage.setItem(NETWORTH_CURRENCY_KEY, c)
-    } catch {
-      /* ignore */
-    }
+    setNetWorthCurrency(nextOverride(c, state.displayCurrency))
   }
 
   const { data: accountsData } = useWalletResource<AccountsSummary>(

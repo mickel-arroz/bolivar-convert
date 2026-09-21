@@ -25,6 +25,7 @@ import type { RateId } from '@/constants/rates'
 /** Preferencias del usuario (fila `profiles`). */
 export interface WalletPrefs {
   displayCurrency: CurrencyId
+  netWorthCurrencyOverride?: CurrencyId
   statsRateSource: RateId
   timeRange: WalletState['timeRange']
   concludedMonths: string[]
@@ -82,6 +83,7 @@ function diff<T extends { id: string }>(prev: T[], next: T[]): Diff<T> {
 function prefsChanged(prev: WalletState, next: WalletState): boolean {
   return (
     prev.displayCurrency !== next.displayCurrency ||
+    prev.netWorthCurrencyOverride !== next.netWorthCurrencyOverride ||
     prev.statsRateSource !== next.statsRateSource ||
     prev.timeRange !== next.timeRange ||
     prev.activeBudgetTemplateId !== next.activeBudgetTemplateId ||
@@ -133,6 +135,7 @@ export function buildWalletDelta(prev: WalletState, next: WalletState): WalletDe
     prefs: prefsChanged(prev, next)
       ? {
           displayCurrency: next.displayCurrency,
+          netWorthCurrencyOverride: next.netWorthCurrencyOverride,
           statsRateSource: next.statsRateSource,
           timeRange: next.timeRange,
           concludedMonths: next.concludedMonths,

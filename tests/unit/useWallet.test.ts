@@ -36,6 +36,7 @@ function applyDeltaToStore(store: Record<string, any>, delta: any) {
     store.timeRange = delta.prefs.timeRange
     store.concludedMonths = delta.prefs.concludedMonths
     store.activeBudgetTemplateId = delta.prefs.activeBudgetTemplateId
+    store.netWorthCurrencyOverride = delta.prefs.netWorthCurrencyOverride
   }
 }
 
@@ -794,5 +795,102 @@ describe('useWallet — borrado de cuenta y aportes a metas', () => {
     const stored = (cloud.store.goalContributions as any[] | undefined) ?? []
     expect(stored).toHaveLength(1)
     expect(stored[0].accountId).toBeUndefined()
+  })
+})
+
+describe('useWallet — moneda de visualización', () => {
+  beforeEach(() => {
+    localStorage.clear()
+    cloud.store = {}
+    vi.clearAllMocks()
+  })
+
+  it('arranca en USD y sin override de patrimonio', async () => {
+    const { result } = renderHook(() => useWallet())
+    await waitFor(() => expect(result.current.isMounted).toBe(true))
+
+    expect(result.current.state.displayCurrency).toBe('USD')
+    expect(result.current.state.netWorthCurrencyOverride).toBeUndefined()
+  })
+
+  it('persiste el override de patrimonio sin tocar la preferencia', async () => {
+    const { result } = renderHook(() => useWallet())
+    await waitFor(() => expect(result.current.isMounted).toBe(true))
+
+    act(() => result.current.setNetWorthCurrency('EUR'))
+
+    await waitFor(() => expect(cloud.store.netWorthCurrencyOverride).toBe('EUR'))
+    expect(result.current.state.displayCurrency).toBe('USD')
+    expect(cloud.store.displayCurrency).toBe('USD')
+  })
+
+  it('quitar el override lo devuelve a la preferencia', async () => {
+    const { result } = renderHook(() => useWallet())
+    await waitFor(() => expect(result.current.isMounted).toBe(true))
+
+    act(() => result.current.setNetWorthCurrency('EUR'))
+    await waitFor(() => expect(cloud.store.netWorthCurrencyOverride).toBe('EUR'))
+
+    act(() => result.current.setNetWorthCurrency(undefined))
+
+    await waitFor(() => expect(cloud.store.netWorthCurrencyOverride).toBeUndefined())
+    expect(result.current.state.netWorthCurrencyOverride).toBeUndefined()
+  })
+
+  it('cambiar la preferencia no borra el override de patrimonio', async () => {
+    const { result } = renderHook(() => useWallet())
+    await waitFor(() => expect(result.current.isMounted).toBe(true))
+
+    act(() => result.current.setNetWorthCurrency('EUR'))
+    act(() => result.current.setDisplayCurrency('VES'))
+
+    await waitFor(() => expect(cloud.store.displayCurrency).toBe('VES'))
+    expect(result.current.state.netWorthCurrencyOverride).toBe('EUR')
+  })
+
+  it('sube la moneda de patrimonio legada de localStorage y borra la clave', async () => {
+    localStorage.setItem('bolivar_networth_currency_v1', 'EUR')
+
+    const { result } = renderHook(() => useWallet())
+    await waitFor(() => expect(result.current.isMounted).toBe(true))
+
+    expect(result.current.state.netWorthCurrencyOverride).toBe('EUR')
+    await waitFor(() => expect(cloud.store.netWorthCurrencyOverride).toBe('EUR'))
+    await waitFor(() => expect(localStorage.getItem('bolivar_networth_currency_v1')).toBeNull())
+  })
+
+  it('el override de la nube le gana al valor legado', async () => {
+    localStorage.setItem('bolivar_networth_currency_v1', 'EUR')
+    cloud.store.netWorthCurrencyOverride = 'VES'
+
+    const { result } = renderHook(() => useWallet())
+    await waitFor(() => expect(result.current.isMounted).toBe(true))
+
+    expect(result.current.state.netWorthCurrencyOverride).toBe('VES')
+  })
+
+  it('ignora un valor legado corrupto', async () => {
+    localStorage.setItem('bolivar_networth_currency_v1', 'BTC')
+
+    const { result } = renderHook(() => useWallet())
+    await waitFor(() => expect(result.current.isMounted).toBe(true))
+
+    expect(result.current.state.netWorthCurrencyOverride).toBeUndefined()
+  })
+
+  it('persiste la moneda del total de una lista de compras', async () => {
+    const { result } = renderHook(() => useWallet())
+    await waitFor(() => expect(result.current.isMounted).toBe(true))
+
+    act(() => result.current.addShoppingList('Mercado'))
+    const listId = result.current.state.shoppingLists[0].id
+    expect(result.current.state.shoppingLists[0].totalCurrencyOverride).toBeUndefined()
+
+    act(() => result.current.updateShoppingList(listId, { totalCurrencyOverride: 'VES' }))
+
+    await waitFor(() => {
+      const stored = (cloud.store.shoppingLists as any[] | undefined) ?? []
+      expect(stored[0]?.totalCurrencyOverride).toBe('VES')
+    })
   })
 })

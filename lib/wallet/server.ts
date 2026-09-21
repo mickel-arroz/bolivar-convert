@@ -26,6 +26,7 @@ import type {
 import type { CurrencyId } from '@/constants/currencies'
 import type { Rates, RateId } from '@/constants/rates'
 import type { WalletDelta } from '@/lib/wallet/delta'
+import { DEFAULT_DISPLAY_CURRENCY, isCurrencyId } from '@/lib/wallet/displayCurrency'
 import type { StatsBundle, TimeRange } from '@/hooks/useWallet'
 import {
   buildFeed,
@@ -289,6 +290,11 @@ function rowToContribution(r: Record<string, unknown>): GoalContribution {
   }
 }
 
+/** Lee una moneda de una columna de texto sin confiar en su contenido. */
+function asCurrency(v: unknown): CurrencyId | undefined {
+  return isCurrencyId(v) ? v : undefined
+}
+
 function shoppingListToRow(l: ShoppingList, userId: string) {
   return {
     id: l.id,
@@ -297,6 +303,7 @@ function shoppingListToRow(l: ShoppingList, userId: string) {
     icon: nn(l.icon),
     color: nn(l.color),
     created_at: l.createdAt,
+    total_currency_override: nn(l.totalCurrencyOverride),
   }
 }
 function rowToShoppingList(r: Record<string, unknown>): ShoppingList {
@@ -306,6 +313,7 @@ function rowToShoppingList(r: Record<string, unknown>): ShoppingList {
     icon: un(r.icon as string | null),
     color: un(r.color as string | null),
     createdAt: r.created_at as string,
+    totalCurrencyOverride: asCurrency(r.total_currency_override),
   }
 }
 
@@ -410,6 +418,7 @@ export async function loadWallet(
   const p = profile.data as Record<string, unknown> | null
   if (p) {
     state.displayCurrency = p.display_currency as CurrencyId
+    state.netWorthCurrencyOverride = asCurrency(p.networth_currency_override)
     state.statsRateSource = p.stats_rate_source as RateId
     state.timeRange = p.time_range as WalletState['timeRange']
     state.concludedMonths = (p.concluded_months as string[]) ?? []
@@ -598,6 +607,7 @@ export async function applyWalletDelta(
         {
           id: userId,
           display_currency: delta.prefs.displayCurrency,
+          networth_currency_override: delta.prefs.netWorthCurrencyOverride ?? null,
           stats_rate_source: delta.prefs.statsRateSource,
           time_range: delta.prefs.timeRange,
           concluded_months: delta.prefs.concludedMonths,
@@ -687,7 +697,8 @@ export async function resetWalletAll(supabase: SupabaseClient, userId: string): 
     await supabase.from('profiles').upsert(
       {
         id: userId,
-        display_currency: 'VES',
+        display_currency: DEFAULT_DISPLAY_CURRENCY,
+        networth_currency_override: null,
         stats_rate_source: 'bcvUsd',
         time_range: '1m',
         concluded_months: [],
@@ -796,7 +807,7 @@ export async function loadStats(
   const budgetTransfers = ((btRes.data as Record<string, unknown>[]) ?? []).map(rowToBudgetTransfer)
 
   const p = profileRes.data as Record<string, unknown> | null
-  const displayCurrency = (p?.display_currency as CurrencyId) ?? 'VES'
+  const displayCurrency = (p?.display_currency as CurrencyId) ?? DEFAULT_DISPLAY_CURRENCY
   const statsRateSource = (p?.stats_rate_source as RateId) ?? 'bcvUsd'
   const activeTemplateId =
     (p?.active_budget_template_id as string | null) ?? DEFAULT_BUDGET_TEMPLATE_ID

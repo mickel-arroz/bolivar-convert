@@ -20,6 +20,7 @@ import { PRIORITY_COLORS, PRIORITY_LABELS, normalizePriority } from '@/constants
 import { computeShoppingTotals, type ResolvedRates } from '@/lib/wallet/shoppingTotals'
 import { cn } from '@/lib/utils'
 import { formatMoney } from './format'
+import { nextOverride, resolveDisplayCurrency } from '@/lib/wallet/displayCurrency'
 import { PriorityBreakdown } from './PriorityBreakdown'
 
 interface ShoppingListDetailDialogProps {
@@ -53,11 +54,15 @@ export function ShoppingListDetailDialog({
   onPurchase,
   onOpenItem,
 }: ShoppingListDetailDialogProps) {
-  const { state, undoPurchase } = wallet
+  const { state, undoPurchase, updateShoppingList } = wallet
   const [fullscreen, setFullscreen] = useState(false)
   const [breakdownOpen, setBreakdownOpen] = useState(false)
 
-  const [totalCurrency, setTotalCurrency] = useState<CurrencyId>('VES')
+  const totalCurrency = resolveDisplayCurrency(list?.totalCurrencyOverride, state.displayCurrency)
+  const setTotalCurrency = (c: CurrencyId) => {
+    if (!list) return
+    updateShoppingList(list.id, { totalCurrencyOverride: nextOverride(c, state.displayCurrency) })
+  }
   const [usdRateSource, setUsdRateSource] = useState<UsdRateSource>('bcvUsd')
   const [usdCustom, setUsdCustom] = useState('')
   const [eurRateSource, setEurRateSource] = useState<EurRateSource>('bcvEur')

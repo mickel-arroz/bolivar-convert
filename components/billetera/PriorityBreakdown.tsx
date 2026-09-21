@@ -26,6 +26,103 @@ function purchasedPercent(row: PriorityTotal): number {
   return Math.min(100, Math.max(0, ((row.total - row.remaining) / row.total) * 100))
 }
 
+interface PriorityCardsProps {
+  byPriority: PriorityTotal[]
+  displayCurrency: CurrencyId
+  /**
+   * Variante reducida, para la fila de una lista dentro del resumen: mismo contenido
+   * que la grande (restante, de cuánto, progreso) con tipografías y espaciados menores.
+   */
+  compact?: boolean
+  /** Clases de la grilla: quien la usa decide cuántas columnas caben en su ancho. */
+  className?: string
+  testId: string
+}
+
+/**
+ * Las tarjetas de un desglose por prioridad: restante en grande, el total del que sale
+ * debajo y una barra con lo ya comprado. Compartidas por el desglose global del resumen
+ * y por cada fila de lista, para que la misma cifra no signifique cosas distintas.
+ */
+export function PriorityCards({
+  byPriority,
+  displayCurrency,
+  compact = false,
+  className,
+  testId,
+}: PriorityCardsProps) {
+  return (
+    <div className={cn('grid', compact ? 'gap-1.5' : 'gap-2', className)}>
+      {byPriority.map((row) => (
+        <div
+          key={row.priority}
+          data-testid={testId}
+          data-covered={isCovered(row)}
+          className={cn(
+            'flex flex-col border border-border/60 bg-background/60 transition-opacity data-[covered=true]:opacity-50',
+            compact ? 'gap-1 rounded-lg p-1.5' : 'gap-2 rounded-xl p-2.5'
+          )}
+        >
+          <div className="flex items-center gap-1.5">
+            <span
+              className={cn(
+                'flex shrink-0 items-center justify-center rounded-[5px] font-bold leading-none text-white',
+                compact ? 'size-4 text-[10px]' : 'size-5 text-[11px]'
+              )}
+              style={{ backgroundColor: PRIORITY_COLORS[row.priority] }}
+            >
+              {row.priority}
+            </span>
+            <span className={cn('truncate font-bold', compact ? 'text-[10px]' : 'text-xs')}>
+              {PRIORITY_LABELS[row.priority]}
+            </span>
+          </div>
+
+          <div className="min-w-0">
+            <p
+              className={cn(
+                'truncate font-black tabular-nums',
+                compact ? 'text-xs' : 'text-sm sm:text-base'
+              )}
+            >
+              {row.remaining === null ? '—' : formatMoney(row.remaining, displayCurrency)}
+            </p>
+            {row.total !== null && (
+              <p
+                className={cn(
+                  'truncate tabular-nums text-muted-foreground',
+                  compact ? 'text-[10px]' : 'text-xs'
+                )}
+              >
+                de {formatMoney(row.total, displayCurrency)}
+              </p>
+            )}
+          </div>
+
+          {row.total !== null && row.remaining !== null && (
+            <div
+              aria-hidden
+              className={cn(
+                'overflow-hidden rounded-full bg-muted',
+                compact ? 'h-0.5' : 'h-1'
+              )}
+            >
+              <div
+                data-testid="priority-progress"
+                className="h-full rounded-full transition-[width] duration-300"
+                style={{
+                  width: `${purchasedPercent(row)}%`,
+                  backgroundColor: PRIORITY_COLORS[row.priority],
+                }}
+              />
+            </div>
+          )}
+        </div>
+      ))}
+    </div>
+  )
+}
+
 export function PriorityBreakdown({
   byPriority,
   displayCurrency,
@@ -36,7 +133,7 @@ export function PriorityBreakdown({
 
   return (
     <Collapsible open={open} onOpenChange={onOpenChange}>
-      <CollapsibleTrigger className="flex w-full items-center gap-2 py-1.5">
+      <CollapsibleTrigger className="flex w-full cursor-pointer items-center gap-2 py-1.5">
         <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
           Por prioridad
         </span>
@@ -60,50 +157,12 @@ export function PriorityBreakdown({
       </CollapsibleTrigger>
 
       <CollapsiblePanel>
-        <div className="grid grid-cols-[repeat(auto-fit,minmax(8rem,1fr))] gap-2 pb-3 pt-1">
-          {byPriority.map((row) => (
-            <div
-              key={row.priority}
-              data-testid="priority-card"
-              data-covered={isCovered(row)}
-              className="flex flex-col gap-2 rounded-xl border border-border/60 bg-background/60 p-2.5 transition-opacity data-[covered=true]:opacity-50"
-            >
-              <div className="flex items-center gap-1.5">
-                <span
-                  className="flex size-5 shrink-0 items-center justify-center rounded-[5px] text-[11px] font-bold leading-none text-white"
-                  style={{ backgroundColor: PRIORITY_COLORS[row.priority] }}
-                >
-                  {row.priority}
-                </span>
-                <span className="truncate text-xs font-bold">{PRIORITY_LABELS[row.priority]}</span>
-              </div>
-
-              <div className="min-w-0">
-                <p className="truncate text-sm font-black tabular-nums sm:text-base">
-                  {row.remaining === null ? '—' : formatMoney(row.remaining, displayCurrency)}
-                </p>
-                {row.total !== null && (
-                  <p className="truncate text-xs tabular-nums text-muted-foreground">
-                    de {formatMoney(row.total, displayCurrency)}
-                  </p>
-                )}
-              </div>
-
-              {row.total !== null && row.remaining !== null && (
-                <div aria-hidden className="h-1 overflow-hidden rounded-full bg-muted">
-                  <div
-                    data-testid="priority-progress"
-                    className="h-full rounded-full transition-[width] duration-300"
-                    style={{
-                      width: `${purchasedPercent(row)}%`,
-                      backgroundColor: PRIORITY_COLORS[row.priority],
-                    }}
-                  />
-                </div>
-              )}
-            </div>
-          ))}
-        </div>
+        <PriorityCards
+          byPriority={byPriority}
+          displayCurrency={displayCurrency}
+          testId="priority-card"
+          className="grid-cols-[repeat(auto-fit,minmax(8rem,1fr))] pb-3 pt-1"
+        />
 
         <div className="h-px bg-border/60" />
       </CollapsiblePanel>

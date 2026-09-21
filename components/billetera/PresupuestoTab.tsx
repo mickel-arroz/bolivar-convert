@@ -463,6 +463,7 @@ export function PresupuestoTab({ wallet, stats, dialogs, rates }: PresupuestoTab
               items={state.shoppingItems}
               rates={rates}
               preferredCurrency={state.displayCurrency}
+              onOpenList={setDetailListId}
             />
             <Button onClick={() => setListForm({ open: true, editing: null })}>
               <PlusIcon /> Nueva lista

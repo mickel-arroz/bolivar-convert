@@ -120,6 +120,8 @@ export interface ShoppingListSummaryRow {
   pending: number
   /** **Precio total** de la lista. `null` si falta una tasa. */
   total: number | null
+  /** Desglose por prioridad de esta lista. Omite las prioridades que no usa. */
+  byPriority: PriorityTotal[]
 }
 
 export interface AllListsTotals {
@@ -169,12 +171,14 @@ export function computeAllListsTotals(
   for (const list of lists) {
     const listItems = itemsByList.get(list.id)
     if (!listItems || listItems.length === 0) continue
+    const listTotals = computeShoppingTotals(listItems, resolvedRates, displayCurrency)
     rows.push({
       listId: list.id,
       name: list.name,
       purchased: listItems.filter((it) => it.purchased).length,
       pending: listItems.filter((it) => !it.purchased).length,
-      total: computeShoppingTotals(listItems, resolvedRates, displayCurrency).total,
+      total: listTotals.total,
+      byPriority: listTotals.byPriority,
     })
   }
 

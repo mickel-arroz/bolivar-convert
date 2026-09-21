@@ -1,5 +1,5 @@
 import { render, screen, fireEvent } from '@testing-library/react'
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 import { ShoppingSummaryButton } from '@/components/billetera/ShoppingSummaryButton'
 import type { ShoppingList, ShoppingListItem } from '@/hooks/useWallet'
 import type { Rates } from '@/constants/rates'
@@ -32,13 +32,19 @@ function item(over: Partial<ShoppingListItem> = {}): ShoppingListItem {
   }
 }
 
-function renderButton(items: ShoppingListItem[], rates = RATES, listsArg = lists) {
+function renderButton(
+  items: ShoppingListItem[],
+  rates = RATES,
+  listsArg = lists,
+  onOpenList: (listId: string) => void = () => {}
+) {
   return render(
     <ShoppingSummaryButton
       lists={listsArg}
       items={items}
       rates={rates}
       preferredCurrency="VES"
+      onOpenList={onOpenList}
     />
   )
 }
@@ -114,12 +120,58 @@ describe('ShoppingSummaryButton — resumen', () => {
       item({ listId: 'l2', priority: 3, price: '300' }),
     ])
     openSummary()
-    fireEvent.click(screen.getByText('Por prioridad'))
 
+    // Viene expandido: el desglose es lo primero que se quiere ver al abrir el resumen.
     const cards = screen.getAllByTestId('priority-card')
     expect(cards).toHaveLength(2)
     expect(cards[0]).toHaveTextContent('Alta')
     expect(cards[1]).toHaveTextContent('Baja')
     expect(screen.queryByText('Media')).not.toBeInTheDocument()
+  })
+
+  it('desglosa por prioridad cada lista, con el restante y de cuánto sale', () => {
+    renderButton([
+      item({ listId: 'l1', priority: 1, price: '500', purchased: true }),
+      item({ listId: 'l1', priority: 3, price: '300' }),
+      item({ listId: 'l2', priority: 2, price: '100' }),
+    ])
+    openSummary()
+
+    const rows = screen.getAllByTestId('summary-list-row')
+    const cards = rows[0].querySelectorAll('[data-testid="summary-list-priority"]')
+    expect(cards).toHaveLength(2)
+
+    // Misma lectura que el desglose global: restante en grande, «de» su Precio total.
+    expect(cards[0]).toHaveTextContent('Alta')
+    expect(cards[0]).toHaveTextContent('0,00')
+    expect(cards[0]).toHaveTextContent('de Bs. 500,00')
+    expect(cards[0].getAttribute('data-covered')).toBe('true')
+
+    expect(cards[1]).toHaveTextContent('Baja')
+    expect(cards[1]).toHaveTextContent('de Bs. 300,00')
+    expect(cards[1].getAttribute('data-covered')).toBe('false')
+
+    // Una lista con una sola prioridad no repite lo que ya dice su fila.
+    expect(rows[1].querySelectorAll('[data-testid="summary-list-priority"]')).toHaveLength(0)
+  })
+
+  it('convierte los totales al elegir otra moneda en el selector', () => {
+    renderButton([item({ listId: 'l1', price: '500' })])
+    openSummary()
+
+    expect(screen.getByTestId('summary-total')).toHaveTextContent('500,00')
+    fireEvent.click(screen.getByRole('button', { name: '$' }))
+    expect(screen.getByTestId('summary-total')).toHaveTextContent('$ 10.00')
+  })
+
+  it('abre el detalle de una lista al tocar su nombre y cierra el resumen', () => {
+    const onOpenList = vi.fn()
+    renderButton([item({ listId: 'l2', price: '100' })], RATES, lists, onOpenList)
+    openSummary()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Ferretería' }))
+
+    expect(onOpenList).toHaveBeenCalledWith('l2')
+    expect(screen.queryByTestId('summary-list-row')).not.toBeInTheDocument()
   })
 })

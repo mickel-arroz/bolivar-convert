@@ -831,6 +831,65 @@ describe('useWallet — listas de compras', () => {
     expect(result.current.accountFunds.find((b) => b.accountId === accId)?.balance).toBe(1000)
   })
 
+  it('deshacer una compra de un mes concluido y descartar no toca el presupuesto', async () => {
+    const { result } = renderHook(() => useWallet())
+    await waitFor(() => expect(result.current.isMounted).toBe(true))
+
+    act(() => result.current.addAccount('Efectivo', 'VES', '1000'))
+    const accId = result.current.state.accounts[0].id
+    const prevMonth = '2026-05'
+    const curMonth = new Date().toISOString().slice(0, 7)
+    act(() => result.current.setBudget('cat_food', prevMonth, '100', 'VES'))
+    act(() => result.current.addShoppingList('Bodega'))
+    const listId = result.current.state.shoppingLists[0].id
+    act(() =>
+      result.current.addShoppingItem({
+        listId,
+        title: 'Pan',
+        price: '40',
+        currency: 'VES',
+        priority: 4,
+        categoryId: 'cat_food',
+      })
+    )
+    const itemId = result.current.state.shoppingItems[0].id
+    act(() =>
+      result.current.confirmPurchase({
+        itemId,
+        accountId: accId,
+        cost: '40',
+        rateSource: 'custom',
+        rateValue: 0,
+        date: `${prevMonth}-15`,
+      })
+    )
+    const rows = result.current.budgetStatusForMonth(RATES, prevMonth)
+    const carryovers: Record<string, number> = {}
+    rows.forEach((r) => (carryovers[r.budget.categoryId] = r.effectiveLimit - r.actual))
+    act(() => result.current.concludeBudgetMonth(prevMonth, curMonth, carryovers))
+    const curLimit = () =>
+      result.current
+        .budgetStatusForMonth(RATES, curMonth)
+        .find((r) => r.budget.categoryId === 'cat_food')?.effectiveLimit
+
+    // La vista previa no toca nada y dice qué se ofrecería.
+    const plan = result.current.previewUndoPurchase(itemId, RATES)
+    expect(plan).toMatchObject({ kind: 'carryover', amount: 40, currency: 'VES', categoryName: 'Comida' })
+    expect(curLimit()).toBe(160)
+    expect(result.current.state.shoppingItems[0].purchased).toBe(true)
+
+    let res: ReturnType<typeof result.current.undoPurchase> | undefined
+    act(() => {
+      res = result.current.undoPurchase(itemId, RATES, false)
+    })
+
+    expect(res).toEqual({ kind: 'discarded', amount: 40, currency: 'VES' })
+    expect(curLimit()).toBe(160) // el presupuesto de este mes no cambió
+    expect(result.current.state.transactions).toHaveLength(0)
+    expect(result.current.state.shoppingItems[0].purchased).toBe(false)
+    expect(result.current.accountFunds.find((b) => b.accountId === accId)?.balance).toBe(1000)
+  })
+
   it('deshacer una compra de un mes sin concluir no añade extra', async () => {
     const { result } = renderHook(() => useWallet())
     await waitFor(() => expect(result.current.isMounted).toBe(true))

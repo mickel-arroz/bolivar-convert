@@ -3,10 +3,26 @@
 import { useMemo, useState } from 'react'
 import { CurrencyId, CURRENCIES, getCurrency } from '@/constants/currencies'
 import { Rates } from '@/constants/rates'
-import { ShoppingList, ShoppingListItem, WalletApi } from '@/hooks/useWallet'
+import {
+  ShoppingList,
+  ShoppingListItem,
+  WalletApi,
+  UndoPurchasePlan,
+  formatMonthLabel,
+} from '@/hooks/useWallet'
 import { DEFAULT_ACCOUNT_COLOR } from '@/constants/walletColors'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import {
+  AlertDialog,
+  AlertDialogContent,
+  AlertDialogHeader,
+  AlertDialogFooter,
+  AlertDialogTitle,
+  AlertDialogDescription,
+  AlertDialogCancel,
+  AlertDialogAction,
+} from '@/components/ui/alert-dialog'
 import { useMathInput } from '@/hooks/useMathInput'
 import {
   Dialog,
@@ -55,9 +71,14 @@ export function ShoppingListDetailDialog({
   onPurchase,
   onOpenItem,
 }: ShoppingListDetailDialogProps) {
-  const { state, undoPurchase, updateShoppingList } = wallet
+  const { state, undoPurchase, previewUndoPurchase, updateShoppingList } = wallet
   const [fullscreen, setFullscreen] = useState(false)
   const [breakdownOpen, setBreakdownOpen] = useState(false)
+  // Deshacer una compra de un mes ya concluido pregunta qué hacer con el dinero.
+  const [pendingUndo, setPendingUndo] = useState<{
+    item: ShoppingListItem
+    plan: Extract<UndoPurchasePlan, { kind: 'carryover' }>
+  } | null>(null)
 
   const totalCurrency = resolveDisplayCurrency(list?.totalCurrencyOverride, state.displayCurrency)
   const setTotalCurrency = (c: CurrencyId) => {
@@ -75,6 +96,9 @@ export function ShoppingListDetailDialog({
     return state.shoppingItems
       .filter((it) => it.listId === list.id)
       .sort((a, b) => {
+        // Los comprados van al final; entre ellos (y entre los pendientes) se mantiene
+        // el orden por prioridad.
+        if (a.purchased !== b.purchased) return a.purchased ? 1 : -1
         const pr = normalizePriority(a.priority) - normalizePriority(b.priority)
         if (pr !== 0) return pr
         const price = priceOf(a) - priceOf(b)
@@ -121,13 +145,14 @@ export function ShoppingListDetailDialog({
 
   if (!list) return null
 
-  const handleUndo = (it: ShoppingListItem) => {
-    const res = undoPurchase(it.id, rates)
+  const notifyUndo = (res: ReturnType<typeof undoPurchase>) => {
     if (res.kind === 'carryover') {
       notify.success(
         'Compra deshecha',
-        `Su mes ya estaba concluido: ${formatMoney(res.amount, res.currency)} vuelven como extra al presupuesto de este mes.`
+        `${formatMoney(res.amount, res.currency)} vuelven como extra al presupuesto de este mes.`
       )
+    } else if (res.kind === 'discarded') {
+      notify.success('Compra deshecha', 'El gasto se descartó: el presupuesto de este mes no cambió.')
     } else if (res.kind === 'ratesMissing') {
       notify.error(
         'Compra deshecha, pero falta la tasa',
@@ -136,6 +161,21 @@ export function ShoppingListDetailDialog({
     } else if (res.kind === 'plain') {
       notify.success('Compra deshecha')
     }
+  }
+
+  const handleUndo = (it: ShoppingListItem) => {
+    const plan = previewUndoPurchase(it.id, rates)
+    if (plan.kind === 'carryover') {
+      setPendingUndo({ item: it, plan })
+      return
+    }
+    notifyUndo(undoPurchase(it.id, rates))
+  }
+
+  const confirmUndo = (addExtra: boolean) => {
+    if (!pendingUndo) return
+    notifyUndo(undoPurchase(pendingUndo.item.id, rates, addExtra))
+    setPendingUndo(null)
   }
 
   const purchasedCount = items.filter((it) => it.purchased).length
@@ -150,6 +190,7 @@ export function ShoppingListDetailDialog({
   }
 
   return (
+    <>
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent
         className={cn(
@@ -399,5 +440,44 @@ export function ShoppingListDetailDialog({
         </div>
       </DialogContent>
     </Dialog>
+
+    <AlertDialog open={!!pendingUndo} onOpenChange={(o) => !o && setPendingUndo(null)}>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Deshacer una compra de un mes concluido</AlertDialogTitle>
+          <AlertDialogDescription>
+            {pendingUndo && (
+              <>
+                «{pendingUndo.item.title}» se pagó en {formatMonthLabel(pendingUndo.plan.month)}, un mes
+                que ya concluiste: su sobrante se calculó con este gasto incluido. Al deshacerla, el
+                saldo de la cuenta sube en cualquier caso. ¿Qué hacemos con los{' '}
+                <strong>{formatMoney(pendingUndo.plan.amount, pendingUndo.plan.currency)}</strong>{' '}
+                en el presupuesto?
+              </>
+            )}
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        {pendingUndo && (
+          <ul className="flex flex-col gap-2 text-sm text-muted-foreground">
+            <li>
+              <strong className="text-foreground">Añadir como extra:</strong> se suman al presupuesto
+              de {pendingUndo.plan.categoryName} de este mes.
+            </li>
+            <li>
+              <strong className="text-foreground">Descartar:</strong> el presupuesto de este mes queda
+              como está.
+            </li>
+          </ul>
+        )}
+        <AlertDialogFooter>
+          <AlertDialogCancel>Cancelar</AlertDialogCancel>
+          <AlertDialogAction onClick={() => confirmUndo(false)}>Descartar</AlertDialogAction>
+          <AlertDialogAction render={<Button />} onClick={() => confirmUndo(true)}>
+            Añadir como extra
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+    </>
   )
 }

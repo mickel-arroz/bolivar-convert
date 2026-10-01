@@ -1,25 +1,28 @@
 'use client'
 
 import { useMemo, useState } from 'react'
+import { Rates } from '@/constants/rates'
 import { WalletApi } from '@/hooks/useWallet'
 import { useWalletResource } from '@/hooks/useWalletResource'
 import type { MovementsPage } from '@/lib/wallet/compute'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { PlusIcon, TransferIcon, ListIcon, LayoutIcon, ChevronRightIcon } from '@/components/icons'
-import { notify } from '@/lib/notify'
 import { WalletDialogs } from './dialogs'
 import { MovementRow } from './MovementRow'
 import { MovementListSkeleton } from './skeletons'
+import { DeleteMovementDialog, DeleteTarget } from './DeleteMovementDialog'
 
 interface MovimientosTabProps {
   wallet: WalletApi
   dialogs: WalletDialogs
+  rates: Rates
 }
 
-export function MovimientosTab({ wallet, dialogs }: MovimientosTabProps) {
-  const { state, removeTransaction, removeTransfer } = wallet
+export function MovimientosTab({ wallet, dialogs, rates }: MovimientosTabProps) {
+  const { state } = wallet
   const [page, setPage] = useState(1)
+  const [pendingDelete, setPendingDelete] = useState<DeleteTarget>(null)
 
   const accountById = useMemo(() => new Map(state.accounts.map((a) => [a.id, a])), [state.accounts])
   const categoryById = useMemo(
@@ -90,14 +93,8 @@ export function MovimientosTab({ wallet, dialogs }: MovimientosTabProps) {
                 const tx = state.transactions.find((t) => t.id === id)
                 if (tx) dialogs.openEditTransaction(tx)
               }}
-              onDeleteTx={(id) => {
-                removeTransaction(id)
-                notify.success('Movimiento eliminado')
-              }}
-              onDeleteTransfer={(id) => {
-                removeTransfer(id)
-                notify.success('Traspaso eliminado')
-              }}
+              onDeleteTx={(id) => setPendingDelete({ kind: 'tx', id })}
+              onDeleteTransfer={(id) => setPendingDelete({ kind: 'transfer', id })}
             />
           ))}
 
@@ -126,6 +123,13 @@ export function MovimientosTab({ wallet, dialogs }: MovimientosTabProps) {
           )}
         </div>
       )}
+
+      <DeleteMovementDialog
+        target={pendingDelete}
+        onClose={() => setPendingDelete(null)}
+        wallet={wallet}
+        rates={rates}
+      />
     </div>
   )
 }

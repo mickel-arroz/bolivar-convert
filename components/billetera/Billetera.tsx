@@ -129,7 +129,7 @@ export function Billetera() {
             <ResumenTab wallet={wallet} rates={rates} dialogs={dialogs} />
           </TabsPanel>
           <TabsPanel value="movimientos">
-            <MovimientosTab wallet={wallet} dialogs={dialogs} />
+            <MovimientosTab wallet={wallet} dialogs={dialogs} rates={rates} />
           </TabsPanel>
           <TabsPanel value="estadisticas">
             <EstadisticasTab wallet={wallet} />
@@ -153,6 +153,7 @@ export function Billetera() {
         wallet={wallet}
         editing={txDialog.editing}
         defaultType={txDialog.type}
+        rates={rates}
       />
       <TransferFormDialog
         open={transferOpen}

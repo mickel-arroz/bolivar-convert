@@ -1595,3 +1595,402 @@ describe('useWallet — moneda de visualización', () => {
     })
   })
 })
+
+describe('useWallet — editar y eliminar movimientos', () => {
+  beforeEach(() => {
+    localStorage.clear()
+    cloud.store = {}
+    vi.clearAllMocks()
+  })
+
+  const prevMonth = '2026-05'
+  const curMonth = new Date().toISOString().slice(0, 7)
+
+  async function setup() {
+    const hook = renderHook(() => useWallet())
+    await waitFor(() => expect(hook.result.current.isMounted).toBe(true))
+    return hook.result
+  }
+  type W = Awaited<ReturnType<typeof setup>>
+
+  const balanceOf = (w: W, accountId: string) =>
+    w.current.accountFunds.find((f) => f.accountId === accountId)?.balance
+
+  /** Una cuenta en VES con 1000 y un producto pagado con ella. */
+  function buy(w: W, opts: { categoryId?: string; date?: string; price?: string } = {}) {
+    act(() => w.current.addAccount('Efectivo', 'VES', '1000'))
+    const accId = w.current.state.accounts[0].id
+    act(() => w.current.addShoppingList('Bodega'))
+    const listId = w.current.state.shoppingLists[0].id
+    act(() =>
+      w.current.addShoppingItem({
+        listId,
+        title: 'Pan',
+        price: opts.price ?? '40',
+        currency: 'VES',
+        priority: 4,
+        categoryId: opts.categoryId ?? 'cat_food',
+      })
+    )
+    const itemId = w.current.state.shoppingItems[0].id
+    act(() =>
+      w.current.confirmPurchase({
+        itemId,
+        accountId: accId,
+        cost: opts.price ?? '40',
+        rateSource: 'custom',
+        rateValue: 0,
+        date: opts.date ?? today,
+      })
+    )
+    return { accId, itemId, txId: w.current.state.transactions[0].id }
+  }
+
+  /** Concluye `prevMonth` como lo hace la UI: sobrante = efectivo − gastado. */
+  function concludePrev(w: W) {
+    const carryovers: Record<string, number> = {}
+    w.current
+      .budgetStatusForMonth(RATES, prevMonth)
+      .forEach((r) => (carryovers[r.budget.categoryId] = r.effectiveLimit - r.actual))
+    act(() => w.current.concludeBudgetMonth(prevMonth, curMonth, carryovers))
+  }
+
+  const effectiveOf = (w: W, month: string, categoryId: string) =>
+    w.current.budgetStatusForMonth(RATES, month).find((r) => r.budget.categoryId === categoryId)
+      ?.effectiveLimit
+
+  it('eliminar un gasto devuelve el dinero a la cuenta', async () => {
+    const w = await setup()
+    act(() => w.current.addAccount('Efectivo', 'VES', '100'))
+    const accountId = w.current.state.accounts[0].id
+    act(() => {
+      w.current.addTransaction({
+        type: 'expense',
+        accountId,
+        categoryId: 'cat_food',
+        amount: '30',
+        date: today,
+      })
+    })
+    expect(balanceOf(w, accountId)).toBe(70)
+
+    let res: ReturnType<typeof w.current.removeTransaction> | undefined
+    act(() => {
+      res = w.current.removeTransaction(w.current.state.transactions[0].id)
+    })
+
+    expect(res).toEqual({ ok: true })
+    expect(w.current.state.transactions).toHaveLength(0)
+    expect(balanceOf(w, accountId)).toBe(100)
+  })
+
+  it('eliminar el gasto de una compra devuelve el producto a pendiente y el dinero a la cuenta', async () => {
+    const w = await setup()
+    const { accId, txId } = buy(w)
+    expect(balanceOf(w, accId)).toBe(960)
+
+    let res: ReturnType<typeof w.current.removeTransaction> | undefined
+    act(() => {
+      res = w.current.removeTransaction(txId)
+    })
+
+    expect(res).toEqual({ ok: true })
+    const item = w.current.state.shoppingItems[0]
+    expect(item.purchased).toBe(false)
+    expect(item.purchase).toBeUndefined()
+    expect(item.categoryId).toBe('cat_food') // conserva su categoría para reconfirmar
+    expect(balanceOf(w, accId)).toBe(1000)
+  })
+
+  it('no se puede eliminar un ingreso que ya se gastó: dejaría la cuenta en negativo', async () => {
+    const w = await setup()
+    act(() => w.current.addAccount('A', 'VES', '0'))
+    const accountId = w.current.state.accounts[0].id
+    act(() => {
+      w.current.addTransaction({
+        type: 'income',
+        accountId,
+        categoryId: 'cat_salary',
+        amount: '100',
+        date: today,
+      })
+    })
+    act(() => {
+      w.current.addTransaction({
+        type: 'expense',
+        accountId,
+        categoryId: 'cat_food',
+        amount: '80',
+        date: today,
+      })
+    })
+    const income = w.current.state.transactions.find((t) => t.type === 'income')!
+
+    let res: ReturnType<typeof w.current.removeTransaction> | undefined
+    act(() => {
+      res = w.current.removeTransaction(income.id)
+    })
+
+    expect(res).toEqual({ ok: false, reason: 'overdraw' })
+    expect(w.current.state.transactions).toHaveLength(2)
+    expect(balanceOf(w, accountId)).toBe(20)
+  })
+
+  it('eliminar un gasto de un mes concluido: «añadir extra» devuelve la diferencia al presupuesto', async () => {
+    const w = await setup()
+    act(() => w.current.addAccount('Efectivo', 'VES', '1000'))
+    const accountId = w.current.state.accounts[0].id
+    act(() => w.current.setBudget('cat_food', prevMonth, '100', 'VES'))
+    act(() => {
+      w.current.addTransaction({
+        type: 'expense',
+        accountId,
+        categoryId: 'cat_food',
+        amount: '40',
+        date: `${prevMonth}-15`,
+      })
+    })
+    concludePrev(w)
+    expect(effectiveOf(w, curMonth, 'cat_food')).toBe(160) // 100 + 60 arrastrado
+    const txId = w.current.state.transactions[0].id
+
+    const plan = w.current.previewTransactionChange(txId, null, RATES)
+    expect(plan.corrections).toHaveLength(1)
+    expect(plan.corrections[0]).toMatchObject({ amount: 40, currency: 'VES', categoryName: 'Comida' })
+
+    act(() => void w.current.removeTransaction(txId, { rates: RATES, addExtra: true }))
+
+    expect(effectiveOf(w, curMonth, 'cat_food')).toBe(200)
+    expect(balanceOf(w, accountId)).toBe(1000)
+  })
+
+  it('eliminar un gasto de un mes concluido: «descartar» no toca el presupuesto', async () => {
+    const w = await setup()
+    act(() => w.current.addAccount('Efectivo', 'VES', '1000'))
+    const accountId = w.current.state.accounts[0].id
+    act(() => w.current.setBudget('cat_food', prevMonth, '100', 'VES'))
+    act(() => {
+      w.current.addTransaction({
+        type: 'expense',
+        accountId,
+        categoryId: 'cat_food',
+        amount: '40',
+        date: `${prevMonth}-15`,
+      })
+    })
+    concludePrev(w)
+    const txId = w.current.state.transactions[0].id
+
+    act(() => void w.current.removeTransaction(txId, { rates: RATES, addExtra: false }))
+
+    expect(effectiveOf(w, curMonth, 'cat_food')).toBe(160)
+    expect(w.current.state.transactions).toHaveLength(0)
+    expect(balanceOf(w, accountId)).toBe(1000)
+  })
+
+  it('subir el monto de un gasto de un mes concluido quita la diferencia del extra', async () => {
+    const w = await setup()
+    act(() => w.current.addAccount('Efectivo', 'VES', '1000'))
+    const accountId = w.current.state.accounts[0].id
+    act(() => w.current.setBudget('cat_food', prevMonth, '100', 'VES'))
+    act(() => {
+      w.current.addTransaction({
+        type: 'expense',
+        accountId,
+        categoryId: 'cat_food',
+        amount: '40',
+        date: `${prevMonth}-15`,
+      })
+    })
+    concludePrev(w)
+    const txId = w.current.state.transactions[0].id
+
+    const plan = w.current.previewTransactionChange(txId, { amount: '50' }, RATES)
+    expect(plan.corrections[0]).toMatchObject({ amount: -10 })
+
+    let res: ReturnType<typeof w.current.updateTransaction> | undefined
+    act(() => {
+      res = w.current.updateTransaction(txId, { amount: '50' }, { rates: RATES, addExtra: true })
+    })
+
+    expect(res).toEqual({ ok: true })
+    expect(effectiveOf(w, curMonth, 'cat_food')).toBe(150) // 160 − 10
+    expect(balanceOf(w, accountId)).toBe(950)
+  })
+
+  it('cambiar la categoría de un gasto de un mes concluido mueve el extra entre presupuestos', async () => {
+    const w = await setup()
+    act(() => w.current.addAccount('Efectivo', 'VES', '1000'))
+    const accountId = w.current.state.accounts[0].id
+    act(() => w.current.setBudget('cat_food', prevMonth, '100', 'VES'))
+    act(() => w.current.setBudget('cat_transport', prevMonth, '100', 'VES'))
+    act(() => {
+      w.current.addTransaction({
+        type: 'expense',
+        accountId,
+        categoryId: 'cat_food',
+        amount: '40',
+        date: `${prevMonth}-15`,
+      })
+    })
+    concludePrev(w)
+    expect(effectiveOf(w, curMonth, 'cat_food')).toBe(160)
+    expect(effectiveOf(w, curMonth, 'cat_transport')).toBe(200)
+    const txId = w.current.state.transactions[0].id
+
+    act(
+      () =>
+        void w.current.updateTransaction(
+          txId,
+          { categoryId: 'cat_transport' },
+          { rates: RATES, addExtra: true }
+        )
+    )
+
+    // Comida libera 40 y Transporte los gasta: el extra se mueve, el saldo no.
+    expect(effectiveOf(w, curMonth, 'cat_food')).toBe(200)
+    expect(effectiveOf(w, curMonth, 'cat_transport')).toBe(160)
+    expect(balanceOf(w, accountId)).toBe(960)
+  })
+
+  it('el dinero del gasto de una compra no se edita; categoría y fecha sí, y el producto las sigue', async () => {
+    const w = await setup()
+    const { accId, itemId, txId } = buy(w)
+
+    for (const patch of [{ amount: '99' }, { type: 'income' as const }]) {
+      let res: ReturnType<typeof w.current.updateTransaction> | undefined
+      act(() => {
+        res = w.current.updateTransaction(txId, patch)
+      })
+      expect(res).toEqual({ ok: false, reason: 'locked' })
+    }
+    expect(balanceOf(w, accId)).toBe(960)
+
+    const newDate = `${curMonth}-01`
+    let res: ReturnType<typeof w.current.updateTransaction> | undefined
+    act(() => {
+      res = w.current.updateTransaction(txId, { categoryId: 'cat_health', date: newDate })
+    })
+
+    expect(res).toEqual({ ok: true })
+    const item = w.current.state.shoppingItems.find((i) => i.id === itemId)!
+    expect(item.categoryId).toBe('cat_health')
+    expect(item.purchase?.date).toBe(newDate)
+    expect(w.current.state.transactions[0].categoryId).toBe('cat_health')
+    expect(balanceOf(w, accId)).toBe(960)
+  })
+
+  it('editar rechaza una categoría de otro tipo y no cambia nada', async () => {
+    const w = await setup()
+    act(() => w.current.addAccount('Efectivo', 'VES', '100'))
+    const accountId = w.current.state.accounts[0].id
+    act(() => {
+      w.current.addTransaction({
+        type: 'expense',
+        accountId,
+        categoryId: 'cat_food',
+        amount: '30',
+        date: today,
+      })
+    })
+    const txId = w.current.state.transactions[0].id
+
+    let res: ReturnType<typeof w.current.updateTransaction> | undefined
+    act(() => {
+      res = w.current.updateTransaction(txId, { categoryId: 'cat_salary' }) // de ingreso
+    })
+
+    expect(res).toEqual({ ok: false, reason: 'invalid' })
+    expect(w.current.state.transactions[0].categoryId).toBe('cat_food')
+  })
+
+  it('editar rechaza un monto que dejaría la cuenta en negativo', async () => {
+    const w = await setup()
+    act(() => w.current.addAccount('Efectivo', 'VES', '100'))
+    const accountId = w.current.state.accounts[0].id
+    act(() => {
+      w.current.addTransaction({
+        type: 'expense',
+        accountId,
+        categoryId: 'cat_food',
+        amount: '30',
+        date: today,
+      })
+    })
+    const txId = w.current.state.transactions[0].id
+
+    let res: ReturnType<typeof w.current.updateTransaction> | undefined
+    act(() => {
+      res = w.current.updateTransaction(txId, { amount: '150' })
+    })
+
+    expect(res).toEqual({ ok: false, reason: 'overdraw' })
+    expect(w.current.state.transactions[0].amount).toBe('30')
+    expect(balanceOf(w, accountId)).toBe(70)
+  })
+
+  it('eliminar un traspaso devuelve el dinero al origen y lo quita del destino', async () => {
+    const w = await setup()
+    act(() => w.current.addAccount('A', 'VES', '100'))
+    act(() => w.current.addAccount('B', 'VES', '0'))
+    const [a, b] = w.current.state.accounts.map((x) => x.id)
+    act(() => {
+      w.current.addTransfer({
+        fromAccountId: a,
+        toAccountId: b,
+        fromAmount: '40',
+        toAmount: '40',
+        rateSource: 'custom',
+        rateValue: 0,
+        date: today,
+      })
+    })
+    expect(balanceOf(w, a)).toBe(60)
+    expect(balanceOf(w, b)).toBe(40)
+
+    let res: ReturnType<typeof w.current.removeTransfer> | undefined
+    act(() => {
+      res = w.current.removeTransfer(w.current.state.transfers[0].id)
+    })
+
+    expect(res).toEqual({ ok: true })
+    expect(balanceOf(w, a)).toBe(100)
+    expect(balanceOf(w, b)).toBe(0)
+  })
+
+  it('no se puede eliminar un traspaso si el destino ya gastó ese dinero', async () => {
+    const w = await setup()
+    act(() => w.current.addAccount('A', 'VES', '100'))
+    act(() => w.current.addAccount('B', 'VES', '0'))
+    const [a, b] = w.current.state.accounts.map((x) => x.id)
+    act(() => {
+      w.current.addTransfer({
+        fromAccountId: a,
+        toAccountId: b,
+        fromAmount: '40',
+        toAmount: '40',
+        rateSource: 'custom',
+        rateValue: 0,
+        date: today,
+      })
+    })
+    act(() => {
+      w.current.addTransaction({
+        type: 'expense',
+        accountId: b,
+        categoryId: 'cat_food',
+        amount: '30',
+        date: today,
+      })
+    })
+
+    let res: ReturnType<typeof w.current.removeTransfer> | undefined
+    act(() => {
+      res = w.current.removeTransfer(w.current.state.transfers[0].id)
+    })
+
+    expect(res).toEqual({ ok: false, reason: 'overdraw' })
+    expect(w.current.state.transfers).toHaveLength(1)
+    expect(balanceOf(w, b)).toBe(10)
+  })
+})

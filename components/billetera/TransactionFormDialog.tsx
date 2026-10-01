@@ -1,7 +1,14 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import { Transaction, TransactionType, CommissionType, WalletApi } from '@/hooks/useWallet'
+import {
+  Transaction,
+  TransactionType,
+  CommissionType,
+  TransactionChangePlan,
+  WalletApi,
+} from '@/hooks/useWallet'
+import { Rates } from '@/constants/rates'
 import { getCurrency } from '@/constants/currencies'
 import {
   getCategoryIcon,
@@ -20,8 +27,20 @@ import {
   DialogDescription,
   DialogFooter,
 } from '@/components/ui/dialog'
+import {
+  AlertDialog,
+  AlertDialogContent,
+  AlertDialogHeader,
+  AlertDialogFooter,
+  AlertDialogTitle,
+  AlertDialogDescription,
+  AlertDialogCancel,
+  AlertDialogAction,
+} from '@/components/ui/alert-dialog'
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select'
 import { Field, TypeToggle, AmountPreview, CommissionField } from './fields'
+import { CarryoverCorrectionsNotice } from './CarryoverCorrectionsNotice'
+import { mutationError } from './mutationMessages'
 import { useMathInput } from '@/hooks/useMathInput'
 import { resolveCommission } from '@/lib/wallet/compute'
 import { notify } from '@/lib/notify'
@@ -34,6 +53,7 @@ interface TransactionFormDialogProps {
   wallet: WalletApi
   editing?: Transaction | null
   defaultType?: TransactionType
+  rates: Rates
 }
 
 export function TransactionFormDialog({
@@ -42,8 +62,15 @@ export function TransactionFormDialog({
   wallet,
   editing,
   defaultType = 'expense',
+  rates,
 }: TransactionFormDialogProps) {
-  const { state, accountFunds, addTransaction, updateTransaction } = wallet
+  const { state, accountFunds, addTransaction, updateTransaction, previewTransactionChange } = wallet
+  // Cambio pendiente de confirmar: editar un gasto de un mes ya concluido pregunta qué
+  // hacer con la diferencia del extra arrastrado.
+  const [pendingEdit, setPendingEdit] = useState<{
+    payload: Partial<Transaction>
+    plan: TransactionChangePlan
+  } | null>(null)
   const [type, setType] = useState<TransactionType>(defaultType)
   const [accountId, setAccountId] = useState('')
   const [categoryId, setCategoryId] = useState('')
@@ -102,6 +129,25 @@ export function TransactionFormDialog({
     !editing && type === 'expense' && amountNum > 0 && amountNum + commissionNum > currentAvailable + 1e-6
   const canSubmit = amountNum > 0 && !!accountId && !!categoryId && !overBalance
 
+  // Si este gasto es la compra de un producto, su dinero queda fijo (ver `updateTransaction`).
+  const linkedItem = editing
+    ? state.shoppingItems.find((it) => it.purchase?.transactionId === editing.id)
+    : undefined
+  const moneyLocked = !!linkedItem
+
+  const applyEdit = (payload: Partial<Transaction>, addExtra: boolean) => {
+    if (!editing) return
+    const res = updateTransaction(editing.id, payload, { rates, addExtra })
+    if (!res.ok) {
+      const e = mutationError(res.reason, 'edit')
+      notify.error(e.title, e.description)
+      return
+    }
+    notify.success('Movimiento actualizado')
+    setPendingEdit(null)
+    onOpenChange(false)
+  }
+
   const handleSubmit = () => {
     if (!canSubmit) return
     const commissionValue = commission.trim() || undefined
@@ -115,12 +161,21 @@ export function TransactionFormDialog({
       note,
       date,
     }
-    const ok = editing ? updateTransaction(editing.id, payload) : addTransaction(payload)
-    if (!ok) {
+    if (editing) {
+      // Si el cambio toca un mes ya concluido, se pregunta antes qué hacer con el extra.
+      const plan = previewTransactionChange(editing.id, payload, rates)
+      if (plan.corrections.length > 0 || plan.ratesMissing) {
+        setPendingEdit({ payload, plan })
+        return
+      }
+      applyEdit(payload, true)
+      return
+    }
+    if (!addTransaction(payload)) {
       notify.error('El monto supera el Disponible de la cuenta')
       return
     }
-    notify.success(editing ? 'Movimiento actualizado' : 'Movimiento registrado')
+    notify.success('Movimiento registrado')
     onOpenChange(false)
   }
 
@@ -139,12 +194,24 @@ export function TransactionFormDialog({
           </p>
         ) : (
           <div className="flex flex-col gap-4">
+            {linkedItem && (
+              <p className="rounded-lg border border-border/60 bg-muted/30 p-3 text-xs text-muted-foreground">
+                Este gasto es la compra de <strong className="text-foreground">«{linkedItem.title}»</strong>.
+                Puedes cambiar la categoría, la fecha y la nota; el monto, la cuenta y la comisión se
+                mantienen. Para cambiarlos, deshaz la compra en tu lista y confírmala de nuevo.
+              </p>
+            )}
+
             <Field label="Tipo">
-              <TypeToggle value={type} onChange={setType} />
+              <TypeToggle value={type} onChange={setType} disabled={moneyLocked} />
             </Field>
 
             <Field label="Cuenta">
-              <Select value={accountId} onValueChange={(v) => setAccountId(v as string)}>
+              <Select
+                value={accountId}
+                onValueChange={(v) => setAccountId(v as string)}
+                disabled={moneyLocked}
+              >
                 <SelectTrigger>
                   <SelectValue>
                     {(val) => {
@@ -215,12 +282,13 @@ export function TransactionFormDialog({
                   placeholder="0,00"
                   autoFocus
                   className="flex-1"
+                  disabled={moneyLocked}
                 />
                 <Button
                   type="button"
                   variant="outline"
                   onClick={() => setCalcOpen(true)}
-                  disabled={!accountId}
+                  disabled={!accountId || moneyLocked}
                   title="Calcular monto con las tasas"
                 >
                   <CalculatorIcon className="size-4" /> Calcular
@@ -250,6 +318,7 @@ export function TransactionFormDialog({
                 setCommissionTouched(true)
               }}
               currencySymbol={accountCurrency ? getCurrency(accountCurrency).symbol : undefined}
+              disabled={moneyLocked}
             />
 
             <Field label="Fecha">
@@ -276,6 +345,42 @@ export function TransactionFormDialog({
         </DialogFooter>
       </DialogContent>
     </Dialog>
+
+    <AlertDialog open={!!pendingEdit} onOpenChange={(o) => !o && setPendingEdit(null)}>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Guardar un cambio en un mes concluido</AlertDialogTitle>
+          <AlertDialogDescription>
+            El saldo de la cuenta se actualiza en cualquier caso. Elige qué hacer con el presupuesto de
+            este mes.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        {pendingEdit && <CarryoverCorrectionsNotice plan={pendingEdit.plan} />}
+        <AlertDialogFooter>
+          <AlertDialogCancel>Cancelar</AlertDialogCancel>
+          {pendingEdit && pendingEdit.plan.corrections.length > 0 ? (
+            <>
+              <AlertDialogAction onClick={() => pendingEdit && applyEdit(pendingEdit.payload, false)}>
+                Guardar y descartar
+              </AlertDialogAction>
+              <AlertDialogAction
+                render={<Button />}
+                onClick={() => pendingEdit && applyEdit(pendingEdit.payload, true)}
+              >
+                Guardar y añadir extra
+              </AlertDialogAction>
+            </>
+          ) : (
+            <AlertDialogAction
+              render={<Button />}
+              onClick={() => pendingEdit && applyEdit(pendingEdit.payload, false)}
+            >
+              Guardar
+            </AlertDialogAction>
+          )}
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
 
     {accountCurrency && (
       <AmountCalculatorDialog

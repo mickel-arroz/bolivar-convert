@@ -303,9 +303,11 @@ export function ColorPicker({
 export function TypeToggle({
   value,
   onChange,
+  disabled,
 }: {
   value: TransactionType
   onChange: (type: TransactionType) => void
+  disabled?: boolean
 }) {
   const options = [
     { id: 'expense' as const, label: 'Gasto' },
@@ -318,8 +320,9 @@ export function TypeToggle({
           key={o.id}
           type="button"
           onClick={() => onChange(o.id)}
+          disabled={disabled}
           className={cn(
-            'rounded-md py-1.5 text-sm font-bold transition-all',
+            'rounded-md py-1.5 text-sm font-bold transition-all disabled:cursor-not-allowed disabled:opacity-60',
             value === o.id
               ? o.id === 'income'
                 ? 'bg-green-500/15 text-green-600 shadow-sm dark:text-green-400'

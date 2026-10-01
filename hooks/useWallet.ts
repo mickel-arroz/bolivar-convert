@@ -546,6 +546,132 @@ export function planUndoPurchase(s: WalletState, itemId: string, rates: Rates): 
   }
 }
 
+/**
+ * Corrección al extra arrastrado por cambiar un gasto de un mes ya concluido.
+ * `amount` va con signo y en la moneda del presupuesto: positivo devuelve extra
+ * (se gastó menos de lo que se contó al concluir), negativo lo quita.
+ */
+export interface CarryoverCorrection {
+  budgetId: string
+  amount: number
+  currency: CurrencyId
+  categoryName: string
+  /** Mes 'YYYY-MM' del gasto que se corrige. */
+  month: string
+}
+
+export interface TransactionChangePlan {
+  corrections: CarryoverCorrection[]
+  /** Había una corrección que calcular pero falta la tasa: no se inventa un extra de 0. */
+  ratesMissing: boolean
+}
+
+/**
+ * Qué implica cambiar (`patch`) o eliminar (`patch = null`) una transacción respecto
+ * a los extras ya arrastrados. Es la misma regla que `planUndoPurchase`, generalizada:
+ * al concluir un mes su sobrante se guardó como número fijo, así que cambiar o borrar
+ * después un gasto de ese mes lo deja desfasado. La diferencia entre lo que el gasto
+ * pesaba antes y lo que pesa ahora, por (categoría, mes concluido), vuelve como extra
+ * al presupuesto de esa categoría del mes actual, donde termina la cadena de arrastres.
+ * Los meses sin concluir no necesitan nada: su presupuesto recalcula el gastado solo.
+ */
+export function planTransactionChange(
+  s: WalletState,
+  txId: string,
+  patch: Partial<Transaction> | null,
+  rates: Rates
+): TransactionChangePlan {
+  const none = { corrections: [], ratesMissing: false }
+  const old = s.transactions.find((t) => t.id === txId)
+  if (!old) return none
+  const next: Transaction | null = patch ? { ...old, ...patch } : null
+  const currentMonth = monthKeyOf(new Date())
+
+  const spend = (tx: Transaction | null) =>
+    tx && tx.type === 'expense'
+      ? {
+          categoryId: tx.categoryId,
+          month: monthKeyOf(tx.date),
+          amount: parseAmount(tx.amount),
+          currency: s.accounts.find((a) => a.id === tx.accountId)?.currency,
+        }
+      : null
+  const before = spend(old)
+  const after = spend(next)
+
+  const keys = new Map<string, { categoryId: string; month: string }>()
+  for (const e of [before, after]) if (e) keys.set(`${e.categoryId}|${e.month}`, e)
+
+  const corrections: CarryoverCorrection[] = []
+  let ratesMissing = false
+  for (const { categoryId, month } of keys.values()) {
+    if (month === currentMonth || !s.concludedMonths.includes(month)) continue
+    const budget = s.budgets.find(
+      (b) =>
+        b.templateId === s.activeBudgetTemplateId &&
+        b.categoryId === categoryId &&
+        b.month === currentMonth
+    )
+    if (!budget) continue
+
+    let missing = false
+    const weight = (e: ReturnType<typeof spend>) => {
+      // Un gasto cuya cuenta ya no existe no cuenta en ningún presupuesto.
+      if (!e || e.categoryId !== categoryId || e.month !== month || !e.currency) return 0
+      const v = normalize(e.amount, e.currency, budget.currency, rates, s.statsRateSource)
+      if (v <= 0 && e.amount > 0) missing = true
+      return v
+    }
+    const delta = weight(before) - weight(after)
+    if (missing) {
+      ratesMissing = true
+      continue
+    }
+    if (Math.abs(delta) < 1e-9) continue
+    corrections.push({
+      budgetId: budget.id,
+      amount: delta,
+      currency: budget.currency,
+      categoryName: s.categories.find((c) => c.id === categoryId)?.name ?? 'esa categoría',
+      month,
+    })
+  }
+  return { corrections, ratesMissing }
+}
+
+/** Resultado de cambiar o eliminar un movimiento o traspaso. */
+export type MutationResult =
+  | { ok: true }
+  | {
+      ok: false
+      /**
+       * `overdraw`: dejaría una cuenta en negativo. `locked`: toca el dinero de un gasto
+       * que es la compra de un producto. `invalid`: datos que no cuadran. `missing`: ya no existe.
+       */
+      reason: 'overdraw' | 'locked' | 'invalid' | 'missing'
+    }
+
+/** Cómo aplicar las correcciones de `planTransactionChange`. */
+export interface TransactionChangeOptions {
+  rates: Rates
+  addExtra: boolean
+}
+
+/** El producto cuya compra es esta transacción, si lo hay. */
+export function linkedShoppingItem(s: WalletState, txId: string): ShoppingListItem | undefined {
+  return s.shoppingItems.find((it) => it.purchase?.transactionId === txId)
+}
+
+/** Suma las correcciones al extra arrastrado de sus presupuestos (acumula si se repiten). */
+function applyCorrections(budgets: Budget[], corrections: CarryoverCorrection[]): Budget[] {
+  if (corrections.length === 0) return budgets
+  const byId = new Map<string, number>()
+  for (const c of corrections) byId.set(c.budgetId, (byId.get(c.budgetId) ?? 0) + c.amount)
+  return budgets.map((b) =>
+    byId.has(b.id) ? { ...b, carryover: String(parseSigned(b.carryover) + byId.get(b.id)!) } : b
+  )
+}
+
 /* ─── Hook ─── */
 /** Tipo del valor devuelto por useWallet, útil para tipar props de componentes hijos. */
 export type WalletApi = ReturnType<typeof useWallet>
@@ -865,34 +991,126 @@ export function useWallet() {
           Transaction,
           'type' | 'accountId' | 'categoryId' | 'amount' | 'commission' | 'commissionType' | 'note' | 'date'
         >
-      >
-    ): boolean => {
+      >,
+      opts?: TransactionChangeOptions
+    ): MutationResult => {
       const s = stateRef.current
       const old = s.transactions.find((t) => t.id === id)
-      if (!old) return false
+      if (!old) return { ok: false, reason: 'missing' }
+      const next: Transaction = { ...old, ...patch }
+
+      // Si este gasto es la compra de un producto, su dinero (tipo, cuenta, monto y
+      // comisión) no se toca aquí: el costo del producto y la tasa guardada en la compra
+      // quedarían desfasados. Para cambiarlo se deshace la compra y se confirma de nuevo.
+      // Categoría y fecha sí se pueden cambiar; se reflejan en el producto más abajo.
+      // Va antes de validar los datos: es la razón real del rechazo si cambian el tipo.
+      const linked = linkedShoppingItem(s, id)
+      if (linked) {
+        const commissionOf = (t: Transaction) =>
+          t.commission ? `${t.commission}|${t.commissionType ?? 'percent'}` : ''
+        if (
+          next.type !== old.type ||
+          next.accountId !== old.accountId ||
+          parseAmount(next.amount) !== parseAmount(old.amount) ||
+          commissionOf(next) !== commissionOf(old)
+        ) {
+          return { ok: false, reason: 'locked' }
+        }
+      }
+
+      // Datos que cuadran: monto positivo, cuenta existente y categoría del mismo tipo.
+      const category = s.categories.find((c) => c.id === next.categoryId)
+      if (
+        parseAmount(next.amount) <= 0 ||
+        !s.accounts.some((a) => a.id === next.accountId) ||
+        !category ||
+        category.kind !== next.type
+      ) {
+        return { ok: false, reason: 'invalid' }
+      }
+
       const nextState: WalletState = {
         ...s,
-        transactions: s.transactions.map((t) => (t.id === id ? { ...t, ...patch } : t)),
+        transactions: s.transactions.map((t) => (t.id === id ? next : t)),
       }
-      const affected = new Set<string>([old.accountId])
-      if (patch.accountId) affected.add(patch.accountId)
+      const affected = new Set<string>([old.accountId, next.accountId])
       for (const accId of affected) {
         const after = accountAvailableOf(accId, nextState)
         const before = accountAvailableOf(accId, s)
-        if (after < -OVERDRAW_EPS && after < before - OVERDRAW_EPS) return false
+        if (after < -OVERDRAW_EPS && after < before - OVERDRAW_EPS) {
+          return { ok: false, reason: 'overdraw' }
+        }
       }
+
+      const corrections =
+        opts && opts.addExtra ? planTransactionChange(s, id, patch, opts.rates).corrections : []
       setState((s2) => ({
         ...s2,
         transactions: s2.transactions.map((t) => (t.id === id ? { ...t, ...patch } : t)),
+        budgets: applyCorrections(s2.budgets, corrections),
+        // Un producto comprado siempre lleva la categoría y la fecha de su gasto.
+        shoppingItems: linked
+          ? s2.shoppingItems.map((it) =>
+              it.id === linked.id && it.purchase
+                ? {
+                    ...it,
+                    categoryId: next.categoryId,
+                    purchase: { ...it.purchase, date: next.date },
+                  }
+                : it
+            )
+          : s2.shoppingItems,
       }))
-      return true
+      return { ok: true }
     },
     [accountAvailableOf]
   )
 
-  const removeTransaction = useCallback((id: string) => {
-    setState((s) => ({ ...s, transactions: s.transactions.filter((t) => t.id !== id) }))
-  }, [])
+  /**
+   * Elimina un movimiento. El saldo de la cuenta se calcula a partir de los movimientos,
+   * así que el dinero vuelve solo (un gasto suma, un ingreso resta). Si el gasto era la
+   * compra de un producto, el producto vuelve a pendiente en el mismo `setState`.
+   * Se rechaza si dejaría una cuenta en negativo (p. ej. un ingreso que ya se gastó).
+   */
+  const removeTransaction = useCallback(
+    (id: string, opts?: TransactionChangeOptions): MutationResult => {
+      const s = stateRef.current
+      const tx = s.transactions.find((t) => t.id === id)
+      if (!tx) return { ok: false, reason: 'missing' }
+
+      const nextState: WalletState = {
+        ...s,
+        transactions: s.transactions.filter((t) => t.id !== id),
+      }
+      const after = accountAvailableOf(tx.accountId, nextState)
+      const before = accountAvailableOf(tx.accountId, s)
+      if (after < -OVERDRAW_EPS && after < before - OVERDRAW_EPS) {
+        return { ok: false, reason: 'overdraw' }
+      }
+
+      const corrections =
+        opts && opts.addExtra ? planTransactionChange(s, id, null, opts.rates).corrections : []
+      setState((s2) => ({
+        ...s2,
+        transactions: s2.transactions.filter((t) => t.id !== id),
+        budgets: applyCorrections(s2.budgets, corrections),
+        shoppingItems: s2.shoppingItems.map((it) =>
+          it.purchase?.transactionId === id ? { ...it, purchased: false, purchase: undefined } : it
+        ),
+      }))
+      return { ok: true }
+    },
+    [accountAvailableOf]
+  )
+
+  /** Qué implicaría cambiar o eliminar un movimiento, sin tocar nada (para confirmar antes). */
+  const previewTransactionChange = useCallback(
+    (id: string, patch: Partial<Transaction> | null, rates: Rates) => ({
+      ...planTransactionChange(stateRef.current, id, patch, rates),
+      linkedItem: linkedShoppingItem(stateRef.current, id),
+    }),
+    []
+  )
 
   /* ── Traspasos ── */
   const addTransfer = useCallback(
@@ -957,9 +1175,28 @@ export function useWallet() {
     [accountAvailableOf]
   )
 
-  const removeTransfer = useCallback((id: string) => {
-    setState((s) => ({ ...s, transfers: s.transfers.filter((t) => t.id !== id) }))
-  }, [])
+  /**
+   * Elimina un traspaso: el origen recupera lo que salió y el destino pierde lo que
+   * recibió. Se rechaza si el destino quedaría en negativo (p. ej. ya gastó ese dinero).
+   */
+  const removeTransfer = useCallback(
+    (id: string): MutationResult => {
+      const s = stateRef.current
+      const tr = s.transfers.find((t) => t.id === id)
+      if (!tr) return { ok: false, reason: 'missing' }
+      const nextState: WalletState = { ...s, transfers: s.transfers.filter((t) => t.id !== id) }
+      for (const accId of [tr.fromAccountId, tr.toAccountId]) {
+        const after = accountAvailableOf(accId, nextState)
+        const before = accountAvailableOf(accId, s)
+        if (after < -OVERDRAW_EPS && after < before - OVERDRAW_EPS) {
+          return { ok: false, reason: 'overdraw' }
+        }
+      }
+      setState((s2) => ({ ...s2, transfers: s2.transfers.filter((t) => t.id !== id) }))
+      return { ok: true }
+    },
+    [accountAvailableOf]
+  )
 
   /* ── Categorías ── */
   const addCategory = useCallback(
@@ -1813,6 +2050,7 @@ export function useWallet() {
     addTransaction,
     updateTransaction,
     removeTransaction,
+    previewTransactionChange,
     // Traspasos
     addTransfer,
     removeTransfer,

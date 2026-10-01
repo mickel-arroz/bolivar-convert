@@ -15,5 +15,15 @@ export const WALLET_COLORS = [
   'var(--wallet-pink)',
 ] as const
 
-/** Color por defecto (gris) cuando el usuario no elige ninguno. */
-export const DEFAULT_ACCOUNT_COLOR = 'var(--muted-foreground)'
+/**
+ * Color por defecto (gris) cuando el usuario no elige ninguno. Variable propia, no
+ * `--muted-foreground`: en modo oscuro tiene un gris más claro para que se lea sobre el
+ * fondo, y en claro vale lo mismo que antes.
+ */
+export const DEFAULT_ACCOUNT_COLOR = 'var(--wallet-gray)'
+
+/** El gris por defecto de antes: categorías guardadas con él se siguen leyendo como «sin color». */
+const LEGACY_DEFAULT_COLOR = 'var(--muted-foreground)'
+
+export const isDefaultColor = (value: string | undefined): boolean =>
+  !value || value === DEFAULT_ACCOUNT_COLOR || value === LEGACY_DEFAULT_COLOR

@@ -89,6 +89,8 @@
   --wallet-indigo: oklch(0.5 0.22 275);
   --wallet-purple: oklch(0.55 0.22 305);
   --wallet-pink: oklch(0.62 0.22 350);
+  /* Gris por defecto de cuentas, listas y categorías sin color (igual que muted-foreground). */
+  --wallet-gray: oklch(0.556 0 0);
   --scrollbar-thumb: oklch(0.556 0 0 / 0.4);
   --scrollbar-thumb-hover: oklch(0.556 0 0 / 0.65);
   --radius: 0.625rem;
@@ -124,7 +126,8 @@
   --chart-1: oklch(0.87 0 0);
   --chart-2: oklch(0.556 0 0);
   --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
+  /* «Compras» usa este gris como color de su icono: en oscuro tiene que leerse sobre el fondo. */
+  --chart-4: oklch(0.82 0 0);
   --chart-5: oklch(0.269 0 0);
   --rate-usd: oklch(0.723 0.219 149.579);
   --rate-eur: oklch(0.707 0.165 254.624);
@@ -139,6 +142,7 @@
   --wallet-indigo: oklch(0.68 0.19 275);
   --wallet-purple: oklch(0.72 0.19 305);
   --wallet-pink: oklch(0.75 0.19 350);
+  --wallet-gray: oklch(0.82 0 0);
   --scrollbar-thumb: oklch(0.708 0 0 / 0.4);
   --scrollbar-thumb-hover: oklch(0.708 0 0 / 0.65);
   --sidebar: oklch(0.205 0 0);

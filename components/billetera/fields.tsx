@@ -1,7 +1,7 @@
 import { ReactNode } from 'react'
 import { CURRENCIES, CurrencyId } from '@/constants/currencies'
 import { Category, TransactionType, CommissionType } from '@/hooks/useWallet'
-import { WALLET_COLORS, DEFAULT_ACCOUNT_COLOR } from '@/constants/walletColors'
+import { WALLET_COLORS, DEFAULT_ACCOUNT_COLOR, isDefaultColor } from '@/constants/walletColors'
 import { CheckIcon } from '@/components/icons'
 import { getCategoryIcon, userCategories } from '@/constants/walletCategories'
 import { cn } from '@/lib/utils'
@@ -261,7 +261,7 @@ export function ColorPicker({
   value: string | undefined
   onChange: (color: string | undefined) => void
 }) {
-  const isDefault = !value || value === DEFAULT_ACCOUNT_COLOR
+  const isDefault = isDefaultColor(value)
   return (
     <div className="grid grid-cols-5 gap-1.5">
       {/* Sin color (gris) */}

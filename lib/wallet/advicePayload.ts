@@ -163,5 +163,9 @@ export function buildAdvicePrompt(payload: AdvicePayload, now: Date = new Date()
     '',
     `Cada texto debe ser un solo párrafo de máximo ${ADVICE_MAX_LENGTH} caracteres.`,
     'No uses markdown, ni listas, ni encabezados. No inventes cifras que no estén en los datos.',
+    '',
+    'Reglas para los números:',
+    `- Siempre que menciones una cifra de dinero, di a qué moneda se refiere, con su nombre: bolívares, dólares o euros (por ejemplo "150 dólares" o "2.000 bolívares"). Usa la moneda de los datos: ${payload.currency} salvo donde el dato traiga su propia "currency". Nunca dejes una cifra de dinero suelta, sin moneda.`,
+    '- Siempre que menciones un porcentaje, escríbelo con su símbolo "%" pegado al número (por ejemplo "25%"). Nunca "25 por ciento" ni un porcentaje sin el símbolo.',
   ].join('\n')
 }

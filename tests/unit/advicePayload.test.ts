@@ -179,6 +179,24 @@ describe('buildAdvicePrompt', () => {
     expect(prompt).toContain('coloquial venezolana')
   })
 
+  it('exige que toda cifra de dinero diga su moneda', () => {
+    const payload = buildAdvicePayload(input(), RATES)
+    const prompt = buildAdvicePrompt(payload)
+
+    expect(prompt).toContain('cifra de dinero')
+    expect(prompt).toContain('a qué moneda se refiere')
+    expect(prompt).toContain('bolívares, dólares o euros')
+    // Y le recuerda cuál es la moneda de los datos.
+    expect(prompt).toContain(`Usa la moneda de los datos: ${payload.currency}`)
+  })
+
+  it('exige que todo porcentaje lleve su símbolo %', () => {
+    const prompt = buildAdvicePrompt(buildAdvicePayload(input(), RATES))
+
+    expect(prompt).toContain('porcentaje')
+    expect(prompt).toContain('símbolo "%"')
+  })
+
   it('incluye los agregados y ningún detalle de transacciones', () => {
     const prompt = buildAdvicePrompt(buildAdvicePayload(input(), RATES))
 

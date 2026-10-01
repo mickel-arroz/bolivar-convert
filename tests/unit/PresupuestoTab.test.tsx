@@ -39,7 +39,7 @@ const row = (id: string, name: string, limit: number, actual: number): BudgetSta
   isOver: false,
 })
 
-function renderTab(rows: BudgetStatusRow[]) {
+function renderTab(rows: BudgetStatusRow[], budgets: Partial<Budget>[] = []) {
   const wallet = {
     state: {
       shoppingLists: [],
@@ -51,7 +51,7 @@ function renderTab(rows: BudgetStatusRow[]) {
       categories: [{ id: 'c', name: 'Otra', kind: 'expense', icon: 'other' }],
       goals: [],
       concludedMonths: [],
-      budgets: [],
+      budgets,
     },
     removeBudget: vi.fn(),
     goalBalances: [],
@@ -71,18 +71,37 @@ describe('PresupuestoTab — resumen de todos los presupuestos', () => {
     expect(screen.getByText('Comida')).toBeInTheDocument()
   })
 
-  it('con dos o más aparece antes de las tarjetas y ocupa dos columnas', () => {
+  const follows = (a: Element, b: Element) =>
+    !!(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING)
+
+  it('con dos o más aparece justo debajo de los botones y antes de las tarjetas', () => {
     renderTab([row('a', 'Comida', 100, 20), row('b', 'Transporte', 50, 10)])
 
-    const title = screen.getByText('Todos los presupuestos')
-    const summaryCard = title.closest('[data-slot="card"]') as HTMLElement
-    expect(summaryCard).toHaveClass('lg:col-span-2')
+    const summaryCard = screen
+      .getByText('Todos los presupuestos')
+      .closest('[data-slot="card"]') as HTMLElement
     expect(screen.getByText('2 presupuestos')).toBeInTheDocument()
 
-    // Va primero: antes que la tarjeta de cualquier presupuesto.
+    // Debajo de los botones «Plantillas» y «Asignar presupuesto»…
+    expect(follows(screen.getByRole('button', { name: /Plantillas/ }), summaryCard)).toBe(true)
+    expect(follows(screen.getByRole('button', { name: /Asignar presupuesto/ }), summaryCard)).toBe(true)
+    // …y antes que la tarjeta de cualquier presupuesto.
     const comida = screen.getByText('Comida').closest('[data-slot="card"]') as HTMLElement
-    expect(summaryCard.compareDocumentPosition(comida) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
-    // Y las tarjetas individuales siguen ocupando una columna.
-    expect(comida).not.toHaveClass('lg:col-span-2')
+    expect(follows(summaryCard, comida)).toBe(true)
+    // A todo el ancho (el de dos tarjetas): no dentro de la cuadrícula de una columna por tarjeta.
+    expect(summaryCard.closest('.grid')).toBeNull()
+  })
+
+  it('va antes del aviso de mes por concluir', () => {
+    renderTab(
+      [row('a', 'Comida', 100, 20), row('b', 'Transporte', 50, 10)],
+      [{ templateId: 'tpl_default', month: '2026-05' }]
+    )
+
+    const summaryCard = screen
+      .getByText('Todos los presupuestos')
+      .closest('[data-slot="card"]') as HTMLElement
+    const banner = screen.getByText(/sin concluir/)
+    expect(follows(summaryCard, banner)).toBe(true)
   })
 })

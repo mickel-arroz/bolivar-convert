@@ -203,6 +203,10 @@ export function PresupuestoTab({ wallet, stats, dialogs, rates }: PresupuestoTab
         </div>
       </div>
 
+      {/* Justo debajo de los botones, antes de los avisos y de las tarjetas: a todo el ancho,
+          que es el de dos tarjetas. */}
+      {budgetsSummary && <BudgetsSummaryCard summary={budgetsSummary} />}
+
       {/* Aviso de mes anterior por concluir */}
       {pastMonth && (
         <div className="flex flex-col gap-3 rounded-xl border border-amber-500/40 bg-amber-500/10 p-4 sm:flex-row sm:items-center sm:justify-between">
@@ -239,7 +243,6 @@ export function PresupuestoTab({ wallet, stats, dialogs, rates }: PresupuestoTab
         </Card>
       ) : (
         <div className="grid gap-3 lg:grid-cols-2">
-          {budgetsSummary && <BudgetsSummaryCard summary={budgetsSummary} className="lg:col-span-2" />}
           {stats.budgetStatus.map((row) => {
             const Icon = getCategoryIcon(row.categoryIcon)
             const pct = row.effectiveLimit > 0 ? Math.min(100, (row.actual / row.effectiveLimit) * 100) : 0

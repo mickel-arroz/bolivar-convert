@@ -65,11 +65,16 @@ export function BudgetFormDialog({
   )
 
   const selectableCategories = useMemo(() => {
-    if (!asItem) return expenseCategories
-    const taken = new Set(asItem.existingCategoryIds)
-    const editingId = asItem.editing?.categoryId
+    const taken = new Set(
+      asItem
+        ? asItem.existingCategoryIds
+        : state.budgets
+            .filter((b) => b.templateId === activeTemplateId && b.month === month)
+            .map((b) => b.categoryId)
+    )
+    const editingId = asItem ? asItem.editing?.categoryId : presetCategoryId
     return expenseCategories.filter((c) => c.id === editingId || !taken.has(c.id))
-  }, [expenseCategories, asItem])
+  }, [expenseCategories, asItem, state.budgets, activeTemplateId, month, presetCategoryId])
 
   useEffect(() => {
     if (!open) return
@@ -81,7 +86,7 @@ export function BudgetFormDialog({
       setCarryover('')
       return
     }
-    const cat = presetCategoryId ?? expenseCategories[0]?.id ?? ''
+    const cat = presetCategoryId ?? selectableCategories[0]?.id ?? ''
     setCategoryId(cat)
     const existing = state.budgets.find(
       (b) => b.templateId === activeTemplateId && b.categoryId === cat && b.month === month
@@ -125,16 +130,18 @@ export function BudgetFormDialog({
     })
   }, [state.categories, state.budgets, categoryId, month, activeTemplateId, asItem])
 
-  const canSubmit = !!categoryId && parseFloat(limit.replace(',', '.')) > 0 && !duplicateTitle
+  const limitValue = limit.trim() === '' ? '0' : limit
+  const limitNum = parseFloat(limitValue.replace(',', '.'))
+  const canSubmit = !!categoryId && Number.isFinite(limitNum) && limitNum >= 0 && !duplicateTitle
 
   const handleSubmit = () => {
     if (!canSubmit) return
     if (asItem) {
-      asItem.onSubmit({ categoryId, limit, currency })
+      asItem.onSubmit({ categoryId, limit: limitValue, currency })
       onOpenChange(false)
       return
     }
-    setBudget(categoryId, month, limit, currency, carryover.trim() === '' ? '0' : carryover)
+    setBudget(categoryId, month, limitValue, currency, carryover.trim() === '' ? '0' : carryover)
     notify.success('Presupuesto guardado')
     onOpenChange(false)
   }

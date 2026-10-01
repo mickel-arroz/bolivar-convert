@@ -126,6 +126,12 @@ export function PresupuestoTab({ wallet, stats, dialogs, rates }: PresupuestoTab
     [state.categories, budgetedCategoryIds]
   )
 
+  const assignDisabledReason = state.categories.every((c) => c.kind !== 'expense')
+    ? 'Crea una categoría de gasto para asignar presupuestos'
+    : unbudgeted.length === 0
+      ? 'Todas las categorías de gasto ya tienen presupuesto en esta plantilla'
+      : undefined
+
   const activeTemplate = useMemo(
     () => state.budgetTemplates.find((t) => t.id === state.activeBudgetTemplateId) ?? null,
     [state.budgetTemplates, state.activeBudgetTemplateId]
@@ -171,12 +177,15 @@ export function PresupuestoTab({ wallet, stats, dialogs, rates }: PresupuestoTab
           <Button variant="outline" onClick={() => setTemplatesOpen(true)}>
             <TemplateIcon /> Plantillas
           </Button>
-          <Button
-            onClick={() => dialogs.openBudget()}
-            disabled={state.categories.every((c) => c.kind !== 'expense')}
-          >
-            <PlusIcon /> Asignar presupuesto
-          </Button>
+          <span title={assignDisabledReason}>
+            <Button
+              onClick={() => dialogs.openBudget()}
+              disabled={!!assignDisabledReason}
+              aria-label={assignDisabledReason}
+            >
+              <PlusIcon /> Asignar presupuesto
+            </Button>
+          </span>
         </div>
       </div>
 

@@ -92,7 +92,8 @@ export function CategoryManagerDialog({ open, onOpenChange, wallet }: CategoryMa
     return (
       <div className="flex flex-col gap-2">
         <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">{title}</span>
-        <div className="flex flex-col gap-1">
+        {/* Ampliada hay ancho de sobra: dos categorías por fila. */}
+        <div className={cn('grid grid-cols-1 gap-1', fullscreen && 'md:grid-cols-2')}>
           {cats.map((c) => {
             const Icon = getCategoryIcon(c.icon)
             const isEditing = editingId === c.id

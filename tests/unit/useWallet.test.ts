@@ -35,6 +35,7 @@ function applyDeltaToStore(store: Record<string, any>, delta: any) {
     store.statsRateSource = delta.prefs.statsRateSource
     store.timeRange = delta.prefs.timeRange
     store.concludedMonths = delta.prefs.concludedMonths
+    store.deletedDefaultCategories = delta.prefs.deletedDefaultCategories
     store.activeBudgetTemplateId = delta.prefs.activeBudgetTemplateId
     store.netWorthCurrencyOverride = delta.prefs.netWorthCurrencyOverride
   }
@@ -69,6 +70,27 @@ describe('useWallet Hook', () => {
     localStorage.clear()
     cloud.store = {}
     vi.clearAllMocks()
+  })
+
+  it('una categoría por defecto borrada no reaparece al recargar', async () => {
+    const { result, unmount } = renderHook(() => useWallet())
+    await waitFor(() => expect(result.current.isMounted).toBe(true))
+    expect(result.current.state.categories.some((c) => c.id === 'cat_shopping')).toBe(true)
+
+    act(() => result.current.removeCategory('cat_shopping'))
+    expect(result.current.state.categories.some((c) => c.id === 'cat_shopping')).toBe(false)
+    await waitFor(() =>
+      expect((cloud.store.deletedDefaultCategories as string[] | undefined) ?? []).toContain(
+        'cat_shopping'
+      )
+    )
+    unmount()
+
+    const { result: result2 } = renderHook(() => useWallet())
+    await waitFor(() => expect(result2.current.isMounted).toBe(true))
+    expect(result2.current.state.categories.some((c) => c.id === 'cat_shopping')).toBe(false)
+    // Las demás por defecto siguen ahí.
+    expect(result2.current.state.categories.some((c) => c.id === 'cat_food')).toBe(true)
   })
 
   it('siembra categorías por defecto y arranca sin cuentas', async () => {

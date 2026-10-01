@@ -233,6 +233,11 @@ export interface WalletState {
   shoppingItems: ShoppingListItem[]
   /** Meses 'YYYY-MM' cuyo presupuesto ya fue concluido (no se vuelve a avisar). */
   concludedMonths: string[]
+  /**
+   * Categorías por defecto que el usuario borró. Sin esta lápida, `mergeCategories`
+   * las volvería a sembrar en cada carga y la categoría reaparecería.
+   */
+  deletedDefaultCategories: string[]
   /** Plantilla de presupuesto activa (sus presupuestos son los del mes visibles). */
   activeBudgetTemplateId: string
   /** Moneda de visualización preferida: el default de todos los bloques que convierten. */
@@ -346,6 +351,7 @@ export const DEFAULT_STATE: WalletState = {
   shoppingLists: [],
   shoppingItems: [],
   concludedMonths: [],
+  deletedDefaultCategories: [],
   displayCurrency: DEFAULT_DISPLAY_CURRENCY,
   statsRateSource: 'bcvUsd',
   timeRange: '1m',
@@ -371,6 +377,16 @@ export function normalizeTemplates(state: WalletState): WalletState {
 }
 
 /**
+ * Anota que una categoría por defecto fue borrada, para que no se vuelva a sembrar.
+ * Las categorías del usuario no necesitan lápida: no se siembran.
+ */
+function tombstoneDefault(deleted: string[], id: string): string[] {
+  if (deleted.includes(id)) return deleted
+  if (!DEFAULT_CATEGORIES.some((c) => c.id === id)) return deleted
+  return [...deleted, id]
+}
+
+/**
  * Descarta la categoría de los productos cuya categoría ya no existe (p. ej. se
  * borró desde otro dispositivo). Sin esto quedarían apuntando al vacío.
  */
@@ -390,14 +406,23 @@ export function normalizeShoppingCategories(state: WalletState): WalletState {
  * (nombre/ícono/color) de las categorías por defecto desde el código, conserva las
  * creadas por el usuario y anexa cualquier categoría por defecto nueva.
  */
-export function mergeCategories(stored: Category[] | undefined): Category[] {
-  if (!stored || stored.length === 0) return DEFAULT_CATEGORIES
+export function mergeCategories(
+  stored: Category[] | undefined,
+  deletedDefaults: string[] = []
+): Category[] {
+  if (!stored || stored.length === 0) {
+    return deletedDefaults.length === 0
+      ? DEFAULT_CATEGORIES
+      : DEFAULT_CATEGORIES.filter((c) => !deletedDefaults.includes(c.id))
+  }
   const defaultsById = new Map(DEFAULT_CATEGORIES.map((c) => [c.id, c]))
   const merged = stored.map((c) => {
     const def = defaultsById.get(c.id)
     return def ? { ...c, ...def } : c
   })
   for (const def of DEFAULT_CATEGORIES) {
+    // Una categoría por defecto que el usuario borró no se vuelve a sembrar.
+    if (deletedDefaults.includes(def.id)) continue
     if (!merged.some((c) => c.id === def.id)) merged.push(def)
   }
   return merged
@@ -473,7 +498,7 @@ export function useWallet() {
       transfers: loaded.transfers ?? [],
       // Refresca las categorías por defecto (por id) desde el código y conserva
       // las del usuario; si no hay ninguna guardada, siembra las por defecto.
-      categories: mergeCategories(loaded.categories),
+      categories: mergeCategories(loaded.categories, loaded.deletedDefaultCategories ?? []),
       budgets: loaded.budgets ?? [],
       budgetTemplates: loaded.budgetTemplates ?? [],
       budgetTransfers: loaded.budgetTransfers ?? [],
@@ -482,6 +507,7 @@ export function useWallet() {
       shoppingLists: loaded.shoppingLists ?? [],
       shoppingItems: loaded.shoppingItems ?? [],
       concludedMonths: loaded.concludedMonths ?? [],
+      deletedDefaultCategories: loaded.deletedDefaultCategories ?? [],
       activeBudgetTemplateId: loaded.activeBudgetTemplateId ?? DEFAULT_BUDGET_TEMPLATE_ID,
       // La moneda de patrimonio vivía en localStorage antes de la nube. Si el perfil
       // aún no tiene override, se sube la elección vieja; la clave se borra al sincronizar.
@@ -876,6 +902,7 @@ export function useWallet() {
       return {
         ...s,
         categories: s.categories.filter((c) => c.id !== id),
+        deletedDefaultCategories: tombstoneDefault(s.deletedDefaultCategories, id),
         transactions: s.transactions.filter((t) => t.categoryId !== id),
         budgets: s.budgets.filter((b) => b.categoryId !== id),
         shoppingItems: s.shoppingItems.map((it) => {
@@ -931,6 +958,7 @@ export function useWallet() {
           transactions,
           budgets: budgets.filter((b) => b.categoryId !== fromId),
           categories: s.categories.filter((c) => c.id !== fromId),
+          deletedDefaultCategories: tombstoneDefault(s.deletedDefaultCategories, fromId),
           shoppingItems: s.shoppingItems.map((it) =>
             it.categoryId === fromId ? { ...it, categoryId: toId } : it
           ),

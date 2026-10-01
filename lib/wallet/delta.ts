@@ -29,6 +29,7 @@ export interface WalletPrefs {
   statsRateSource: RateId
   timeRange: WalletState['timeRange']
   concludedMonths: string[]
+  deletedDefaultCategories: string[]
   activeBudgetTemplateId: string
 }
 
@@ -87,7 +88,9 @@ function prefsChanged(prev: WalletState, next: WalletState): boolean {
     prev.statsRateSource !== next.statsRateSource ||
     prev.timeRange !== next.timeRange ||
     prev.activeBudgetTemplateId !== next.activeBudgetTemplateId ||
-    JSON.stringify(prev.concludedMonths) !== JSON.stringify(next.concludedMonths)
+    JSON.stringify(prev.concludedMonths) !== JSON.stringify(next.concludedMonths) ||
+    JSON.stringify(prev.deletedDefaultCategories) !==
+      JSON.stringify(next.deletedDefaultCategories)
   )
 }
 
@@ -139,6 +142,7 @@ export function buildWalletDelta(prev: WalletState, next: WalletState): WalletDe
           statsRateSource: next.statsRateSource,
           timeRange: next.timeRange,
           concludedMonths: next.concludedMonths,
+          deletedDefaultCategories: next.deletedDefaultCategories ?? [],
           activeBudgetTemplateId: next.activeBudgetTemplateId,
         }
       : null,

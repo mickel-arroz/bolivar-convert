@@ -425,6 +425,7 @@ export async function loadWallet(
     state.statsRateSource = p.stats_rate_source as RateId
     state.timeRange = p.time_range as WalletState['timeRange']
     state.concludedMonths = (p.concluded_months as string[]) ?? []
+    state.deletedDefaultCategories = (p.deleted_default_categories as string[]) ?? []
     state.activeBudgetTemplateId =
       (p.active_budget_template_id as string | null) ?? DEFAULT_BUDGET_TEMPLATE_ID
   }
@@ -614,6 +615,7 @@ export async function applyWalletDelta(
           stats_rate_source: delta.prefs.statsRateSource,
           time_range: delta.prefs.timeRange,
           concluded_months: delta.prefs.concludedMonths,
+          deleted_default_categories: delta.prefs.deletedDefaultCategories ?? [],
           active_budget_template_id: delta.prefs.activeBudgetTemplateId,
           updated_at: new Date().toISOString(),
         },

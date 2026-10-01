@@ -3,7 +3,12 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Transaction, TransactionType, CommissionType, WalletApi } from '@/hooks/useWallet'
 import { getCurrency } from '@/constants/currencies'
-import { getCategoryIcon, CATEGORY_ICON_MAP, ACCOUNT_ICON_MAP } from '@/constants/walletCategories'
+import {
+  getCategoryIcon,
+  CATEGORY_ICON_MAP,
+  ACCOUNT_ICON_MAP,
+  userCategories,
+} from '@/constants/walletCategories'
 import { DotsIcon, WalletIcon, CalculatorIcon } from '@/components/icons'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -74,8 +79,8 @@ export function TransactionFormDialog({
   }, [open, editing, accountId, commissionTouched, state.accounts])
 
   const categories = useMemo(
-    () => state.categories.filter((c) => c.kind === type),
-    [state.categories, type]
+    () => userCategories(state.categories, editing?.categoryId).filter((c) => c.kind === type),
+    [state.categories, type, editing?.categoryId]
   )
 
   // Si cambia el tipo y la categoría seleccionada ya no aplica, limpiarla

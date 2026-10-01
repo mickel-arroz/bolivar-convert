@@ -3,7 +3,7 @@ import { CURRENCIES, CurrencyId } from '@/constants/currencies'
 import { Category, TransactionType, CommissionType } from '@/hooks/useWallet'
 import { WALLET_COLORS, DEFAULT_ACCOUNT_COLOR } from '@/constants/walletColors'
 import { CheckIcon } from '@/components/icons'
-import { getCategoryIcon } from '@/constants/walletCategories'
+import { getCategoryIcon, userCategories } from '@/constants/walletCategories'
 import { cn } from '@/lib/utils'
 import { Input } from '@/components/ui/input'
 import {
@@ -184,6 +184,7 @@ export function ExpenseCategorySelect({
   allowNone?: boolean
 }) {
   const expense = categories.filter((c) => c.kind === 'expense')
+  const options = userCategories(expense, value)
   return (
     <Select
       value={value ?? NO_CATEGORY}
@@ -206,7 +207,7 @@ export function ExpenseCategorySelect({
       </SelectTrigger>
       <SelectContent>
         {allowNone && <SelectItem value={NO_CATEGORY}>Sin categoría</SelectItem>}
-        {expense.map((c) => {
+        {options.map((c) => {
           const Icon = getCategoryIcon(c.icon)
           return (
             <SelectItem key={c.id} value={c.id}>

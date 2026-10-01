@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { CurrencyId } from '@/constants/currencies'
 import { WalletApi, monthKey, formatMonthLabel } from '@/hooks/useWallet'
-import { getCategoryIcon, CATEGORY_ICON_MAP } from '@/constants/walletCategories'
+import { getCategoryIcon, CATEGORY_ICON_MAP, userCategories } from '@/constants/walletCategories'
 import { DotsIcon } from '@/components/icons'
 import { Button } from '@/components/ui/button'
 import {
@@ -60,8 +60,12 @@ export function BudgetFormDialog({
   const [currency, setCurrency] = useState<CurrencyId>(state.displayCurrency)
 
   const expenseCategories = useMemo(
-    () => state.categories.filter((c) => c.kind === 'expense'),
-    [state.categories]
+    () =>
+      userCategories(
+        state.categories,
+        (asItem ? asItem.editing?.categoryId : presetCategoryId) ?? undefined
+      ).filter((c) => c.kind === 'expense'),
+    [state.categories, asItem, presetCategoryId]
   )
 
   const selectableCategories = useMemo(() => {

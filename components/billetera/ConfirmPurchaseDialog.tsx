@@ -89,7 +89,7 @@ export function ConfirmPurchaseDialog({
     if (open && item) {
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setAccountId(state.accounts[0]?.id ?? '')
-      setCategoryId(item.categoryId ?? 'cat_shopping')
+      setCategoryId(item.categoryId)
       setCost(item.price || '')
       setCustomRate('')
       setDate(todayInputValue())
@@ -119,7 +119,7 @@ export function ConfirmPurchaseDialog({
   // vienen de `budgetStatusForMonth`, sin simular el nuevo total, para no duplicar
   // aquí la normalización de monedas.
   const budgetHint = useMemo(() => {
-    if (!categoryId) return undefined
+    if (!categoryId) return 'Sin categoría: el gasto se registra como «Compras».'
     const month = monthKey(date)
     const row = budgetStatusForMonth(rates, month).find((r) => r.budget.categoryId === categoryId)
     if (!row) return undefined
@@ -217,6 +217,7 @@ export function ConfirmPurchaseDialog({
                 categories={state.categories}
                 value={categoryId}
                 onChange={setCategoryId}
+                allowNone
               />
             </Field>
 

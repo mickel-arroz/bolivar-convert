@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { CurrencyId } from '@/constants/currencies'
 import { Rates, RateId } from '@/constants/rates'
 import { generateId, parseAmount } from '@/hooks/useBillSplitter'
-import { DEFAULT_CATEGORIES } from '@/constants/walletCategories'
+import { DEFAULT_CATEGORIES, isSystemCategory } from '@/constants/walletCategories'
 import { buildWalletDelta, isEmptyDelta } from '@/lib/wallet/delta'
 import {
   DEFAULT_DISPLAY_CURRENCY,
@@ -889,6 +889,7 @@ export function useWallet() {
 
   const updateCategory = useCallback(
     (id: string, patch: Partial<Pick<Category, 'name' | 'icon' | 'color'>>) => {
+      if (isSystemCategory(id)) return
       setState((s) => ({
         ...s,
         categories: s.categories.map((c) => (c.id === id ? { ...c, ...patch } : c)),
@@ -902,6 +903,7 @@ export function useWallet() {
    * presupuestos asociados. Protección: nunca borra la última categoría que quede.
    */
   const removeCategory = useCallback((id: string) => {
+    if (isSystemCategory(id)) return
     setState((s) => {
       if (s.categories.length <= 1) return s
       const cat = s.categories.find((c) => c.id === id)
@@ -938,6 +940,7 @@ export function useWallet() {
    */
   const reassignCategory = useCallback(
     (fromId: string, toId: string, budgetStrategy: 'overwrite' | 'merge') => {
+      if (isSystemCategory(fromId)) return
       setState((s) => {
         if (fromId === toId || s.categories.length <= 1) return s
         if (!s.categories.some((c) => c.id === toId)) return s

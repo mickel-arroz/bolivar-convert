@@ -87,6 +87,25 @@ export function getAccountIcon(iconKey: string | undefined): SvgIcon {
 }
 
 /**
+ * Categorías del sistema: el usuario no las ve en sus listados ni puede editarlas o
+ * eliminarlas. Solo aparecen donde ya hay datos que las usan (movimientos, historial).
+ * «Compras» es el destino por defecto de una compra sin categoría (`confirmPurchase`),
+ * así que tiene que existir siempre.
+ */
+export const SYSTEM_CATEGORY_IDS: readonly string[] = ['cat_shopping']
+
+export const isSystemCategory = (id: string | undefined): boolean =>
+  !!id && SYSTEM_CATEGORY_IDS.includes(id)
+
+/**
+ * Categorías que el usuario puede ver y elegir. `keep` conserva una categoría del
+ * sistema que ya está en uso (p. ej. al editar un movimiento que ya la tiene).
+ */
+export function userCategories<T extends { id: string }>(categories: T[], keep?: string): T[] {
+  return categories.filter((c) => !isSystemCategory(c.id) || c.id === keep)
+}
+
+/**
  * Categorías sembradas en la primera carga. IDs fijos (no generateId) para que
  * el sembrado sea idempotente entre recargas y los presupuestos/transacciones
  * que las referencian se mantengan estables.

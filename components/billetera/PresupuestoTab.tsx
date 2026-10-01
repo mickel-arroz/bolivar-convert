@@ -12,7 +12,7 @@ import {
 } from '@/hooks/useWallet'
 import { Rates } from '@/constants/rates'
 import { useAdvice } from '@/hooks/useAdvice'
-import { getCategoryIcon, getAccountIcon } from '@/constants/walletCategories'
+import { getCategoryIcon, getAccountIcon, userCategories } from '@/constants/walletCategories'
 import { DEFAULT_ACCOUNT_COLOR } from '@/constants/walletColors'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -122,11 +122,14 @@ export function PresupuestoTab({ wallet, stats, dialogs, rates }: PresupuestoTab
   )
 
   const unbudgeted = useMemo(
-    () => state.categories.filter((c) => c.kind === 'expense' && !budgetedCategoryIds.has(c.id)),
+    () =>
+      userCategories(state.categories).filter(
+        (c) => c.kind === 'expense' && !budgetedCategoryIds.has(c.id)
+      ),
     [state.categories, budgetedCategoryIds]
   )
 
-  const assignDisabledReason = state.categories.every((c) => c.kind !== 'expense')
+  const assignDisabledReason = userCategories(state.categories).every((c) => c.kind !== 'expense')
     ? 'Crea una categoría de gasto para asignar presupuestos'
     : unbudgeted.length === 0
       ? 'Todas las categorías de gasto ya tienen presupuesto en esta plantilla'

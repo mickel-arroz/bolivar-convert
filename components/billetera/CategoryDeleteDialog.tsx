@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { Category, WalletApi } from '@/hooks/useWallet'
-import { getCategoryIcon } from '@/constants/walletCategories'
+import { getCategoryIcon, userCategories } from '@/constants/walletCategories'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -60,7 +60,7 @@ export function CategoryDeleteDialog({ open, onOpenChange, wallet, category }: C
   const targets = useMemo(
     () =>
       category
-        ? state.categories.filter((c) => c.id !== category.id && c.kind === category.kind)
+        ? userCategories(state.categories).filter((c) => c.id !== category.id && c.kind === category.kind)
         : [],
     [category, state.categories]
   )

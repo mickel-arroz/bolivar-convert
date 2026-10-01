@@ -75,22 +75,68 @@ describe('useWallet Hook', () => {
   it('una categoría por defecto borrada no reaparece al recargar', async () => {
     const { result, unmount } = renderHook(() => useWallet())
     await waitFor(() => expect(result.current.isMounted).toBe(true))
-    expect(result.current.state.categories.some((c) => c.id === 'cat_shopping')).toBe(true)
+    expect(result.current.state.categories.some((c) => c.id === 'cat_health')).toBe(true)
 
-    act(() => result.current.removeCategory('cat_shopping'))
-    expect(result.current.state.categories.some((c) => c.id === 'cat_shopping')).toBe(false)
+    act(() => result.current.removeCategory('cat_health'))
+    expect(result.current.state.categories.some((c) => c.id === 'cat_health')).toBe(false)
     await waitFor(() =>
       expect((cloud.store.deletedDefaultCategories as string[] | undefined) ?? []).toContain(
-        'cat_shopping'
+        'cat_health'
       )
     )
     unmount()
 
     const { result: result2 } = renderHook(() => useWallet())
     await waitFor(() => expect(result2.current.isMounted).toBe(true))
-    expect(result2.current.state.categories.some((c) => c.id === 'cat_shopping')).toBe(false)
+    expect(result2.current.state.categories.some((c) => c.id === 'cat_health')).toBe(false)
     // Las demás por defecto siguen ahí.
     expect(result2.current.state.categories.some((c) => c.id === 'cat_food')).toBe(true)
+  })
+
+  it('«Compras» es una categoría del sistema: no se edita, elimina ni reasigna', async () => {
+    const { result } = renderHook(() => useWallet())
+    await waitFor(() => expect(result.current.isMounted).toBe(true))
+    const shopping = () => result.current.state.categories.find((c) => c.id === 'cat_shopping')
+    const before = shopping()
+    expect(before).toBeTruthy()
+
+    act(() => result.current.updateCategory('cat_shopping', { name: 'Otra cosa' }))
+    expect(shopping()?.name).toBe(before?.name)
+
+    act(() => result.current.removeCategory('cat_shopping'))
+    expect(shopping()).toBeTruthy()
+
+    act(() => result.current.reassignCategory('cat_shopping', 'cat_food', 'merge'))
+    expect(shopping()).toBeTruthy()
+    expect(result.current.state.deletedDefaultCategories).not.toContain('cat_shopping')
+  })
+
+  it('una compra sin categoría sigue registrándose como «Compras»', async () => {
+    const { result } = renderHook(() => useWallet())
+    await waitFor(() => expect(result.current.isMounted).toBe(true))
+
+    act(() => result.current.addAccount('Efectivo', 'VES', '100'))
+    const accId = result.current.state.accounts[0].id
+    act(() => result.current.addShoppingList('L'))
+    const listId = result.current.state.shoppingLists[0].id
+    act(() =>
+      result.current.addShoppingItem({ listId, title: 'X', price: '10', currency: 'VES', priority: 4 })
+    )
+    const itemId = result.current.state.shoppingItems[0].id
+    act(() =>
+      result.current.confirmPurchase({
+        itemId,
+        accountId: accId,
+        categoryId: undefined,
+        cost: '10',
+        rateSource: 'custom',
+        rateValue: 0,
+        date: today,
+      })
+    )
+    const item = result.current.state.shoppingItems[0]
+    const tx = result.current.state.transactions.find((t) => t.id === item.purchase?.transactionId)
+    expect(tx?.categoryId).toBe('cat_shopping')
   })
 
   it('siembra categorías por defecto y arranca sin cuentas', async () => {

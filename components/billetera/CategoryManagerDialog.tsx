@@ -2,7 +2,7 @@
 
 import { useMemo, useRef, useState } from 'react'
 import { Category, TransactionType, WalletApi } from '@/hooks/useWallet'
-import { CATEGORY_ICON_KEYS, getCategoryIcon } from '@/constants/walletCategories'
+import { CATEGORY_ICON_KEYS, getCategoryIcon, userCategories } from '@/constants/walletCategories'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import {
@@ -88,7 +88,7 @@ export function CategoryManagerDialog({ open, onOpenChange, wallet }: CategoryMa
   }
 
   const renderGroup = (groupKind: TransactionType, title: string) => {
-    const cats = state.categories.filter((c) => c.kind === groupKind)
+    const cats = userCategories(state.categories).filter((c) => c.kind === groupKind)
     return (
       <div className="flex flex-col gap-2">
         <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">{title}</span>

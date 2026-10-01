@@ -16,6 +16,7 @@ import {
   filterByRange,
   parseSigned,
   bsPerUnit,
+  monthKey as monthKeyOf,
   normalize,
   resolveCommission,
   computeAccountFunds,
@@ -216,6 +217,17 @@ export interface ShoppingListItem {
   purchase?: ShoppingPurchase
   createdAt: string
 }
+
+/** Qué pasó al deshacer una compra, para que la UI lo pueda contar. */
+export type UndoPurchaseResult =
+  /** El producto no estaba comprado: no se hizo nada. */
+  | { kind: 'none' }
+  /** Se deshizo el movimiento y ya. */
+  | { kind: 'plain' }
+  /** Además, el monto liberado volvió como extra al presupuesto de este mes. */
+  | { kind: 'carryover'; amount: number; currency: CurrencyId }
+  /** Había que devolverlo como extra, pero falta la tasa para convertirlo. */
+  | { kind: 'ratesMissing' }
 
 export type TimeRange = '1m' | '6m' | '1y' | 'all'
 
@@ -1494,7 +1506,52 @@ export function useWallet() {
     [accountAvailableOf]
   )
 
-  const undoPurchase = useCallback((itemId: string) => {
+  /**
+   * Deshace una compra: borra su gasto y devuelve el producto a pendiente.
+   *
+   * Si el mes de la compra ya se concluyó, el sobrante de ese mes se calculó y se
+   * **guardó** como un número fijo (`concludeBudgetMonth`), así que borrar el gasto
+   * después no lo recalcula: habrías arrastrado de menos. Para cuadrarlo, el monto
+   * liberado vuelve como extra al presupuesto de esa categoría del mes actual, que
+   * es donde termina la cadena de arrastres. Si esa categoría no tiene presupuesto
+   * este mes, solo se deshace el movimiento.
+   *
+   * Si el mes no se concluyó no hay nada que corregir: el presupuesto de ese mes
+   * recalcula su gastado solo, y añadir extra lo contaría dos veces.
+   */
+  const undoPurchase = useCallback((itemId: string, rates: Rates): UndoPurchaseResult => {
+    const s0 = stateRef.current
+    const item0 = s0.shoppingItems.find((it) => it.id === itemId)
+    if (!item0?.purchased || !item0.purchase) return { kind: 'none' }
+
+    const tx = s0.transactions.find((t) => t.id === item0.purchase!.transactionId)
+    const account = tx ? s0.accounts.find((a) => a.id === tx.accountId) : undefined
+    const month = monthKeyOf(item0.purchase.date)
+    const currentMonth = monthKeyOf(new Date())
+
+    let correction: { budgetId: string; amount: number; currency: CurrencyId } | null = null
+    let ratesMissing = false
+    if (tx && account && month !== currentMonth && s0.concludedMonths.includes(month)) {
+      const budget = s0.budgets.find(
+        (b) =>
+          b.templateId === s0.activeBudgetTemplateId &&
+          b.categoryId === tx.categoryId &&
+          b.month === currentMonth
+      )
+      if (budget) {
+        const amount = normalize(
+          parseAmount(tx.amount),
+          account.currency,
+          budget.currency,
+          rates,
+          s0.statsRateSource
+        )
+        // `normalize` devuelve 0 si falta la tasa: no inventamos un extra de 0.
+        if (amount > 0) correction = { budgetId: budget.id, amount, currency: budget.currency }
+        else ratesMissing = true
+      }
+    }
+
     setState((s) => {
       const item = s.shoppingItems.find((it) => it.id === itemId)
       if (!item || !item.purchased) return s
@@ -1502,11 +1559,22 @@ export function useWallet() {
       return {
         ...s,
         transactions: txId ? s.transactions.filter((t) => t.id !== txId) : s.transactions,
+        budgets: correction
+          ? s.budgets.map((b) =>
+              b.id === correction!.budgetId
+                ? { ...b, carryover: String(parseSigned(b.carryover) + correction!.amount) }
+                : b
+            )
+          : s.budgets,
         shoppingItems: s.shoppingItems.map((it) =>
           it.id === itemId ? { ...it, purchased: false, purchase: undefined } : it
         ),
       }
     })
+
+    if (correction) return { kind: 'carryover', amount: correction.amount, currency: correction.currency }
+    if (ratesMissing) return { kind: 'ratesMissing' }
+    return { kind: 'plain' }
   }, [])
 
   /* ── Preferencias ── */

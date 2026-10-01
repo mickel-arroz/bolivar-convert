@@ -19,6 +19,7 @@ import { CheckIcon, PlusIcon, PencilIcon, MaximizeIcon, MinimizeIcon } from '@/c
 import { PRIORITY_COLORS, PRIORITY_LABELS, normalizePriority } from '@/constants/shoppingPriority'
 import { computeShoppingTotals, type ResolvedRates } from '@/lib/wallet/shoppingTotals'
 import { cn } from '@/lib/utils'
+import { notify } from '@/lib/notify'
 import { formatMoney } from './format'
 import { nextOverride, resolveDisplayCurrency } from '@/lib/wallet/displayCurrency'
 import { PriorityBreakdown } from './PriorityBreakdown'
@@ -120,6 +121,23 @@ export function ShoppingListDetailDialog({
 
   if (!list) return null
 
+  const handleUndo = (it: ShoppingListItem) => {
+    const res = undoPurchase(it.id, rates)
+    if (res.kind === 'carryover') {
+      notify.success(
+        'Compra deshecha',
+        `Su mes ya estaba concluido: ${formatMoney(res.amount, res.currency)} vuelven como extra al presupuesto de este mes.`
+      )
+    } else if (res.kind === 'ratesMissing') {
+      notify.error(
+        'Compra deshecha, pero falta la tasa',
+        'No se pudo devolver el gasto como extra al presupuesto de este mes. Ajústalo a mano.'
+      )
+    } else if (res.kind === 'plain') {
+      notify.success('Compra deshecha')
+    }
+  }
+
   const purchasedCount = items.filter((it) => it.purchased).length
   const accent = list.color ?? DEFAULT_ACCOUNT_COLOR
 
@@ -190,7 +208,7 @@ export function ShoppingListDetailDialog({
                     <button
                       type="button"
                       aria-label={it.purchased ? 'Marcar como no comprado' : 'Marcar como comprado'}
-                      onClick={() => (it.purchased ? undoPurchase(it.id) : onPurchase(it))}
+                      onClick={() => (it.purchased ? handleUndo(it) : onPurchase(it))}
                       style={
                         it.purchased ? { backgroundColor: accent, borderColor: accent } : undefined
                       }

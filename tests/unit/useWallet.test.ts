@@ -430,7 +430,7 @@ describe('useWallet — listas de compras', () => {
     )
     expect(result.current.state.transactions).toHaveLength(1)
 
-    act(() => result.current.undoPurchase(itemId))
+    act(() => void result.current.undoPurchase(itemId, RATES))
     expect(result.current.state.transactions).toHaveLength(0)
     expect(result.current.state.shoppingItems[0].purchased).toBe(false)
     expect(result.current.state.shoppingItems[0].purchase).toBeUndefined()
@@ -725,6 +725,160 @@ describe('useWallet — listas de compras', () => {
     act(() => result.current.reassignCategory('cat_food', 'cat_other_exp', 'merge'))
 
     expect(result.current.state.shoppingItems[0].categoryId).toBe('cat_other_exp')
+  })
+
+  it('deshacer una compra de un mes concluido devuelve el gasto como extra', async () => {
+    const { result } = renderHook(() => useWallet())
+    await waitFor(() => expect(result.current.isMounted).toBe(true))
+
+    act(() => result.current.addAccount('Efectivo', 'VES', '1000'))
+    const accId = result.current.state.accounts[0].id
+    const prevMonth = '2026-05'
+    const curMonth = new Date().toISOString().slice(0, 7)
+
+    act(() => result.current.setBudget('cat_food', prevMonth, '100', 'VES'))
+    act(() => result.current.addShoppingList('Bodega'))
+    const listId = result.current.state.shoppingLists[0].id
+    act(() =>
+      result.current.addShoppingItem({
+        listId,
+        title: 'Pan',
+        price: '40',
+        currency: 'VES',
+        priority: 4,
+        categoryId: 'cat_food',
+      })
+    )
+    const itemId = result.current.state.shoppingItems[0].id
+    act(() =>
+      result.current.confirmPurchase({
+        itemId,
+        accountId: accId,
+        cost: '40',
+        rateSource: 'custom',
+        rateValue: 0,
+        date: `${prevMonth}-15`,
+      })
+    )
+
+    // Se concluye el mes como lo hace la UI: sobrante = 100 - 40 = 60
+    const rows = result.current.budgetStatusForMonth(RATES, prevMonth)
+    const carryovers: Record<string, number> = {}
+    rows.forEach((r) => (carryovers[r.budget.categoryId] = r.effectiveLimit - r.actual))
+    expect(carryovers['cat_food']).toBe(60)
+    act(() => result.current.concludeBudgetMonth(prevMonth, curMonth, carryovers))
+
+    const curRow = () =>
+      result.current.budgetStatusForMonth(RATES, curMonth).find((r) => r.budget.categoryId === 'cat_food')
+    expect(curRow()?.effectiveLimit).toBe(160) // 100 estimado + 60 arrastrado
+
+    let res: ReturnType<typeof result.current.undoPurchase> | undefined
+    act(() => {
+      res = result.current.undoPurchase(itemId, RATES)
+    })
+
+    // El gasto de 40 se libera y vuelve como extra: el arrastre pasa a ser 100.
+    expect(res).toEqual({ kind: 'carryover', amount: 40, currency: 'VES' })
+    expect(curRow()?.effectiveLimit).toBe(200)
+    expect(result.current.state.transactions).toHaveLength(0)
+    expect(result.current.state.shoppingItems[0].purchased).toBe(false)
+    expect(result.current.accountFunds.find((b) => b.accountId === accId)?.balance).toBe(1000)
+  })
+
+  it('deshacer una compra de un mes sin concluir no añade extra', async () => {
+    const { result } = renderHook(() => useWallet())
+    await waitFor(() => expect(result.current.isMounted).toBe(true))
+
+    act(() => result.current.addAccount('Efectivo', 'VES', '1000'))
+    const accId = result.current.state.accounts[0].id
+    const prevMonth = '2026-05'
+    const curMonth = new Date().toISOString().slice(0, 7)
+    act(() => result.current.setBudget('cat_food', curMonth, '100', 'VES'))
+    act(() => result.current.addShoppingList('Bodega'))
+    const listId = result.current.state.shoppingLists[0].id
+    act(() =>
+      result.current.addShoppingItem({
+        listId,
+        title: 'Pan',
+        price: '40',
+        currency: 'VES',
+        priority: 4,
+        categoryId: 'cat_food',
+      })
+    )
+    const itemId = result.current.state.shoppingItems[0].id
+    act(() =>
+      result.current.confirmPurchase({
+        itemId,
+        accountId: accId,
+        cost: '40',
+        rateSource: 'custom',
+        rateValue: 0,
+        date: `${prevMonth}-15`,
+      })
+    )
+
+    let res: ReturnType<typeof result.current.undoPurchase> | undefined
+    act(() => {
+      res = result.current.undoPurchase(itemId, RATES)
+    })
+
+    // El mes no se concluyó: su presupuesto se recalcula solo, nada que corregir.
+    expect(res).toEqual({ kind: 'plain' })
+    const row = result.current
+      .budgetStatusForMonth(RATES, curMonth)
+      .find((r) => r.budget.categoryId === 'cat_food')
+    expect(row?.effectiveLimit).toBe(100)
+  })
+
+  it('sin presupuesto este mes, deshacer una compra concluida solo deshace', async () => {
+    const { result } = renderHook(() => useWallet())
+    await waitFor(() => expect(result.current.isMounted).toBe(true))
+
+    act(() => result.current.addAccount('Efectivo', 'VES', '1000'))
+    const accId = result.current.state.accounts[0].id
+    const prevMonth = '2026-05'
+    const curMonth = new Date().toISOString().slice(0, 7)
+    act(() => result.current.setBudget('cat_food', prevMonth, '100', 'VES'))
+    act(() => result.current.addShoppingList('Bodega'))
+    const listId = result.current.state.shoppingLists[0].id
+    act(() =>
+      result.current.addShoppingItem({
+        listId,
+        title: 'Pan',
+        price: '40',
+        currency: 'VES',
+        priority: 4,
+        categoryId: 'cat_food',
+      })
+    )
+    const itemId = result.current.state.shoppingItems[0].id
+    act(() =>
+      result.current.confirmPurchase({
+        itemId,
+        accountId: accId,
+        cost: '40',
+        rateSource: 'custom',
+        rateValue: 0,
+        date: `${prevMonth}-15`,
+      })
+    )
+    // Se marca el mes como concluido sin arrastrar a ninguna categoría.
+    act(() => result.current.concludeBudgetMonth(prevMonth, curMonth, {}))
+    // Y se quita el presupuesto que la conclusión creó en el mes actual.
+    const created = result.current.state.budgets.find(
+      (b) => b.categoryId === 'cat_food' && b.month === curMonth
+    )
+    act(() => result.current.removeBudget(created!.id))
+
+    let res: ReturnType<typeof result.current.undoPurchase> | undefined
+    act(() => {
+      res = result.current.undoPurchase(itemId, RATES)
+    })
+
+    expect(res).toEqual({ kind: 'plain' })
+    expect(result.current.state.transactions).toHaveLength(0)
+    expect(result.current.state.shoppingItems[0].purchased).toBe(false)
   })
 
   it('persiste listas y productos en la nube y los rehidrata', async () => {

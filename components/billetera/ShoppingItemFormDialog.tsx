@@ -32,7 +32,7 @@ import {
   ShoppingPriority,
   normalizePriority,
 } from '@/constants/shoppingPriority'
-import { Field, AmountField, CurrencyToggle } from './fields'
+import { Field, AmountField, CurrencyToggle, ExpenseCategorySelect } from './fields'
 
 const TITLE_MAX = 60
 const DESC_MAX = 300
@@ -58,6 +58,7 @@ export function ShoppingItemFormDialog({
   const [price, setPrice] = useState('')
   const [currency, setCurrency] = useState<CurrencyId>('VES')
   const [priority, setPriority] = useState<ShoppingPriority>(DEFAULT_SHOPPING_PRIORITY)
+  const [categoryId, setCategoryId] = useState<string | undefined>(undefined)
   const [targetListId, setTargetListId] = useState(listId)
 
   useEffect(() => {
@@ -68,6 +69,7 @@ export function ShoppingItemFormDialog({
       setPrice(editing?.price ?? '')
       setCurrency(editing?.currency ?? 'VES')
       setPriority(normalizePriority(editing?.priority))
+      setCategoryId(editing?.categoryId)
       setTargetListId(editing?.listId ?? listId)
     }
   }, [open, editing, listId])
@@ -99,6 +101,7 @@ export function ShoppingItemFormDialog({
         price: price || '0',
         currency,
         priority,
+        categoryId,
       })
     } else {
       addShoppingItem({
@@ -108,6 +111,7 @@ export function ShoppingItemFormDialog({
         price: price || '0',
         currency,
         priority,
+        categoryId,
       })
     }
     notify.success(
@@ -209,6 +213,22 @@ export function ShoppingItemFormDialog({
                 </button>
               ))}
             </div>
+          </Field>
+
+          <Field
+            label="Categoría"
+            hint={
+              editing?.purchased
+                ? 'Cambiarla mueve el gasto ya registrado al presupuesto de esa categoría.'
+                : 'Opcional. Al marcarlo como comprado, el gasto entra en su presupuesto.'
+            }
+          >
+            <ExpenseCategorySelect
+              categories={state.categories}
+              value={categoryId}
+              onChange={setCategoryId}
+              allowNone={!editing?.purchased}
+            />
           </Field>
 
           <div className="grid grid-cols-2 gap-3">

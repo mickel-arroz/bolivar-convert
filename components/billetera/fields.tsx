@@ -1,10 +1,18 @@
 import { ReactNode } from 'react'
 import { CURRENCIES, CurrencyId } from '@/constants/currencies'
-import { TransactionType, CommissionType } from '@/hooks/useWallet'
+import { Category, TransactionType, CommissionType } from '@/hooks/useWallet'
 import { WALLET_COLORS, DEFAULT_ACCOUNT_COLOR } from '@/constants/walletColors'
 import { CheckIcon } from '@/components/icons'
+import { getCategoryIcon } from '@/constants/walletCategories'
 import { cn } from '@/lib/utils'
 import { Input } from '@/components/ui/input'
+import {
+  Select,
+  SelectTrigger,
+  SelectValue,
+  SelectContent,
+  SelectItem,
+} from '@/components/ui/select'
 import { useMathInput, formatPreview } from '@/hooks/useMathInput'
 
 /** Campo con etiqueta superior, usado en los formularios de la billetera. */
@@ -153,6 +161,62 @@ export function CommissionField({
         />
       </div>
     </Field>
+  )
+}
+
+/** Valor interno del Select para «Sin categoría»: un Select no admite value vacío. */
+const NO_CATEGORY = '__none__'
+
+/**
+ * Selector de categoría de gasto. Con `allowNone` ofrece «Sin categoría», que el
+ * padre recibe como `undefined`. Las categorías de ingreso nunca se listan: un
+ * producto se paga, así que su categoría es siempre de gasto.
+ */
+export function ExpenseCategorySelect({
+  categories,
+  value,
+  onChange,
+  allowNone,
+}: {
+  categories: Category[]
+  value: string | undefined
+  onChange: (categoryId: string | undefined) => void
+  allowNone?: boolean
+}) {
+  const expense = categories.filter((c) => c.kind === 'expense')
+  return (
+    <Select
+      value={value ?? NO_CATEGORY}
+      onValueChange={(v) => onChange(v === NO_CATEGORY ? undefined : (v as string))}
+    >
+      <SelectTrigger>
+        <SelectValue>
+          {(val) => {
+            const c = expense.find((x) => x.id === val)
+            if (!c) return <span className="text-muted-foreground">Sin categoría</span>
+            const Icon = getCategoryIcon(c.icon)
+            return (
+              <span className="flex items-center gap-2">
+                <Icon className="size-4" style={c.color ? { color: c.color } : undefined} />
+                {c.name}
+              </span>
+            )
+          }}
+        </SelectValue>
+      </SelectTrigger>
+      <SelectContent>
+        {allowNone && <SelectItem value={NO_CATEGORY}>Sin categoría</SelectItem>}
+        {expense.map((c) => {
+          const Icon = getCategoryIcon(c.icon)
+          return (
+            <SelectItem key={c.id} value={c.id}>
+              <Icon className="size-4" style={c.color ? { color: c.color } : undefined} />
+              {c.name}
+            </SelectItem>
+          )
+        })}
+      </SelectContent>
+    </Select>
   )
 }
 

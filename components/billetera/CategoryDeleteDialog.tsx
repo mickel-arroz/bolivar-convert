@@ -43,6 +43,17 @@ export function CategoryDeleteDialog({ open, onOpenChange, wallet, category }: C
     () => (category ? state.budgets.filter((b) => b.categoryId === category.id).length : 0),
     [category, state.budgets]
   )
+  // Productos cuya compra se pagó con un gasto de esta categoría: si se elimina,
+  // ese gasto desaparece y el producto vuelve a pendiente.
+  const purchasedCount = useMemo(() => {
+    if (!category) return 0
+    const dropped = new Set(
+      state.transactions.filter((t) => t.categoryId === category.id).map((t) => t.id)
+    )
+    return state.shoppingItems.filter(
+      (it) => it.purchase && dropped.has(it.purchase.transactionId)
+    ).length
+  }, [category, state.transactions, state.shoppingItems])
   const hasData = txCount > 0 || budgetCount > 0
 
   // Categorías destino válidas (mismo tipo, excluye la actual)
@@ -113,7 +124,23 @@ export function CategoryDeleteDialog({ open, onOpenChange, wallet, category }: C
                   {budgetCount} presupuesto{budgetCount !== 1 ? 's' : ''}
                 </span>
               )}
+              {purchasedCount > 0 && (
+                <span className="rounded-full bg-muted px-2.5 py-1 font-bold text-muted-foreground">
+                  {purchasedCount} producto{purchasedCount !== 1 ? 's' : ''} comprado
+                  {purchasedCount !== 1 ? 's' : ''}
+                </span>
+              )}
             </div>
+
+            {purchasedCount > 0 && mode === 'delete' && (
+              <p className="flex items-start gap-2 rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-xs">
+                <AlertIcon className="mt-0.5 size-4 shrink-0 text-amber-600 dark:text-amber-500" />
+                <span>
+                  {purchasedCount === 1 ? 'Un producto volverá' : `${purchasedCount} productos volverán`}{' '}
+                  a pendiente: el gasto con el que se pagó se elimina junto a la categoría.
+                </span>
+              </p>
+            )}
 
             {/* Selección de modo */}
             <div className="grid gap-2">

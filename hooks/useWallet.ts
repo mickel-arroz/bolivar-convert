@@ -205,6 +205,13 @@ export interface ShoppingListItem {
   currency: CurrencyId
   /** Prioridad 1 (alta) a 4 (baja). Obligatoria; por defecto 4. */
   priority: number
+  /**
+   * Categoría de gasto del producto. Opcional mientras está pendiente: es una
+   * intención. Una vez comprado siempre coincide con la categoría de su
+   * transacción, y es por ella que el gasto entra en el presupuesto de esa
+   * categoría **del mes de la compra**.
+   */
+  categoryId?: string
   purchased: boolean
   purchase?: ShoppingPurchase
   createdAt: string
@@ -364,6 +371,21 @@ export function normalizeTemplates(state: WalletState): WalletState {
 }
 
 /**
+ * Descarta la categoría de los productos cuya categoría ya no existe (p. ej. se
+ * borró desde otro dispositivo). Sin esto quedarían apuntando al vacío.
+ */
+export function normalizeShoppingCategories(state: WalletState): WalletState {
+  const ids = new Set(state.categories.map((c) => c.id))
+  if (!state.shoppingItems.some((it) => it.categoryId && !ids.has(it.categoryId))) return state
+  return {
+    ...state,
+    shoppingItems: state.shoppingItems.map((it) =>
+      it.categoryId && !ids.has(it.categoryId) ? { ...it, categoryId: undefined } : it
+    ),
+  }
+}
+
+/**
  * Combina las categorías guardadas con las por defecto: refresca la definición
  * (nombre/ícono/color) de las categorías por defecto desde el código, conserva las
  * creadas por el usuario y anexa cualquier categoría por defecto nueva.
@@ -379,6 +401,19 @@ export function mergeCategories(stored: Category[] | undefined): Category[] {
     if (!merged.some((c) => c.id === def.id)) merged.push(def)
   }
   return merged
+}
+
+/**
+ * La categoría con la que se registra el gasto de una compra: la preferida si
+ * existe y es de gasto, si no «Compras», si no la primera de gasto que haya.
+ * Filtrar por `kind` evita que un id inválido o de ingreso ensucie el gasto.
+ */
+export function resolveExpenseCategory(
+  categories: Category[],
+  preferred?: string
+): Category | undefined {
+  const expense = (id?: string) => categories.find((c) => c.id === id && c.kind === 'expense')
+  return expense(preferred) ?? expense('cat_shopping') ?? categories.find((c) => c.kind === 'expense')
 }
 
 /**
@@ -463,7 +498,7 @@ export function useWallet() {
       // '' fuerza el push del puntero activo si la nube aún no lo tiene.
       activeBudgetTemplateId: loaded.activeBudgetTemplateId ?? '',
     }
-    setState(normalizeTemplates(merged))
+    setState(normalizeShoppingCategories(normalizeTemplates(merged)))
   }, [])
 
   // Carga (o recarga) la billetera desde nuestra API. Devuelve false si no hay sesión.
@@ -833,11 +868,25 @@ export function useWallet() {
       if (s.categories.length <= 1) return s
       const cat = s.categories.find((c) => c.id === id)
       if (!cat) return s
+      // Los gastos de esta categoría desaparecen, así que los productos que se
+      // pagaron con ellos vuelven a pendientes: su compra ya no existe.
+      const dropped = new Set(
+        s.transactions.filter((t) => t.categoryId === id).map((t) => t.id)
+      )
       return {
         ...s,
         categories: s.categories.filter((c) => c.id !== id),
         transactions: s.transactions.filter((t) => t.categoryId !== id),
         budgets: s.budgets.filter((b) => b.categoryId !== id),
+        shoppingItems: s.shoppingItems.map((it) => {
+          const lostPurchase = !!it.purchase && dropped.has(it.purchase.transactionId)
+          if (!lostPurchase && it.categoryId !== id) return it
+          return {
+            ...it,
+            ...(it.categoryId === id && { categoryId: undefined }),
+            ...(lostPurchase && { purchased: false, purchase: undefined }),
+          }
+        }),
       }
     })
   }, [])
@@ -882,6 +931,9 @@ export function useWallet() {
           transactions,
           budgets: budgets.filter((b) => b.categoryId !== fromId),
           categories: s.categories.filter((c) => c.id !== fromId),
+          shoppingItems: s.shoppingItems.map((it) =>
+            it.categoryId === fromId ? { ...it, categoryId: toId } : it
+          ),
         }
       })
     },
@@ -1250,6 +1302,7 @@ export function useWallet() {
       price: string
       currency: CurrencyId
       priority: number
+      categoryId?: string
     }) => {
       const trimmed = item.title.trim()
       if (!trimmed || !item.listId) return
@@ -1267,6 +1320,7 @@ export function useWallet() {
               price: item.price || '0',
               currency: item.currency,
               priority: item.priority,
+              categoryId: item.categoryId,
               purchased: false,
               createdAt: new Date().toISOString(),
             },
@@ -1281,24 +1335,48 @@ export function useWallet() {
     (
       id: string,
       patch: Partial<
-        Pick<ShoppingListItem, 'listId' | 'title' | 'description' | 'price' | 'currency' | 'priority'>
+        Pick<
+          ShoppingListItem,
+          'listId' | 'title' | 'description' | 'price' | 'currency' | 'priority' | 'categoryId'
+        >
       >
     ) => {
-      setState((s) => ({
-        ...s,
-        shoppingItems: s.shoppingItems.map((it) =>
-          it.id === id
-            ? {
-                ...it,
-                ...patch,
-                ...(patch.title !== undefined && { title: patch.title.trim() }),
-                ...(patch.description !== undefined && {
-                  description: patch.description.trim() || undefined,
-                }),
-              }
-            : it
-        ),
-      }))
+      setState((s) => {
+        const item = s.shoppingItems.find((it) => it.id === id)
+        if (!item) return s
+        // Cambiar la categoría de un producto ya comprado mueve su gasto de
+        // presupuesto. Se hace en este mismo `setState` para que producto y gasto
+        // nunca queden desparejados. Monto, cuenta y fecha no se tocan: el saldo
+        // de la cuenta no se mueve, y el presupuesto que cambia es el del mes de
+        // la compra, nunca el actual.
+        const movesCategory =
+          'categoryId' in patch && patch.categoryId !== item.categoryId && item.purchased
+        const category = movesCategory
+          ? resolveExpenseCategory(s.categories, patch.categoryId)
+          : undefined
+        if (movesCategory && !category) return s
+        const txId = item.purchase?.transactionId
+        return {
+          ...s,
+          transactions:
+            category && txId
+              ? s.transactions.map((t) => (t.id === txId ? { ...t, categoryId: category.id } : t))
+              : s.transactions,
+          shoppingItems: s.shoppingItems.map((it) =>
+            it.id === id
+              ? {
+                  ...it,
+                  ...patch,
+                  ...(category && { categoryId: category.id }),
+                  ...(patch.title !== undefined && { title: patch.title.trim() }),
+                  ...(patch.description !== undefined && {
+                    description: patch.description.trim() || undefined,
+                  }),
+                }
+              : it
+          ),
+        }
+      })
     },
     []
   )
@@ -1323,8 +1401,10 @@ export function useWallet() {
       rateSource: TransferRateSource
       rateValue: number
       date: string
+      /** Categoría del gasto. Si no viene, se usa la del producto. */
+      categoryId?: string
     }): boolean => {
-      const { itemId, accountId, cost, rateSource, rateValue, date } = params
+      const { itemId, accountId, cost, rateSource, rateValue, date, categoryId } = params
       const costNum = parseAmount(cost)
       if (costNum <= 0) return false
       const s0 = stateRef.current
@@ -1346,9 +1426,7 @@ export function useWallet() {
           ? costNum
           : convertTransferAmount(costNum, item.currency, account.currency, rateValue)
         if (debited <= 0) return s
-        const category =
-          s.categories.find((c) => c.id === 'cat_shopping') ??
-          s.categories.find((c) => c.kind === 'expense')
+        const category = resolveExpenseCategory(s.categories, categoryId ?? item.categoryId)
         if (!category) return s
         const txId = generateId()
         const transaction: Transaction = {
@@ -1368,6 +1446,8 @@ export function useWallet() {
             it.id === itemId
               ? {
                   ...it,
+                  // Un producto comprado siempre lleva la categoría de su gasto.
+                  categoryId: category.id,
                   purchased: true,
                   purchase: {
                     accountId,

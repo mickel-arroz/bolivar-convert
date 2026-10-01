@@ -2,7 +2,9 @@
 
 import { ReactNode, useState } from 'react'
 import { getCurrency } from '@/constants/currencies'
-import { ShoppingListItem, WalletApi } from '@/hooks/useWallet'
+import { ShoppingListItem, WalletApi, monthKey, formatMonthLabel } from '@/hooks/useWallet'
+import { getCategoryIcon } from '@/constants/walletCategories'
+import { ExpenseCategorySelect } from './fields'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -49,10 +51,16 @@ export function ShoppingItemDetailDialog({
   item,
   onEdit,
 }: ShoppingItemDetailDialogProps) {
-  const { state, removeShoppingItem } = wallet
+  const { state, removeShoppingItem, updateShoppingItem } = wallet
   const [confirmDelete, setConfirmDelete] = useState(false)
 
   if (!item) return null
+
+  const category = state.categories.find((c) => c.id === item.categoryId)
+  // El presupuesto que mueve un cambio de categoría es el del mes de la compra.
+  // Si esa compra es de un mes pasado, el presupuesto de hoy no se entera.
+  const purchaseMonth = item.purchase ? monthKey(item.purchase.date) : null
+  const isPastMonth = !!purchaseMonth && purchaseMonth !== monthKey(new Date())
 
   const price = parseFloat(String(item.price).replace(',', '.')) || 0
   const account = item.purchase
@@ -94,6 +102,29 @@ export function ShoppingItemDetailDialog({
                 )
               }
             />
+            {!item.purchased && (
+              <Row
+                label="Categoría"
+                value={
+                  category ? (
+                    (() => {
+                      const Icon = getCategoryIcon(category.icon)
+                      return (
+                        <span className="flex items-center justify-end gap-1.5">
+                          <Icon
+                            className="size-4"
+                            style={category.color ? { color: category.color } : undefined}
+                          />
+                          {category.name}
+                        </span>
+                      )
+                    })()
+                  ) : (
+                    <span className="text-muted-foreground">Sin categoría</span>
+                  )
+                }
+              />
+            )}
             {item.purchased && item.purchase && (
               <>
                 <Row label="Cuenta" value={account?.name ?? 'Cuenta eliminada'} />
@@ -105,6 +136,21 @@ export function ShoppingItemDetailDialog({
                   />
                 )}
                 <Row label="Fecha" value={formatDate(item.purchase.date)} />
+                <div className="flex flex-col gap-1.5 py-2">
+                  <span className="text-sm text-muted-foreground">Categoría</span>
+                  <ExpenseCategorySelect
+                    categories={state.categories}
+                    value={item.categoryId}
+                    onChange={(categoryId) => updateShoppingItem(item.id, { categoryId })}
+                  />
+                  <span className="text-xs text-muted-foreground">
+                    Mueve el gasto al presupuesto de esa categoría
+                    {purchaseMonth && isPastMonth
+                      ? ` de ${formatMonthLabel(purchaseMonth)}, no al de este mes.`
+                      : ' de este mes.'}{' '}
+                    El saldo de la cuenta no cambia.
+                  </span>
+                </div>
               </>
             )}
           </div>

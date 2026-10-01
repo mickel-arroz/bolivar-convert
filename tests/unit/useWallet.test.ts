@@ -446,6 +446,265 @@ describe('useWallet — listas de compras', () => {
     expect(result.current.accountFunds.find((b) => b.accountId === accId)?.balance).toBe(100)
   })
 
+  it('confirmar compra con categoría explícita registra el gasto en esa categoría', async () => {
+    const { result } = renderHook(() => useWallet())
+    await waitFor(() => expect(result.current.isMounted).toBe(true))
+
+    act(() => result.current.addAccount('Efectivo', 'VES', '100'))
+    const accId = result.current.state.accounts[0].id
+    act(() => result.current.addShoppingList('Bodega'))
+    const listId = result.current.state.shoppingLists[0].id
+    act(() =>
+      result.current.addShoppingItem({ listId, title: 'Pan', price: '30', currency: 'VES', priority: 4 })
+    )
+    const itemId = result.current.state.shoppingItems[0].id
+
+    act(() =>
+      result.current.confirmPurchase({
+        itemId,
+        accountId: accId,
+        categoryId: 'cat_food',
+        cost: '30',
+        rateSource: 'custom',
+        rateValue: 0,
+        date: today,
+      })
+    )
+
+    const item = result.current.state.shoppingItems[0]
+    const tx = result.current.state.transactions.find((t) => t.id === item.purchase?.transactionId)
+    expect(tx?.categoryId).toBe('cat_food')
+    // Un producto comprado siempre lleva la categoría de su gasto.
+    expect(item.categoryId).toBe('cat_food')
+  })
+
+  it('sin categoría explícita usa la del producto, y si no la hay cae en Compras', async () => {
+    const { result } = renderHook(() => useWallet())
+    await waitFor(() => expect(result.current.isMounted).toBe(true))
+
+    act(() => result.current.addAccount('Efectivo', 'VES', '500'))
+    const accId = result.current.state.accounts[0].id
+    act(() => result.current.addShoppingList('Bodega'))
+    const listId = result.current.state.shoppingLists[0].id
+    act(() =>
+      result.current.addShoppingItem({
+        listId,
+        title: 'Harina',
+        price: '10',
+        currency: 'VES',
+        priority: 4,
+        categoryId: 'cat_food',
+      })
+    )
+    act(() =>
+      result.current.addShoppingItem({ listId, title: 'Taladro', price: '20', currency: 'VES', priority: 4 })
+    )
+    const [conCat, sinCat] = result.current.state.shoppingItems
+
+    act(() =>
+      result.current.confirmPurchase({
+        itemId: conCat.id,
+        accountId: accId,
+        cost: '10',
+        rateSource: 'custom',
+        rateValue: 0,
+        date: today,
+      })
+    )
+    act(() =>
+      result.current.confirmPurchase({
+        itemId: sinCat.id,
+        accountId: accId,
+        cost: '20',
+        rateSource: 'custom',
+        rateValue: 0,
+        date: today,
+      })
+    )
+
+    const txOf = (title: string) => {
+      const it = result.current.state.shoppingItems.find((x) => x.title === title)!
+      return result.current.state.transactions.find((t) => t.id === it.purchase?.transactionId)
+    }
+    expect(txOf('Harina')?.categoryId).toBe('cat_food')
+    expect(txOf('Taladro')?.categoryId).toBe('cat_shopping')
+  })
+
+  it('una categoría de ingreso o inexistente no ensucia el gasto: cae en Compras', async () => {
+    const { result } = renderHook(() => useWallet())
+    await waitFor(() => expect(result.current.isMounted).toBe(true))
+
+    act(() => result.current.addAccount('Efectivo', 'VES', '100'))
+    const accId = result.current.state.accounts[0].id
+    act(() => result.current.addShoppingList('L'))
+    const listId = result.current.state.shoppingLists[0].id
+    act(() =>
+      result.current.addShoppingItem({ listId, title: 'X', price: '10', currency: 'VES', priority: 4 })
+    )
+    const itemId = result.current.state.shoppingItems[0].id
+
+    act(() =>
+      result.current.confirmPurchase({
+        itemId,
+        accountId: accId,
+        categoryId: 'cat_salary', // de ingreso
+        cost: '10',
+        rateSource: 'custom',
+        rateValue: 0,
+        date: today,
+      })
+    )
+
+    const item = result.current.state.shoppingItems[0]
+    const tx = result.current.state.transactions.find((t) => t.id === item.purchase?.transactionId)
+    expect(tx?.categoryId).toBe('cat_shopping')
+    expect(tx?.type).toBe('expense')
+  })
+
+  it('cambiar la categoría de una compra mueve el presupuesto sin tocar el saldo', async () => {
+    const { result } = renderHook(() => useWallet())
+    await waitFor(() => expect(result.current.isMounted).toBe(true))
+
+    act(() => result.current.addAccount('Efectivo', 'VES', '1000'))
+    const accId = result.current.state.accounts[0].id
+    const curMonth = new Date().toISOString().slice(0, 7)
+    act(() => result.current.setBudget('cat_shopping', curMonth, '500', 'VES'))
+    act(() => result.current.setBudget('cat_food', curMonth, '500', 'VES'))
+    act(() => result.current.addShoppingList('Bodega'))
+    const listId = result.current.state.shoppingLists[0].id
+    act(() =>
+      result.current.addShoppingItem({ listId, title: 'Pan', price: '40', currency: 'VES', priority: 4 })
+    )
+    const itemId = result.current.state.shoppingItems[0].id
+
+    act(() =>
+      result.current.confirmPurchase({
+        itemId,
+        accountId: accId,
+        cost: '40',
+        rateSource: 'custom',
+        rateValue: 0,
+        date: today,
+      })
+    )
+
+    const actualOf = (categoryId: string) =>
+      result.current.budgetStatusForMonth(RATES, curMonth).find((r) => r.budget.categoryId === categoryId)
+        ?.actual
+    expect(actualOf('cat_shopping')).toBe(40)
+    expect(actualOf('cat_food')).toBe(0)
+    const balanceBefore = result.current.accountFunds.find((b) => b.accountId === accId)?.balance
+
+    act(() => result.current.updateShoppingItem(itemId, { categoryId: 'cat_food' }))
+
+    expect(actualOf('cat_shopping')).toBe(0)
+    expect(actualOf('cat_food')).toBe(40)
+    // Lo que no debe moverse: el dinero.
+    expect(result.current.accountFunds.find((b) => b.accountId === accId)?.balance).toBe(balanceBefore)
+    expect(result.current.state.transactions).toHaveLength(1)
+  })
+
+  it('cambiar la categoría de una compra vieja no toca el presupuesto del mes actual', async () => {
+    const { result } = renderHook(() => useWallet())
+    await waitFor(() => expect(result.current.isMounted).toBe(true))
+
+    act(() => result.current.addAccount('Efectivo', 'VES', '1000'))
+    const accId = result.current.state.accounts[0].id
+    const prevMonth = '2026-05'
+    const curMonth = new Date().toISOString().slice(0, 7)
+    act(() => result.current.setBudget('cat_food', prevMonth, '500', 'VES'))
+    act(() => result.current.setBudget('cat_food', curMonth, '500', 'VES'))
+    act(() => result.current.addShoppingList('Bodega'))
+    const listId = result.current.state.shoppingLists[0].id
+    act(() =>
+      result.current.addShoppingItem({ listId, title: 'Pan', price: '40', currency: 'VES', priority: 4 })
+    )
+    const itemId = result.current.state.shoppingItems[0].id
+
+    // Compra fechada en el mes pasado
+    act(() =>
+      result.current.confirmPurchase({
+        itemId,
+        accountId: accId,
+        cost: '40',
+        rateSource: 'custom',
+        rateValue: 0,
+        date: `${prevMonth}-15`,
+      })
+    )
+
+    const actualOf = (month: string, categoryId: string) =>
+      result.current.budgetStatusForMonth(RATES, month).find((r) => r.budget.categoryId === categoryId)
+        ?.actual
+
+    act(() => result.current.updateShoppingItem(itemId, { categoryId: 'cat_food' }))
+
+    expect(actualOf(prevMonth, 'cat_food')).toBe(40)
+    expect(actualOf(curMonth, 'cat_food')).toBe(0)
+  })
+
+  it('borrar la categoría de un producto comprado lo devuelve a pendiente', async () => {
+    const { result } = renderHook(() => useWallet())
+    await waitFor(() => expect(result.current.isMounted).toBe(true))
+
+    act(() => result.current.addAccount('Efectivo', 'VES', '1000'))
+    const accId = result.current.state.accounts[0].id
+    act(() => result.current.addShoppingList('Bodega'))
+    const listId = result.current.state.shoppingLists[0].id
+    act(() =>
+      result.current.addShoppingItem({
+        listId,
+        title: 'Pan',
+        price: '40',
+        currency: 'VES',
+        priority: 4,
+        categoryId: 'cat_food',
+      })
+    )
+    const itemId = result.current.state.shoppingItems[0].id
+    act(() =>
+      result.current.confirmPurchase({
+        itemId,
+        accountId: accId,
+        cost: '40',
+        rateSource: 'custom',
+        rateValue: 0,
+        date: today,
+      })
+    )
+
+    act(() => result.current.removeCategory('cat_food'))
+
+    const item = result.current.state.shoppingItems[0]
+    expect(item.purchased).toBe(false)
+    expect(item.purchase).toBeUndefined()
+    expect(item.categoryId).toBeUndefined()
+    expect(result.current.state.transactions).toHaveLength(0)
+    expect(result.current.accountFunds.find((b) => b.accountId === accId)?.balance).toBe(1000)
+  })
+
+  it('reasignar una categoría remapea la de los productos', async () => {
+    const { result } = renderHook(() => useWallet())
+    await waitFor(() => expect(result.current.isMounted).toBe(true))
+
+    act(() => result.current.addShoppingList('Bodega'))
+    const listId = result.current.state.shoppingLists[0].id
+    act(() =>
+      result.current.addShoppingItem({
+        listId,
+        title: 'Pan',
+        price: '40',
+        currency: 'VES',
+        priority: 4,
+        categoryId: 'cat_food',
+      })
+    )
+
+    act(() => result.current.reassignCategory('cat_food', 'cat_other_exp', 'merge'))
+
+    expect(result.current.state.shoppingItems[0].categoryId).toBe('cat_other_exp')
+  })
+
   it('persiste listas y productos en la nube y los rehidrata', async () => {
     const { result, unmount } = renderHook(() => useWallet())
     await waitFor(() => expect(result.current.isMounted).toBe(true))
@@ -457,7 +716,14 @@ describe('useWallet — listas de compras', () => {
     })
     const listId = result.current.state.shoppingLists[0].id
     act(() =>
-      result.current.addShoppingItem({ listId, title: 'Tornillos', price: '5', currency: 'USD', priority: 4 })
+      result.current.addShoppingItem({
+        listId,
+        title: 'Tornillos',
+        price: '5',
+        currency: 'USD',
+        priority: 4,
+        categoryId: 'cat_other_exp',
+      })
     )
     await waitFor(() => {
       const items = (cloud.store.shoppingItems as { title: string }[] | undefined) ?? []
@@ -469,6 +735,7 @@ describe('useWallet — listas de compras', () => {
     await waitFor(() => expect(result2.current.isMounted).toBe(true))
     expect(result2.current.state.shoppingLists[0]?.name).toBe('Ferretería')
     expect(result2.current.state.shoppingItems[0]?.title).toBe('Tornillos')
+    expect(result2.current.state.shoppingItems[0]?.categoryId).toBe('cat_other_exp')
   })
 })
 

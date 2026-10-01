@@ -3,7 +3,14 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Rates, RateId } from '@/constants/rates'
 import { getCurrency } from '@/constants/currencies'
-import { ShoppingListItem, TransferRateSource, WalletApi, convertTransferAmount } from '@/hooks/useWallet'
+import {
+  ShoppingListItem,
+  TransferRateSource,
+  WalletApi,
+  convertTransferAmount,
+  monthKey,
+  formatMonthLabel,
+} from '@/hooks/useWallet'
 import { ACCOUNT_ICON_MAP } from '@/constants/walletCategories'
 import { WalletIcon } from '@/components/icons'
 import { Button } from '@/components/ui/button'
@@ -18,7 +25,7 @@ import {
 } from '@/components/ui/dialog'
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select'
 import { cn } from '@/lib/utils'
-import { Field, AmountField } from './fields'
+import { Field, AmountField, ExpenseCategorySelect } from './fields'
 import { useMathInput, formatPreview } from '@/hooks/useMathInput'
 import { notify } from '@/lib/notify'
 import { formatMoney, todayInputValue } from './format'
@@ -43,8 +50,9 @@ export function ConfirmPurchaseDialog({
   item,
   rates,
 }: ConfirmPurchaseDialogProps) {
-  const { state, accountFunds, confirmPurchase } = wallet
+  const { state, accountFunds, confirmPurchase, budgetStatusForMonth } = wallet
   const [accountId, setAccountId] = useState('')
+  const [categoryId, setCategoryId] = useState<string | undefined>(undefined)
   const [cost, setCost] = useState('')
   const [rateSource, setRateSource] = useState<TransferRateSource>('custom')
   const [customRate, setCustomRate] = useState('')
@@ -81,6 +89,7 @@ export function ConfirmPurchaseDialog({
     if (open && item) {
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setAccountId(state.accounts[0]?.id ?? '')
+      setCategoryId(item.categoryId ?? 'cat_shopping')
       setCost(item.price || '')
       setCustomRate('')
       setDate(todayInputValue())
@@ -105,6 +114,20 @@ export function ConfirmPurchaseDialog({
     return rateNum(rates[rateSource])
   }, [differentCur, rateSource, customRate, rates])
 
+  // Cómo va el presupuesto de la categoría elegida, en el mes de la compra (no
+  // necesariamente el actual). Solo informativo: se muestran las cifras tal como
+  // vienen de `budgetStatusForMonth`, sin simular el nuevo total, para no duplicar
+  // aquí la normalización de monedas.
+  const budgetHint = useMemo(() => {
+    if (!categoryId) return undefined
+    const month = monthKey(date)
+    const row = budgetStatusForMonth(rates, month).find((r) => r.budget.categoryId === categoryId)
+    if (!row) return undefined
+    const when = month === monthKey(new Date()) ? 'este mes' : `en ${formatMonthLabel(month)}`
+    const cur = row.budget.currency
+    return `Llevas ${formatMoney(row.actual, cur)} de ${formatMoney(row.effectiveLimit, cur)} en ${row.categoryName} ${when}.`
+  }, [categoryId, date, rates, budgetStatusForMonth])
+
   const customRateInput = useMathInput(customRate, setCustomRate, { maxDecimals: 4 })
 
   if (!item) return null
@@ -125,7 +148,15 @@ export function ConfirmPurchaseDialog({
 
   const handleSubmit = () => {
     if (!canSubmit) return
-    const ok = confirmPurchase({ itemId: item.id, accountId, cost, rateSource, rateValue, date })
+    const ok = confirmPurchase({
+      itemId: item.id,
+      accountId,
+      categoryId,
+      cost,
+      rateSource,
+      rateValue,
+      date,
+    })
     if (!ok) {
       notify.error('El monto supera el Disponible de la cuenta')
       return
@@ -140,8 +171,7 @@ export function ConfirmPurchaseDialog({
         <DialogHeader>
           <DialogTitle>Confirmar compra</DialogTitle>
           <DialogDescription>
-            «{item.title}» — indica con qué cuenta pagaste. Se registrará como un gasto en
-            «Compras».
+            «{item.title}» — indica con qué cuenta pagaste y en qué categoría entra el gasto.
           </DialogDescription>
         </DialogHeader>
 
@@ -180,6 +210,14 @@ export function ConfirmPurchaseDialog({
                   })}
                 </SelectContent>
               </Select>
+            </Field>
+
+            <Field label="Categoría" hint={budgetHint}>
+              <ExpenseCategorySelect
+                categories={state.categories}
+                value={categoryId}
+                onChange={setCategoryId}
+              />
             </Field>
 
             <div className="grid grid-cols-2 gap-3">

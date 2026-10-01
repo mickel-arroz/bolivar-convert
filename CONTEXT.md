@@ -50,6 +50,10 @@ _Avoid_: lista, carrito
 Un renglón de una lista de compras, con precio en su propia moneda y una prioridad.
 _Avoid_: ítem, artículo, elemento
 
+**Categoría de un producto**:
+La categoría de gasto de un Producto. Mientras está pendiente es opcional y solo una intención; al marcarlo como Comprado es la categoría del gasto que se registra, y por ella ese gasto entra en el presupuesto de esa categoría **del mes de la compra**. Cambiarla después mueve el gasto de presupuesto sin tocar el monto ni el Saldo de la cuenta.
+_Avoid_: rubro, etiqueta, tipo de gasto
+
 **Prioridad**:
 Qué tan pronto el usuario quiere comprar un producto, del 1 al 4, donde **1 es la más urgente**: 1 Alta, 2 Media, 3 Baja, 4 Mínima.
 _Avoid_: importancia, urgencia, nivel

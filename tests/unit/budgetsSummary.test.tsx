@@ -83,14 +83,43 @@ describe('summarizeBudgets', () => {
     expect(s.overflow).toBe(0)
   })
 
-  it('gastar de más lo deja marcado como excedido y la barra llena', () => {
-    const s = summarize([row({ limit: 100, carryover: 10, actual: 150 }), row({ limit: 50 })])
+  it('gastar más que la suma de presupuesto + extra de todos lo deja excedido', () => {
+    // Total general: 100 + 10 + 50 = 160. Gastado: 150 + 20 = 170.
+    const s = summarize([
+      row({ limit: 100, carryover: 10, actual: 150 }),
+      row({ limit: 50, actual: 20 }),
+    ])
 
-    expect(s.spentBudget).toBe(100)
-    expect(s.spentExtra).toBe(10)
-    expect(s.overflow).toBe(40)
+    expect(s.total).toBe(160)
+    expect(s.spent).toBe(170)
+    expect(s.overflow).toBe(10)
+    expect(s.ratio).toBe(1)
+  })
+
+  it('un presupuesto que se pasó no cuenta como excedido si la suma general alcanza', () => {
+    // El primero gastó 150 de 100, pero entre los dos hay 300 y solo se gastaron 150.
+    const s = summarize([row({ limit: 100, actual: 150 }), row({ limit: 200 })])
+
+    expect(s.total).toBe(300)
     expect(s.spent).toBe(150)
-    expect(s.ratio).toBeCloseTo(150 / 160)
+    expect(s.overflow).toBe(0)
+  })
+
+  it('gastar exactamente la suma de todo no es excederse', () => {
+    const s = summarize([row({ limit: 100, carryover: 20, actual: 120 }), row({ limit: 80, actual: 80 })])
+
+    expect(s.total).toBe(200)
+    expect(s.spent).toBe(200)
+    expect(s.overflow).toBe(0)
+    expect(s.ratio).toBe(1)
+  })
+
+  it('sin presupuesto disponible, cualquier gasto es excedido', () => {
+    // Déficit mayor que el estimado: lo disponible en total no es positivo.
+    const s = summarize([row({ limit: 50, carryover: -80, actual: 10 }), row({ limit: 0 })])
+
+    expect(s.total).toBe(-30)
+    expect(s.overflow).toBe(10)
   })
 
   it('con todo gastado y más, la barra queda llena (ratio 1)', () => {
@@ -106,7 +135,7 @@ describe('summarizeBudgets', () => {
     expect(s.total).toBe(170)
     expect(s.spentExtra).toBe(0) // un déficit no se gasta
     expect(s.extraLeft).toBe(-30)
-    expect(s.overflow).toBe(20)
+    expect(s.overflow).toBe(0) // gastó 90 y entre los dos hay 170
   })
 
   it('libre + extra libre = total − gastado cuando nada se excede', () => {
@@ -198,9 +227,19 @@ describe('BudgetsSummaryCard', () => {
     expect((bar().firstElementChild as HTMLElement).style.width).toBe('25%')
   })
 
-  it('avisa cuando se superó lo disponible', () => {
-    render(<BudgetsSummaryCard summary={summarize([row({ limit: 100, actual: 150 }), row({ limit: 50 })])} />)
-    expect(screen.getByText(/Superaste lo disponible/)).toBeInTheDocument()
+  it('avisa solo cuando lo gastado supera la suma general, y por cuánto', () => {
+    // Total 150, gastado 170: se pasó por 20.
+    render(
+      <BudgetsSummaryCard
+        summary={summarize([row({ limit: 100, actual: 150 }), row({ limit: 50, actual: 20 })])}
+      />
+    )
+    expect(screen.getByText(/Superaste lo disponible en/)).toHaveTextContent('20,00')
+  })
+
+  it('no avisa si un presupuesto se pasó pero la suma general alcanza', () => {
+    render(<BudgetsSummaryCard summary={summarize([row({ limit: 100, actual: 150 }), row({ limit: 200 })])} />)
+    expect(screen.queryByText(/Superaste lo disponible/)).not.toBeInTheDocument()
   })
 
   it('no avisa de nada de más cuando todo está en orden', () => {

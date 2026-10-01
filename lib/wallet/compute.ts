@@ -369,7 +369,11 @@ export interface BudgetsSummary {
   freeBudget: number
   /** Extra que queda libre (negativo mientras haya un déficit arrastrado sin cubrir). */
   extraLeft: number
-  /** Gastado por encima de lo disponible (0 si todo cabe). */
+  /**
+   * Gastado por encima del total general (presupuesto + extra de todos sumados); 0 si lo
+   * gastado cabe en la suma. Un presupuesto que se pasó solo no cuenta si otros tienen
+   * holgura para cubrirlo: es la suma lo que se compara.
+   */
   overflow: number
   /** Σ gastado real, tal como lo muestra cada tarjeta. */
   spent: number
@@ -388,7 +392,11 @@ export interface BudgetsSummary {
  *
  * Reparto del gasto de cada presupuesto: consume primero el estimado y, agotado este, el
  * extra. Un extra negativo (déficit) no se gasta: reduce lo disponible y sigue figurando
- * en `extraLeft`, de modo que siempre `freeBudget + extraLeft = total − gastado`.
+ * en `extraLeft`, de modo que `freeBudget + extraLeft = total − gastado` mientras ningún
+ * presupuesto se pase por su cuenta.
+ *
+ * `overflow` compara la suma de lo gastado contra la suma de lo disponible: un presupuesto
+ * que se pasó no cuenta mientras la suma general alcance.
  */
 export function summarizeBudgets(
   rows: BudgetStatusRow[],
@@ -414,7 +422,6 @@ export function summarizeBudgets(
     spentExtra: 0,
     freeBudget: 0,
     extraLeft: 0,
-    overflow: 0,
     spent: 0,
   }
   for (const row of rows) {
@@ -432,7 +439,6 @@ export function summarizeBudgets(
     s.spentExtra += spentExtra
     s.freeBudget += limit - spentBudget
     s.extraLeft += carry - spentExtra
-    s.overflow += Math.max(actual - Math.max(limit + carry, 0), 0)
     s.spent += actual
   }
 
@@ -442,6 +448,7 @@ export function summarizeBudgets(
     count: rows.length,
     ...s,
     total,
+    overflow: Math.max(s.spent - Math.max(total, 0), 0),
     ratio: total > 0 ? Math.min(s.spent / total, 1) : s.spent > 0 ? 1 : 0,
     converted: currencies.size > 1,
     ratesMissing,

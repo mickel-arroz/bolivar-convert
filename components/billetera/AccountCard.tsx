@@ -2,6 +2,8 @@
 
 import { createElement } from 'react'
 import type { Account } from '@/hooks/useWallet'
+import type { Rates } from '@/constants/rates'
+import { accountConversions } from '@/lib/wallet/accountConversions'
 import { getCurrency } from '@/constants/currencies'
 import { getAccountIcon } from '@/constants/walletCategories'
 import { DEFAULT_ACCOUNT_COLOR } from '@/constants/walletColors'
@@ -17,6 +19,8 @@ interface AccountCardProps {
   available: number
   /** **En metas**: lo apartado en metas de ahorro desde esta cuenta. */
   inGoals: number
+  /** Tasas para mostrar las conversiones del Disponible. Sin ellas, la tarjeta no las muestra. */
+  rates?: Rates
   onEdit: () => void
   onDelete: () => void
 }
@@ -28,8 +32,16 @@ interface AccountCardProps {
  * solo se renderiza cuando hay algo apartado, igual que el desglose por prioridad
  * omite las prioridades vacías: una cuenta sin metas se ve como siempre (ADR 0002).
  */
-export function AccountCard({ account, available, inGoals, onEdit, onDelete }: AccountCardProps) {
+export function AccountCard({
+  account,
+  available,
+  inGoals,
+  rates,
+  onEdit,
+  onDelete,
+}: AccountCardProps) {
   const accent = account.color ?? DEFAULT_ACCOUNT_COLOR
+  const conversions = rates ? accountConversions(available, account.currency, rates) : []
 
   return (
     <Card style={{ boxShadow: `0 0 0 2px color-mix(in oklch, ${accent} 40%, transparent)` }}>
@@ -70,6 +82,19 @@ export function AccountCard({ account, available, inGoals, onEdit, onDelete }: A
           >
             {formatMoney(available, account.currency)}
           </p>
+          {conversions.length > 0 && (
+            <div data-testid="account-conversions" className="flex flex-wrap gap-1.5 py-1">
+              {conversions.map((c) => (
+                <span
+                  key={`${c.currency}-${c.source}`}
+                  className="rounded-full bg-muted/60 px-2.5 py-1 text-xs font-bold tabular-nums text-muted-foreground"
+                >
+                  {formatMoney(c.value, c.currency)}{' '}
+                  <span className="font-medium opacity-70">{c.source}</span>
+                </span>
+              ))}
+            </div>
+          )}
           {inGoals !== 0 && (
             <p
               data-testid="account-in-goals"

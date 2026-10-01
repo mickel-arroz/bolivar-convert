@@ -240,6 +240,7 @@ export function ResumenTab({ wallet, rates, dialogs }: ResumenTabProps) {
                 account={account}
                 available={funds?.available ?? 0}
                 inGoals={funds?.inGoals ?? 0}
+                rates={rates}
                 onEdit={() => dialogs.openEditAccount(account)}
                 onDelete={() => setPendingDelete(account)}
               />

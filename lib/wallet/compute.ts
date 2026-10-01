@@ -351,6 +351,103 @@ export function budgetStatusForMonth(
     .sort((a, b) => a.categoryName.localeCompare(b.categoryName, 'es', { sensitivity: 'base' }))
 }
 
+/** Suma de todos los presupuestos de un mes, en una sola moneda. */
+export interface BudgetsSummary {
+  currency: CurrencyId
+  count: number
+  /** Σ estimado de los presupuestos. */
+  budget: number
+  /** Σ extra arrastrado (con signo: un déficit resta). */
+  extra: number
+  /** Presupuesto + extra: lo disponible en total. */
+  total: number
+  /** Parte del estimado ya gastada. */
+  spentBudget: number
+  /** Parte del extra ya gastada (el gasto consume primero el estimado y después el extra). */
+  spentExtra: number
+  /** Estimado que queda libre. */
+  freeBudget: number
+  /** Extra que queda libre (negativo mientras haya un déficit arrastrado sin cubrir). */
+  extraLeft: number
+  /** Gastado por encima de lo disponible (0 si todo cabe). */
+  overflow: number
+  /** Σ gastado real, tal como lo muestra cada tarjeta. */
+  spent: number
+  /** Parte gastada del total, de 0 a 1. 1 si no hay total y sí gasto. */
+  ratio: number
+  /** Se convirtieron presupuestos de otra moneda. */
+  converted: boolean
+  /** Falta una tasa para convertir alguno: esa parte no está sumada. */
+  ratesMissing: boolean
+}
+
+/**
+ * Suma las filas de `budgetStatusForMonth`. Si todos los presupuestos están en una misma
+ * moneda se queda en ella (sin depender de tasas); si hay varias, convierte a
+ * `displayCurrency` con la fuente de tasa elegida.
+ *
+ * Reparto del gasto de cada presupuesto: consume primero el estimado y, agotado este, el
+ * extra. Un extra negativo (déficit) no se gasta: reduce lo disponible y sigue figurando
+ * en `extraLeft`, de modo que siempre `freeBudget + extraLeft = total − gastado`.
+ */
+export function summarizeBudgets(
+  rows: BudgetStatusRow[],
+  displayCurrency: CurrencyId,
+  rates: Rates,
+  statsRateSource: RateId
+): BudgetsSummary {
+  const currencies = new Set(rows.map((r) => r.budget.currency))
+  const currency = currencies.size === 1 ? [...currencies][0] : displayCurrency
+
+  let ratesMissing = false
+  const conv = (value: number, from: CurrencyId) => {
+    if (from === currency || value === 0) return value
+    const v = normalize(value, from, currency, rates, statsRateSource)
+    if (v === 0) ratesMissing = true
+    return v
+  }
+
+  const s = {
+    budget: 0,
+    extra: 0,
+    spentBudget: 0,
+    spentExtra: 0,
+    freeBudget: 0,
+    extraLeft: 0,
+    overflow: 0,
+    spent: 0,
+  }
+  for (const row of rows) {
+    const from = row.budget.currency
+    const limit = Math.max(conv(row.limit, from), 0)
+    const carry = conv(row.carryover, from)
+    const actual = conv(row.actual, from)
+
+    const spentBudget = Math.min(actual, limit)
+    const spentExtra = carry > 0 ? Math.min(Math.max(actual - limit, 0), carry) : 0
+
+    s.budget += limit
+    s.extra += carry
+    s.spentBudget += spentBudget
+    s.spentExtra += spentExtra
+    s.freeBudget += limit - spentBudget
+    s.extraLeft += carry - spentExtra
+    s.overflow += Math.max(actual - Math.max(limit + carry, 0), 0)
+    s.spent += actual
+  }
+
+  const total = s.budget + s.extra
+  return {
+    currency,
+    count: rows.length,
+    ...s,
+    total,
+    ratio: total > 0 ? Math.min(s.spent / total, 1) : s.spent > 0 ? 1 : 0,
+    converted: currencies.size > 1,
+    ratesMissing,
+  }
+}
+
 /** Computa el bundle completo de estadísticas para el rango dado. */
 export function computeStats(input: StatsInput, rates: Rates, prefs: StatsPrefs): StatsBundle {
   const { displayCurrency, statsRateSource, timeRange } = prefs

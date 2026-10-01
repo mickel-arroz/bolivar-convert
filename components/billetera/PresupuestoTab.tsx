@@ -39,7 +39,9 @@ import {
 } from '@/components/icons'
 import { cn } from '@/lib/utils'
 import { notify } from '@/lib/notify'
+import { summarizeBudgets } from '@/lib/wallet/compute'
 import { WalletDialogs } from './dialogs'
+import { BudgetsSummaryCard } from './BudgetsSummaryCard'
 import { AdviceCard } from './AdviceCard'
 import { formatMoney } from './format'
 import { ConcludeMonthDialog } from './ConcludeMonthDialog'
@@ -127,6 +129,15 @@ export function PresupuestoTab({ wallet, stats, dialogs, rates }: PresupuestoTab
         (c) => c.kind === 'expense' && !budgetedCategoryIds.has(c.id)
       ),
     [state.categories, budgetedCategoryIds]
+  )
+
+  // Con un solo presupuesto la suma sería idéntica a su tarjeta: solo aparece desde dos.
+  const budgetsSummary = useMemo(
+    () =>
+      stats.budgetStatus.length > 1
+        ? summarizeBudgets(stats.budgetStatus, state.displayCurrency, rates, state.statsRateSource)
+        : null,
+    [stats.budgetStatus, state.displayCurrency, state.statsRateSource, rates]
   )
 
   const assignDisabledReason = userCategories(state.categories).every((c) => c.kind !== 'expense')
@@ -228,6 +239,7 @@ export function PresupuestoTab({ wallet, stats, dialogs, rates }: PresupuestoTab
         </Card>
       ) : (
         <div className="grid gap-3 lg:grid-cols-2">
+          {budgetsSummary && <BudgetsSummaryCard summary={budgetsSummary} className="lg:col-span-2" />}
           {stats.budgetStatus.map((row) => {
             const Icon = getCategoryIcon(row.categoryIcon)
             const pct = row.effectiveLimit > 0 ? Math.min(100, (row.actual / row.effectiveLimit) * 100) : 0

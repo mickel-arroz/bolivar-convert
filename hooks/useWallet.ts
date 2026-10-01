@@ -790,17 +790,30 @@ export function useWallet() {
    * Los aportes a metas NO se cascadean: se desligan de la cuenta (`accountId`
    * queda sin definir), igual que los extras de presupuesto. El dinero se queda
    * en la meta y deja de contar como **En metas** de ninguna cuenta (ADR 0002).
+   *
+   * Los productos que se pagaron con esta cuenta vuelven a pendientes: su gasto se
+   * borra junto con la cuenta, y dejarlos como comprados sería un producto pagado
+   * sin pago (cuenta en el Precio total, fuera del Restante por pagar). Conservan su
+   * categoría, así que al reconfirmarlos vienen prellenados.
    */
   const removeAccount = useCallback((id: string) => {
-    setState((s) => ({
-      ...s,
-      accounts: s.accounts.filter((a) => a.id !== id),
-      transactions: s.transactions.filter((t) => t.accountId !== id),
-      transfers: s.transfers.filter((t) => t.fromAccountId !== id && t.toAccountId !== id),
-      goalContributions: s.goalContributions.map((gc) =>
-        gc.accountId === id ? { ...gc, accountId: undefined } : gc
-      ),
-    }))
+    setState((s) => {
+      const dropped = new Set(s.transactions.filter((t) => t.accountId === id).map((t) => t.id))
+      return {
+        ...s,
+        accounts: s.accounts.filter((a) => a.id !== id),
+        transactions: s.transactions.filter((t) => t.accountId !== id),
+        transfers: s.transfers.filter((t) => t.fromAccountId !== id && t.toAccountId !== id),
+        goalContributions: s.goalContributions.map((gc) =>
+          gc.accountId === id ? { ...gc, accountId: undefined } : gc
+        ),
+        shoppingItems: s.shoppingItems.map((it) =>
+          it.purchase && (it.purchase.accountId === id || dropped.has(it.purchase.transactionId))
+            ? { ...it, purchased: false, purchase: undefined }
+            : it
+        ),
+      }
+    })
   }, [])
 
   /* ── Transacciones ── */

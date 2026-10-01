@@ -60,6 +60,20 @@ export function ResumenTab({ wallet, rates, dialogs }: ResumenTabProps) {
     [pendingDelete, state.goalContributions]
   )
 
+  // Lo que arrastra eliminar la cuenta, para avisarlo antes de confirmar.
+  const pendingDeleteImpact = useMemo(() => {
+    if (!pendingDelete) return { purchased: 0, transfers: 0 }
+    const id = pendingDelete.id
+    const dropped = new Set(state.transactions.filter((t) => t.accountId === id).map((t) => t.id))
+    return {
+      purchased: state.shoppingItems.filter(
+        (it) => it.purchase && (it.purchase.accountId === id || dropped.has(it.purchase.transactionId))
+      ).length,
+      // Cada traspaso tiene otra cuenta en el otro extremo, cuyo saldo también cambia.
+      transfers: state.transfers.filter((t) => t.fromAccountId === id || t.toAccountId === id).length,
+    }
+  }, [pendingDelete, state.transactions, state.shoppingItems, state.transfers])
+
   const netWorthCurrency = resolveDisplayCurrency(
     state.netWorthCurrencyOverride,
     state.displayCurrency
@@ -264,6 +278,10 @@ export function ResumenTab({ wallet, rates, dialogs }: ResumenTabProps) {
             <AlertDialogTitle>Eliminar cuenta</AlertDialogTitle>
             <AlertDialogDescription>
               Se eliminará «{pendingDelete?.name}» junto con todos sus movimientos y traspasos asociados.
+              {pendingDeleteImpact.transfers > 0 &&
+                ` ${pendingDeleteImpact.transfers === 1 ? 'Su traspaso afecta' : `Sus ${pendingDeleteImpact.transfers} traspasos afectan`} a otras cuentas: el dinero que enviaste o recibiste por ahí se deshace también en ellas y su saldo cambia.`}
+              {pendingDeleteImpact.purchased > 0 &&
+                ` ${pendingDeleteImpact.purchased === 1 ? 'Un producto pagado con esta cuenta volverá' : `${pendingDeleteImpact.purchased} productos pagados con esta cuenta volverán`} a pendiente, porque su gasto se elimina.`}
               {pendingDeleteHasGoalMoney &&
                 ' Lo que apartaste en metas de ahorro se queda en sus metas y deja de contar como En metas de ninguna cuenta.'}{' '}
               Esta acción no se puede deshacer.

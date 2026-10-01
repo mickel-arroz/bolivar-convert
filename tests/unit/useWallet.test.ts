@@ -139,6 +139,85 @@ describe('useWallet Hook', () => {
     expect(tx?.categoryId).toBe('cat_shopping')
   })
 
+  it('eliminar una cuenta devuelve a pendientes los productos pagados con ella', async () => {
+    const { result } = renderHook(() => useWallet())
+    await waitFor(() => expect(result.current.isMounted).toBe(true))
+
+    act(() => result.current.addAccount('A', 'VES', '500'))
+    act(() => result.current.addAccount('B', 'VES', '500'))
+    const [a, b] = result.current.state.accounts.map((acc) => acc.id)
+    act(() => result.current.addShoppingList('Bodega'))
+    const listId = result.current.state.shoppingLists[0].id
+    for (const title of ['DeA', 'DeB']) {
+      act(() =>
+        result.current.addShoppingItem({
+          listId,
+          title,
+          price: '30',
+          currency: 'VES',
+          priority: 4,
+          categoryId: 'cat_food',
+        })
+      )
+    }
+    const idOf = (title: string) => result.current.state.shoppingItems.find((i) => i.title === title)!.id
+    for (const [title, accountId] of [
+      ['DeA', a],
+      ['DeB', b],
+    ]) {
+      act(() =>
+        result.current.confirmPurchase({
+          itemId: idOf(title),
+          accountId,
+          cost: '30',
+          rateSource: 'custom',
+          rateValue: 0,
+          date: today,
+        })
+      )
+    }
+
+    act(() => result.current.removeAccount(a))
+
+    const deA = result.current.state.shoppingItems.find((i) => i.title === 'DeA')!
+    const deB = result.current.state.shoppingItems.find((i) => i.title === 'DeB')!
+    // El pagado con la cuenta borrada vuelve a pendiente, conservando su categoría.
+    expect(deA.purchased).toBe(false)
+    expect(deA.purchase).toBeUndefined()
+    expect(deA.categoryId).toBe('cat_food')
+    // El pagado con otra cuenta no se toca, ni su gasto.
+    expect(deB.purchased).toBe(true)
+    expect(result.current.state.transactions).toHaveLength(1)
+    expect(result.current.accountFunds.find((f) => f.accountId === b)?.balance).toBe(470)
+  })
+
+  it('eliminar una cuenta deshace sus traspasos y cambia el saldo de la otra cuenta', async () => {
+    const { result } = renderHook(() => useWallet())
+    await waitFor(() => expect(result.current.isMounted).toBe(true))
+
+    act(() => result.current.addAccount('A', 'VES', '100'))
+    act(() => result.current.addAccount('B', 'VES', '0'))
+    const [a, b] = result.current.state.accounts.map((acc) => acc.id)
+    act(() =>
+      result.current.addTransfer({
+        fromAccountId: a,
+        toAccountId: b,
+        fromAmount: '40',
+        toAmount: '40',
+        rateSource: 'custom',
+        rateValue: 0,
+        date: today,
+      })
+    )
+    expect(result.current.accountFunds.find((f) => f.accountId === b)?.balance).toBe(40)
+
+    act(() => result.current.removeAccount(a))
+
+    // Documenta el efecto que el diálogo de borrado avisa: B pierde lo que recibió.
+    expect(result.current.state.transfers).toHaveLength(0)
+    expect(result.current.accountFunds.find((f) => f.accountId === b)?.balance).toBe(0)
+  })
+
   it('siembra categorías por defecto y arranca sin cuentas', async () => {
     const { result } = renderHook(() => useWallet())
     await waitFor(() => expect(result.current.isMounted).toBe(true))

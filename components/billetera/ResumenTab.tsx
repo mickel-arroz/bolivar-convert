@@ -38,6 +38,7 @@ import { WalletDialogs } from './dialogs'
 import { AccountCard } from './AccountCard'
 import { MovementRow } from './MovementRow'
 import { ResetWallet } from './ResetWallet'
+import { DeleteMovementDialog, DeleteTarget } from './DeleteMovementDialog'
 import { formatMoney } from './format'
 import { nextOverride, resolveDisplayCurrency } from '@/lib/wallet/displayCurrency'
 
@@ -52,6 +53,7 @@ interface ResumenTabProps {
 export function ResumenTab({ wallet, rates, dialogs }: ResumenTabProps) {
   const { state, removeAccount, setNetWorthCurrency } = wallet
   const [pendingDelete, setPendingDelete] = useState<Account | null>(null)
+  const [pendingMovementDelete, setPendingMovementDelete] = useState<DeleteTarget>(null)
 
   const pendingDeleteHasGoalMoney = useMemo(
     () =>
@@ -264,6 +266,12 @@ export function ResumenTab({ wallet, rates, dialogs }: ResumenTabProps) {
                   item={item}
                   accountById={accountById}
                   categoryById={categoryById}
+                  onEditTx={(id) => {
+                    const tx = state.transactions.find((t) => t.id === id)
+                    if (tx) dialogs.openEditTransaction(tx)
+                  }}
+                  onDeleteTx={(id) => setPendingMovementDelete({ kind: 'tx', id })}
+                  onDeleteTransfer={(id) => setPendingMovementDelete({ kind: 'transfer', id })}
                 />
               ))}
             </div>
@@ -272,6 +280,13 @@ export function ResumenTab({ wallet, rates, dialogs }: ResumenTabProps) {
       )}
 
       <ResetWallet wallet={wallet} />
+
+      <DeleteMovementDialog
+        target={pendingMovementDelete}
+        onClose={() => setPendingMovementDelete(null)}
+        wallet={wallet}
+        rates={rates}
+      />
 
       <AlertDialog open={!!pendingDelete} onOpenChange={(o) => !o && setPendingDelete(null)}>
         <AlertDialogContent>

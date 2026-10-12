@@ -12,18 +12,17 @@ import type { AdviceModelCall } from '@/lib/wallet/advice'
 /**
  * Cadena de modelos, recorrida uno a uno y en orden hasta que uno responda con los
  * dos párrafos, porque cada modelo tiene su propia cuota en el free tier. Gemma va
- * de último recurso: no está confirmado que soporte salida estructurada, y de eso se
- * encarga el parseo tolerante de `parseAdviceResponse`.
+ * de último recurso: no está documentado que soporte salida estructurada, y de eso
+ * se encarga el parseo tolerante de `parseAdviceResponse`. Ver
+ * `docs/research/gemini-models-2026-10.md`.
  */
 export const ADVICE_MODEL_CHAIN = [
   'gemini-3.8-flash',
-  'gemini-3.7-flash',
   'gemini-3.6-flash',
-  'gemini-3.5-flash',
   'gemini-3.5-flash-lite',
   'gemini-3.1-flash-lite',
-  'gemini-2.5-flash',
   'gemma-4-31b-it',
+  'gemma-4-26b-a4b-it',
 ] as const
 
 /** La salida estructurada solo se pide donde está documentada: los modelos flash. */

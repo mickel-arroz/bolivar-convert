@@ -60,3 +60,9 @@ De ahí se sigue el resto:
   cuando la cuenta tiene algo apartado.
 - Si algún día hacen falta bloqueos manuales, sin meta detrás, esta decisión ya no
   alcanza: **En metas** dejaría de ser el nombre cierto y haría falta persistir algo.
+
+## Nota (2026-10-12)
+
+Las metas de ahorro pasaron a llamarse **Planes de ahorro** y la cifra **En metas**
+pasó a **En planes** (ver `CONTEXT.md`). La Meta es ahora la cifra opcional de un
+plan. La decisión no cambia: sigue sin columna nueva ni migración.

@@ -40,7 +40,7 @@ export const GENERIC_ADVICE: Advice = {
   stats:
     'Todavía no hay movimientos suficientes para leer tus hábitos. Registra tus ingresos y gastos durante unas semanas y aquí vas a ver en qué se te está yendo el dinero.',
   budget:
-    'Ponle un presupuesto a las categorías donde más gastas y crea una meta de ahorro con nombre. Con eso a la mano, aquí te vamos a decir qué conviene ajustar cada semana.',
+    'Ponle un presupuesto a las categorías donde más gastas y crea un plan de ahorro con nombre. Con eso a la mano, aquí te vamos a decir qué conviene ajustar cada semana.',
 }
 
 /** Lo mínimo que hace falta mirar para decidir si vale la pena pedir un consejo. */

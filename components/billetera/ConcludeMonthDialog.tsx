@@ -26,7 +26,7 @@ interface ConcludeMonthDialogProps {
   toMonth: string
 }
 
-/** Destino del extra de cada categoría: próximo mes, descartar, o una meta ('goal:<id>'). */
+/** Destino del extra de cada categoría: próximo mes, descartar, o un plan de ahorro ('goal:<id>'). */
 const NEXT = 'next'
 const NONE = 'none'
 
@@ -93,7 +93,7 @@ export function ConcludeMonthDialog({
           {rows.map((r) => {
             const Icon = getCategoryIcon(r.icon)
             const negative = r.remaining < 0
-            // Metas elegibles: misma moneda que el presupuesto y solo si hay sobrante positivo.
+            // Planes elegibles: misma moneda que el presupuesto y solo si hay sobrante positivo.
             const goalOptions =
               r.remaining > 0 ? state.goals.filter((g) => g.currency === r.currency) : []
             return (

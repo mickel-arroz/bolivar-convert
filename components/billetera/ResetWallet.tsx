@@ -28,12 +28,12 @@ const CONFIRM_COPY: Record<ResetMode, { title: string; description: string }> = 
   money: {
     title: 'Vaciar saldos y movimientos',
     description:
-      'Tus cuentas quedarán en cero y se eliminarán todos los movimientos, traspasos y aportes a metas. Los presupuestos, metas y compras se conservan, pero sin dinero. Esta acción no se puede deshacer.',
+      'Tus cuentas quedarán en cero y se eliminarán todos los movimientos, traspasos y aportes a planes de ahorro. Los presupuestos, planes de ahorro y compras se conservan, pero sin dinero. Esta acción no se puede deshacer.',
   },
   all: {
     title: 'Restablecer toda la billetera',
     description:
-      'Se eliminará absolutamente todo: cuentas, categorías propias, presupuestos, plantillas, metas y listas de compras. Tu billetera quedará como recién creada. Esta acción no se puede deshacer.',
+      'Se eliminará absolutamente todo: cuentas, categorías propias, presupuestos, plantillas, planes de ahorro y listas de compras. Tu billetera quedará como recién creada. Esta acción no se puede deshacer.',
   },
 }
 
@@ -91,8 +91,8 @@ export function ResetWallet({ wallet }: ResetWalletProps) {
             >
               <span className="font-bold text-foreground">Solo saldos y movimientos</span>
               <span className="text-xs text-muted-foreground">
-                Vacía cuentas, presupuestos y metas y borra los movimientos. Conserva cuentas,
-                presupuestos, categorías, metas y listas de compras.
+                Vacía cuentas, presupuestos y planes de ahorro y borra los movimientos. Conserva cuentas,
+                presupuestos, categorías, planes de ahorro y listas de compras.
               </span>
             </button>
             <button

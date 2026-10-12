@@ -138,7 +138,7 @@ export function TransferFormDialog({ open, onOpenChange, wallet, rates }: Transf
   const fromSymbol = fromCur ? getCurrency(fromCur).symbol : ''
   const toSymbol = toCur ? getCurrency(toCur).symbol : ''
 
-  // El **Disponible** de la cuenta origen: lo apartado en metas no se traspasa (ADR 0002).
+  // El **Disponible** de la cuenta origen: lo apartado en planes no se traspasa (ADR 0002).
   const fromAvailable = accountFunds.find((f) => f.accountId === fromAccountId)?.available ?? 0
   const debitFrom = amountNum + resolveCommission(amountNum, commission.trim() || undefined, commissionType)
   const overFrom = amountNum > 0 && debitFrom > fromAvailable + 1e-6

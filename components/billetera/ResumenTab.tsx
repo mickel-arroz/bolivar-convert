@@ -110,7 +110,7 @@ export function ResumenTab({ wallet, rates, dialogs }: ResumenTabProps) {
     [state.categories]
   )
 
-  // El Patrimonio neto incluye el dinero apartado en metas: ahorrar no empobrece
+  // El Patrimonio neto incluye el dinero apartado en planes: ahorrar no empobrece
   // (ADR 0002). `inGoals` es la parte de esa cifra que no está Disponible.
   const netWorthCalc = useMemo(() => {
     const t = accountsData?.totalsByCurrency ?? { VES: 0, USD: 0, EUR: 0 }
@@ -170,7 +170,7 @@ export function ResumenTab({ wallet, rates, dialogs }: ResumenTabProps) {
                 <p className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground">
                   <TargetIcon className="size-3.5 shrink-0" />
                   <span className="tabular-nums">
-                    De lo cual {formatMoney(netWorthCalc.inGoals, netWorthCurrency)} en metas
+                    De lo cual {formatMoney(netWorthCalc.inGoals, netWorthCurrency)} en planes
                   </span>
                 </p>
               )}
@@ -299,7 +299,7 @@ export function ResumenTab({ wallet, rates, dialogs }: ResumenTabProps) {
               {pendingDeleteImpact.purchased > 0 &&
                 ` ${pendingDeleteImpact.purchased === 1 ? 'Un producto pagado con esta cuenta volverá' : `${pendingDeleteImpact.purchased} productos pagados con esta cuenta volverán`} a pendiente, porque su gasto se elimina.`}
               {pendingDeleteHasGoalMoney &&
-                ' Lo que apartaste en metas de ahorro se queda en sus metas y deja de contar como En metas de ninguna cuenta.'}{' '}
+                ' Lo que apartaste en planes de ahorro se queda en sus planes y deja de contar como En planes de ninguna cuenta.'}{' '}
               Esta acción no se puede deshacer.
             </AlertDialogDescription>
           </AlertDialogHeader>

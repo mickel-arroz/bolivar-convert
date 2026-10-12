@@ -161,7 +161,7 @@ export interface AccountsSummary {
   accounts: Account[]
   funds: AccountFunds[]
   totalsByCurrency: Record<CurrencyId, number>
-  /** Lo que está En metas, por moneda: la línea que explica el Patrimonio neto. */
+  /** Lo que está En planes, por moneda: la línea que explica el Patrimonio neto. */
   inGoalsByCurrency: Record<CurrencyId, number>
 }
 
@@ -216,7 +216,7 @@ export interface BalanceInput {
   transfers: Transfer[]
 }
 
-/** Lo que además hace falta para repartir el saldo entre Disponible y En metas. */
+/** Lo que además hace falta para repartir el saldo entre Disponible y En planes. */
 export interface FundsInput extends BalanceInput {
   goalContributions: GoalContribution[]
 }
@@ -224,8 +224,8 @@ export interface FundsInput extends BalanceInput {
 /**
  * **Saldo de la cuenta** = apertura + ingresos − gastos ± traspasos.
  *
- * Las metas de ahorro NO entran: aportar a una meta no mueve dinero del banco
- * (ADR 0002). Para repartir este saldo entre Disponible y En metas, ver
+ * Los planes de ahorro NO entran: aportar a un plan no mueve dinero del banco
+ * (ADR 0002). Para repartir este saldo entre Disponible y En planes, ver
  * {@link computeAccountFunds}.
  */
 function computeAccountBalances({
@@ -253,12 +253,12 @@ function computeAccountBalances({
 }
 
 /**
- * Las tres cifras de cada cuenta: **Saldo de la cuenta**, **En metas** y **Disponible**.
+ * Las tres cifras de cada cuenta: **Saldo de la cuenta**, **En planes** y **Disponible**.
  *
  * Reusa {@link computeAccountBalances} para el saldo y solo le resta lo apartado, de
- * modo que Saldo = Disponible + En metas por construcción. Los aportes sin cuenta
- * (los que vienen de mandar el sobrante de un mes a una meta) no se atribuyen a
- * ninguna: la suma de En metas puede quedar por debajo de la suma de las metas.
+ * modo que Saldo = Disponible + En planes por construcción. Los aportes sin cuenta
+ * (los que vienen de mandar el sobrante de un mes a un plan) no se atribuyen a
+ * ninguna: la suma de En planes puede quedar por debajo de lo ahorrado en todos los planes.
  */
 export function computeAccountFunds({ goalContributions, ...balanceInput }: FundsInput): AccountFunds[] {
   const inGoalsByAccount = new Map<string, number>()
@@ -272,14 +272,14 @@ export function computeAccountFunds({ goalContributions, ...balanceInput }: Fund
   })
 }
 
-/** Totales por moneda a partir del Saldo de la cuenta (las metas cuentan como patrimonio). */
+/** Totales por moneda a partir del Saldo de la cuenta (los planes cuentan como patrimonio). */
 export function computeTotalsByCurrency(balances: AccountBalance[]): Record<CurrencyId, number> {
   const totals: Record<CurrencyId, number> = { VES: 0, USD: 0, EUR: 0 }
   for (const b of balances) totals[b.currency] += b.balance
   return totals
 }
 
-/** Totales por moneda de lo que está **En metas**, para explicar el Patrimonio neto. */
+/** Totales por moneda de lo que está **En planes**, para explicar el Patrimonio neto. */
 export function computeInGoalsByCurrency(funds: AccountFunds[]): Record<CurrencyId, number> {
   const totals: Record<CurrencyId, number> = { VES: 0, USD: 0, EUR: 0 }
   for (const f of funds) totals[f.currency] += f.inGoals

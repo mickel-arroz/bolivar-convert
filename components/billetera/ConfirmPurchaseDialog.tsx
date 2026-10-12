@@ -58,7 +58,7 @@ export function ConfirmPurchaseDialog({
   const [customRate, setCustomRate] = useState('')
   const [date, setDate] = useState(todayInputValue())
 
-  // El **Disponible** de cada cuenta: lo apartado en metas no se puede gastar sin
+  // El **Disponible** de cada cuenta: lo apartado en planes no se puede gastar sin
   // retirarlo antes, así que es contra esta cifra que se valida el débito (ADR 0002).
   const availableByAccount = useMemo(
     () => new Map(accountFunds.map((f) => [f.accountId, f.available])),

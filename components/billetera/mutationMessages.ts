@@ -22,12 +22,12 @@ export function mutationError(
         ? {
             title: 'No se puede eliminar el traspaso',
             description:
-              'La cuenta destino ya gastó o apartó en metas ese dinero y quedaría en negativo.',
+              'La cuenta destino ya gastó o apartó en planes de ahorro ese dinero y quedaría en negativo.',
           }
         : {
             title: 'No se puede eliminar el movimiento',
             description:
-              'El dinero de este ingreso ya se usó o está apartado en metas: la cuenta quedaría en negativo.',
+              'El dinero de este ingreso ya se usó o está apartado en planes de ahorro: la cuenta quedaría en negativo.',
           }
     case 'locked':
       return {

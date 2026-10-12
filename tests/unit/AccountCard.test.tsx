@@ -33,19 +33,19 @@ function renderCard(
 }
 
 describe('AccountCard', () => {
-  it('no muestra la línea En metas cuando la cuenta no tiene nada apartado', () => {
+  it('no muestra la línea En planes cuando la cuenta no tiene nada apartado', () => {
     renderCard(1000, 0)
 
     expect(screen.getByTestId('account-available')).toHaveTextContent('1.000,00')
     expect(screen.queryByTestId('account-in-goals')).not.toBeInTheDocument()
   })
 
-  it('muestra el Disponible en grande y En metas debajo cuando hay algo apartado', () => {
+  it('muestra el Disponible en grande y En planes debajo cuando hay algo apartado', () => {
     renderCard(700, 300)
 
     expect(screen.getByTestId('account-available')).toHaveTextContent('700,00')
     expect(screen.getByTestId('account-in-goals')).toHaveTextContent('300,00')
-    expect(screen.getByTestId('account-in-goals')).toHaveTextContent('en metas')
+    expect(screen.getByTestId('account-in-goals')).toHaveTextContent('300,00 en planes')
   })
 
   describe('conversiones', () => {
@@ -74,7 +74,7 @@ describe('AccountCard', () => {
       expect(chips).toHaveTextContent('Bs. 500,00 BCV')
     })
 
-    it('van justo debajo del saldo, antes de la línea En metas', () => {
+    it('van justo debajo del saldo, antes de la línea En planes', () => {
       renderCard(4000, 300, { rates: RATES })
 
       const available = screen.getByTestId('account-available')
@@ -87,7 +87,7 @@ describe('AccountCard', () => {
     })
 
     it('convierten el Disponible, no el saldo total', () => {
-      // 700 disponibles de 1000 (300 en metas): se convierten los 700.
+      // 700 disponibles de 1000 (300 en planes): se convierten los 700.
       renderCard(700, 300, { rates: RATES })
       expect(screen.getByTestId('account-conversions')).toHaveTextContent('$ 17.50 BCV')
     })

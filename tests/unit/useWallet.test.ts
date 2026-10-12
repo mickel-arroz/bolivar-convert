@@ -1361,14 +1361,14 @@ describe('convertTransferAmount', () => {
   })
 })
 
-describe('useWallet — Saldo de la cuenta, En metas y Disponible', () => {
+describe('useWallet — Saldo de la cuenta, En planes y Disponible', () => {
   beforeEach(() => {
     localStorage.clear()
     cloud.store = {}
     vi.clearAllMocks()
   })
 
-  it('aportar a una meta baja el Disponible y deja el Saldo de la cuenta intacto', async () => {
+  it('aportar a un plan baja el Disponible y deja el Saldo de la cuenta intacto', async () => {
     const { result } = renderHook(() => useWallet())
     await waitFor(() => expect(result.current.isMounted).toBe(true))
 
@@ -1418,7 +1418,7 @@ describe('useWallet — Saldo de la cuenta, En metas y Disponible', () => {
     expect(after?.available).toBe(250)
   })
 
-  it('el Patrimonio neto incluye el dinero apartado en metas', async () => {
+  it('el Patrimonio neto incluye el dinero apartado en planes', async () => {
     const { result } = renderHook(() => useWallet())
     await waitFor(() => expect(result.current.isMounted).toBe(true))
 
@@ -1433,6 +1433,107 @@ describe('useWallet — Saldo de la cuenta, En metas y Disponible', () => {
     expect(result.current.netWorthIn('USD', RATES).value).toBe(500)
     expect(result.current.computeStats(RATES).netWorth).toBe(500)
   })
+
+  it('retirar de un plan hacia la cuenta sube el Disponible, baja En planes y no toca el Saldo', async () => {
+    const { result } = renderHook(() => useWallet())
+    await waitFor(() => expect(result.current.isMounted).toBe(true))
+
+    act(() => result.current.addAccount('Banco', 'USD', '500'))
+    act(() => result.current.addGoal('Viaje', 'USD', '1000'))
+    const accountId = result.current.state.accounts[0].id
+    const goalId = result.current.state.goals[0].id
+    act(() => {
+      result.current.moveToGoal({ goalId, accountId, amount: '200', direction: 'in', date: today })
+    })
+
+    let ok = false
+    act(() => {
+      ok = result.current.moveToGoal({ goalId, accountId, amount: '80', direction: 'out', date: today })
+    })
+
+    expect(ok).toBe(true)
+    const funds = result.current.accountFunds.find((f) => f.accountId === accountId)
+    expect(funds?.balance).toBe(500)
+    expect(funds?.inGoals).toBe(120)
+    expect(funds?.available).toBe(380)
+  })
+
+  it('rechaza retirar de un plan más de lo ahorrado', async () => {
+    const { result } = renderHook(() => useWallet())
+    await waitFor(() => expect(result.current.isMounted).toBe(true))
+
+    act(() => result.current.addAccount('Banco', 'USD', '500'))
+    act(() => result.current.addGoal('Viaje', 'USD'))
+    const accountId = result.current.state.accounts[0].id
+    const goalId = result.current.state.goals[0].id
+    act(() => {
+      result.current.moveToGoal({ goalId, accountId, amount: '100', direction: 'in', date: today })
+    })
+
+    let ok = true
+    act(() => {
+      ok = result.current.moveToGoal({ goalId, accountId, amount: '100.01', direction: 'out', date: today })
+    })
+
+    expect(ok).toBe(false)
+    expect(result.current.state.goalContributions).toHaveLength(1)
+    expect(result.current.goalBalances.find((g) => g.goalId === goalId)?.balance).toBe(100)
+  })
+
+  it('permite retirar exactamente lo ahorrado en un plan', async () => {
+    const { result } = renderHook(() => useWallet())
+    await waitFor(() => expect(result.current.isMounted).toBe(true))
+
+    act(() => result.current.addAccount('Banco', 'USD', '500'))
+    act(() => result.current.addGoal('Viaje', 'USD'))
+    const accountId = result.current.state.accounts[0].id
+    const goalId = result.current.state.goals[0].id
+    act(() => {
+      result.current.moveToGoal({ goalId, accountId, amount: '100', direction: 'in', date: today })
+    })
+
+    let ok = false
+    act(() => {
+      ok = result.current.moveToGoal({ goalId, accountId, amount: '100', direction: 'out', date: today })
+    })
+
+    expect(ok).toBe(true)
+    expect(result.current.goalBalances.find((g) => g.goalId === goalId)?.balance).toBe(0)
+  })
+
+  it('un plan sin Meta y uno con la Meta alcanzada siguen aceptando aportes', async () => {
+    const { result } = renderHook(() => useWallet())
+    await waitFor(() => expect(result.current.isMounted).toBe(true))
+
+    act(() => result.current.addAccount('Banco', 'USD', '5000'))
+    act(() => result.current.addGoal('Colchón', 'USD'))
+    act(() => result.current.addGoal('Viaje', 'USD', '100'))
+    const accountId = result.current.state.accounts[0].id
+    const [sinMeta, conMeta] = result.current.state.goals.map((g) => g.id)
+
+    expect(result.current.state.goals[0].target).toBeUndefined()
+
+    const results: boolean[] = []
+    act(() => {
+      results.push(
+        result.current.moveToGoal({ goalId: sinMeta, accountId, amount: '3000', direction: 'in', date: today })
+      )
+    })
+    act(() => {
+      results.push(
+        result.current.moveToGoal({ goalId: conMeta, accountId, amount: '100', direction: 'in', date: today })
+      )
+    })
+    act(() => {
+      results.push(
+        result.current.moveToGoal({ goalId: conMeta, accountId, amount: '50', direction: 'in', date: today })
+      )
+    })
+
+    expect(results).toEqual([true, true, true])
+    expect(result.current.goalBalances.find((g) => g.goalId === sinMeta)?.balance).toBe(3000)
+    expect(result.current.goalBalances.find((g) => g.goalId === conMeta)?.balance).toBe(150)
+  })
 })
 
 describe('useWallet — borrado de cuenta y aportes a metas', () => {
@@ -1442,7 +1543,7 @@ describe('useWallet — borrado de cuenta y aportes a metas', () => {
     vi.clearAllMocks()
   })
 
-  it('desliga los aportes de la cuenta borrada sin tocar el saldo de la meta', async () => {
+  it('desliga los aportes de la cuenta borrada sin tocar lo ahorrado en el plan', async () => {
     const { result } = renderHook(() => useWallet())
     await waitFor(() => expect(result.current.isMounted).toBe(true))
 

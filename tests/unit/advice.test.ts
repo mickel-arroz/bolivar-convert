@@ -117,6 +117,13 @@ describe('parseAdviceResponse', () => {
   })
 })
 
+describe('GENERIC_ADVICE', () => {
+  it('habla de planes de ahorro, no de metas de ahorro', () => {
+    expect(GENERIC_ADVICE.budget).toContain('plan de ahorro')
+    expect(`${GENERIC_ADVICE.stats} ${GENERIC_ADVICE.budget}`).not.toMatch(/metas? de ahorro/i)
+  })
+})
+
 describe('runAdviceChain', () => {
   it('se detiene en el primer modelo que responde bien', async () => {
     const call: AdviceModelCall = vi.fn(async () => json('Atrás.', 'Adelante.'))

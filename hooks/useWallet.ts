@@ -156,12 +156,12 @@ export interface BudgetTransferInput {
   currency: CurrencyId
 }
 
-/** Meta de ahorro / alcancía. No está atada a un mes. */
+/** Plan de ahorro: una alcancía, con Meta o sin ella. No está atado a un mes. */
 export interface Goal {
   id: string
   name: string
   currency: CurrencyId
-  /** Objetivo opcional (para la barra de progreso). */
+  /** La Meta, opcional. Alcanzarla no cierra el plan. */
   target?: string
   /** Descripción opcional (máx. 300 caracteres). */
   description?: string
@@ -170,13 +170,13 @@ export interface Goal {
   createdAt: string
 }
 
-/** Movimiento de dinero hacia/desde una meta (misma moneda que la meta). */
+/** Movimiento de dinero hacia/desde un plan de ahorro (misma moneda que el plan). */
 export interface GoalContribution {
   id: string
   goalId: string
-  /** Cuenta afectada (misma moneda que la meta). undefined = viene de un extra de presupuesto. */
+  /** Cuenta afectada (misma moneda que el plan). undefined = viene de un extra de presupuesto. */
   accountId?: string
-  /** Monto en la moneda de la meta. Positivo = aporta; negativo = retira. */
+  /** Monto en la moneda del plan. Positivo = aporta; negativo = retira. */
   amount: string
   note?: string
   date: string
@@ -297,7 +297,7 @@ export interface AccountBalance {
 
 /** Las tres cifras de una cuenta. `balance` siempre es `available + inGoals`. */
 export interface AccountFunds extends AccountBalance {
-  /** **En metas**: lo que esta cuenta tiene apartado en metas de ahorro. */
+  /** **En planes**: lo que esta cuenta tiene apartado en planes de ahorro. */
   inGoals: number
   /** **Disponible**: lo que el usuario puede gastar hoy de esta cuenta. */
   available: number
@@ -685,6 +685,15 @@ export type WalletApi = ReturnType<typeof useWallet>
 /** Margen para comparaciones de saldo (evita rechazos por error de coma flotante). */
 const OVERDRAW_EPS = 1e-6
 
+/** Lo ahorrado en un Plan de ahorro: el tope de lo que se puede retirar de él. */
+function goalSavedOf(goalId: string, contributions: readonly GoalContribution[]): number {
+  let saved = 0
+  for (const gc of contributions) {
+    if (gc.goalId === goalId) saved += parseSigned(gc.amount)
+  }
+  return saved
+}
+
 export function useWallet() {
   const [isMounted, setIsMounted] = useState(false)
   const [state, setState] = useState<WalletState>(DEFAULT_STATE)
@@ -921,7 +930,7 @@ export function useWallet() {
    * Elimina la cuenta y, en cascada, sus transacciones y traspasos asociados.
    * Los aportes a metas NO se cascadean: se desligan de la cuenta (`accountId`
    * queda sin definir), igual que los extras de presupuesto. El dinero se queda
-   * en la meta y deja de contar como **En metas** de ninguna cuenta (ADR 0002).
+   * en el plan y deja de contar como **En planes** de ninguna cuenta (ADR 0002).
    *
    * Los productos que se pagaron con esta cuenta vuelven a pendientes: su gasto se
    * borra junto con la cuenta, y dejarlos como comprados sería un producto pagado
@@ -1561,7 +1570,7 @@ export function useWallet() {
   }, [])
 
   /**
-   * Mueve dinero entre una cuenta y una meta de su misma moneda.
+   * Mueve dinero entre una cuenta y un plan de ahorro de su misma moneda.
    * `direction` 'in' = aporta (sale de la cuenta), 'out' = retira (vuelve a la cuenta).
    * El monto se guarda con signo (aporte positivo, retiro negativo).
    */
@@ -1582,6 +1591,7 @@ export function useWallet() {
       const a0 = s0.accounts.find((a) => a.id === accountId)
       if (!g0 || !a0 || g0.currency !== a0.currency) return false
       if (direction === 'in' && accountAvailableOf(accountId, s0) - value < -OVERDRAW_EPS) return false
+      if (direction === 'out' && goalSavedOf(goalId, s0.goalContributions) - value < -OVERDRAW_EPS) return false
       setState((s) => {
         const goal = s.goals.find((g) => g.id === goalId)
         const account = s.accounts.find((a) => a.id === accountId)
@@ -1608,7 +1618,7 @@ export function useWallet() {
     [accountAvailableOf]
   )
 
-  /** Asigna un extra de presupuesto a una meta (sin afectar cuentas). Usado al concluir el mes. */
+  /** Asigna un extra de presupuesto a un plan de ahorro (sin afectar cuentas). Usado al concluir el mes. */
   const allocateExtraToGoal = useCallback((goalId: string, amount: number, date: string) => {
     if (amount <= 0) return
     setState((s) => {
@@ -1952,13 +1962,11 @@ export function useWallet() {
   )
 
   const goalBalances = useMemo<GoalBalance[]>(() => {
-    return state.goals.map((goal) => {
-      let balance = 0
-      for (const gc of state.goalContributions) {
-        if (gc.goalId === goal.id) balance += parseSigned(gc.amount)
-      }
-      return { goalId: goal.id, currency: goal.currency, balance }
-    })
+    return state.goals.map((goal) => ({
+      goalId: goal.id,
+      currency: goal.currency,
+      balance: goalSavedOf(goal.id, state.goalContributions),
+    }))
   }, [state.goals, state.goalContributions])
 
   const totalsByCurrency = useMemo<Record<CurrencyId, number>>(

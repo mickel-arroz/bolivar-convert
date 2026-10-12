@@ -17,7 +17,7 @@ interface AccountCardProps {
   account: Account
   /** **Disponible**: la cifra grande, lo que se puede gastar hoy. */
   available: number
-  /** **En metas**: lo apartado en metas de ahorro desde esta cuenta. */
+  /** **En planes**: lo apartado en planes de ahorro desde esta cuenta. */
   inGoals: number
   /** Tasas para mostrar las conversiones del Disponible. Sin ellas, la tarjeta no las muestra. */
   rates?: Rates
@@ -28,9 +28,9 @@ interface AccountCardProps {
 /**
  * Tarjeta de una cuenta en el tab Resumen.
  *
- * Muestra el **Disponible** en grande y el **En metas** debajo. La línea de En metas
+ * Muestra el **Disponible** en grande y el **En planes** debajo. La línea de En planes
  * solo se renderiza cuando hay algo apartado, igual que el desglose por prioridad
- * omite las prioridades vacías: una cuenta sin metas se ve como siempre (ADR 0002).
+ * omite las prioridades vacías: una cuenta sin planes se ve como siempre (ADR 0002).
  */
 export function AccountCard({
   account,
@@ -102,7 +102,7 @@ export function AccountCard({
             >
               <TargetIcon className="size-3.5 shrink-0" />
               <span className="tabular-nums">
-                {formatMoney(inGoals, account.currency)} en metas
+                {formatMoney(inGoals, account.currency)} en planes
               </span>
             </p>
           )}

@@ -2,7 +2,7 @@ import { render, screen } from '@testing-library/react'
 import { describe, it, expect, vi } from 'vitest'
 import { PresupuestoTab } from '@/components/billetera/PresupuestoTab'
 import { formatMoney } from '@/components/billetera/format'
-import type { Budget, BudgetStatusRow, StatsBundle, WalletApi } from '@/hooks/useWallet'
+import type { Budget, BudgetStatusRow, Goal, GoalBalance, StatsBundle, WalletApi } from '@/hooks/useWallet'
 import type { Rates } from '@/constants/rates'
 
 // Los diálogos hijos no son lo que se prueba aquí: se reemplazan por nada.
@@ -40,7 +40,11 @@ const row = (id: string, name: string, limit: number, actual: number): BudgetSta
   isOver: false,
 })
 
-function renderTab(rows: BudgetStatusRow[], budgets: Partial<Budget>[] = []) {
+function renderTab(
+  rows: BudgetStatusRow[],
+  budgets: Partial<Budget>[] = [],
+  plans: { goals?: Goal[]; goalBalances?: GoalBalance[] } = {}
+) {
   const wallet = {
     state: {
       shoppingLists: [],
@@ -50,12 +54,12 @@ function renderTab(rows: BudgetStatusRow[], budgets: Partial<Budget>[] = []) {
       displayCurrency: 'VES',
       statsRateSource: 'bcvUsd',
       categories: [{ id: 'c', name: 'Otra', kind: 'expense', icon: 'other' }],
-      goals: [],
+      goals: plans.goals ?? [],
       concludedMonths: [],
       budgets,
     },
     removeBudget: vi.fn(),
-    goalBalances: [],
+    goalBalances: plans.goalBalances ?? [],
     removeGoal: vi.fn(),
     removeShoppingList: vi.fn(),
   } as unknown as WalletApi
@@ -129,5 +133,50 @@ describe('PresupuestoTab — presupuesto con límite 0', () => {
     expect(ocio).not.toHaveTextContent(/Superaste/)
     expect(ocio).not.toHaveTextContent(/Cerca del límite/)
     expect(ocio.querySelector('.bg-destructive')).toBeNull()
+  })
+})
+
+describe('PresupuestoTab — planes de ahorro', () => {
+  const plan = (id: string, name: string, target?: string): Goal => ({
+    id,
+    name,
+    currency: 'USD',
+    target,
+    createdAt: '2026-09-01T00:00:00.000Z',
+  })
+  const saved = (goalId: string, balance: number): GoalBalance => ({ goalId, currency: 'USD', balance })
+
+  it('la sección se titula «Planes de ahorro»', () => {
+    renderTab([])
+
+    expect(screen.getByText('Planes de ahorro')).toBeInTheDocument()
+    expect(screen.queryByText(/metas? de ahorro/i)).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Nuevo plan/ })).toBeInTheDocument()
+  })
+
+  it('un plan sin Meta muestra el acumulado en grande y «Sin meta», sin barra', () => {
+    renderTab([], [], { goals: [plan('g1', 'Colchón')], goalBalances: [saved('g1', 250)] })
+
+    const card = screen.getByText('Colchón').closest('[data-slot="card"]') as HTMLElement
+    expect(card).toHaveTextContent('Sin meta')
+    expect(card.querySelector('[data-testid="plan-saved"]')).toHaveTextContent(formatMoney(250, 'USD'))
+    expect(card.querySelector('[data-testid="plan-progress"]')).toBeNull()
+  })
+
+  it('un plan con la Meta cumplida muestra «Meta alcanzada» y sigue ofreciendo mover dinero', () => {
+    renderTab([], [], { goals: [plan('g1', 'Viaje', '100')], goalBalances: [saved('g1', 150)] })
+
+    const card = screen.getByText('Viaje').closest('[data-slot="card"]') as HTMLElement
+    expect(card).toHaveTextContent('Meta alcanzada')
+    expect(card.querySelector('[data-testid="plan-progress"]')).not.toBeNull()
+    expect(card).toHaveTextContent('Mover dinero')
+  })
+
+  it('un plan con Meta sin cumplir no dice «Meta alcanzada» ni «Sin meta»', () => {
+    renderTab([], [], { goals: [plan('g1', 'Viaje', '100')], goalBalances: [saved('g1', 40)] })
+
+    const card = screen.getByText('Viaje').closest('[data-slot="card"]') as HTMLElement
+    expect(card).not.toHaveTextContent('Meta alcanzada')
+    expect(card).not.toHaveTextContent('Sin meta')
   })
 })

@@ -42,13 +42,13 @@ export function GoalContributionDialog({
   const [amount, setAmount] = useState('')
   const [date, setDate] = useState(todayInputValue())
 
-  // Cuentas de la misma moneda que la meta.
+  // Cuentas de la misma moneda que el plan.
   const eligibleAccounts = useMemo(
     () => (goal ? state.accounts.filter((a) => a.currency === goal.currency) : []),
     [goal, state.accounts]
   )
 
-  // El **Disponible** de cada cuenta: lo apartado en metas no se puede gastar sin
+  // El **Disponible** de cada cuenta: lo apartado en planes no se puede gastar sin
   // retirarlo antes, así que es contra esta cifra que se valida el débito (ADR 0002).
   const availableByAccount = useMemo(
     () => new Map(accountFunds.map((f) => [f.accountId, f.available])),
@@ -81,7 +81,11 @@ export function GoalContributionDialog({
     if (!canSubmit) return
     const ok = moveToGoal({ goalId: goal.id, accountId, amount, direction, note: undefined, date })
     if (!ok) {
-      notify.error('El monto supera el Disponible de la cuenta')
+      notify.error(
+        direction === 'in'
+          ? 'El monto supera el Disponible de la cuenta'
+          : 'El monto supera lo ahorrado en el plan'
+      )
       return
     }
     notify.success(direction === 'in' ? 'Aporte registrado' : 'Retiro registrado')
@@ -94,14 +98,14 @@ export function GoalContributionDialog({
         <DialogHeader>
           <DialogTitle>{goal.name}</DialogTitle>
           <DialogDescription>
-            Mueve dinero entre tus cuentas en {getCurrency(goal.currency).label} y esta meta.
+            Mueve dinero entre tus cuentas en {getCurrency(goal.currency).label} y este plan de ahorro.
           </DialogDescription>
         </DialogHeader>
 
         {eligibleAccounts.length === 0 ? (
           <p className="text-sm text-muted-foreground">
             Necesitas al menos una cuenta en {getCurrency(goal.currency).label} (
-            {getCurrency(goal.currency).symbol}) para mover dinero a esta meta.
+            {getCurrency(goal.currency).symbol}) para mover dinero a este plan.
           </p>
         ) : (
           <div className="flex flex-col gap-4">
@@ -174,7 +178,7 @@ export function GoalContributionDialog({
 
             <div className="rounded-xl border border-border/60 bg-muted/30 p-3 text-sm">
               <div className="flex items-center justify-between">
-                <span className="text-muted-foreground">Ahorrado en la meta</span>
+                <span className="text-muted-foreground">Ahorrado en el plan</span>
                 <span className="font-black tabular-nums">{formatMoney(goalBalance, goal.currency)}</span>
               </div>
               {overAccount && (
@@ -184,7 +188,7 @@ export function GoalContributionDialog({
               )}
               {overGoal && (
                 <p className="mt-1 text-xs text-destructive">
-                  No puedes retirar más de lo ahorrado en la meta.
+                  No puedes retirar más de lo ahorrado en el plan.
                 </p>
               )}
             </div>

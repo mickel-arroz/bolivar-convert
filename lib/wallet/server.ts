@@ -720,7 +720,7 @@ export async function resetWalletAll(supabase: SupabaseClient, userId: string): 
 
 /* ─────────────────── Lecturas por tab (endpoints dedicados) ─────────────────── */
 
-/** Carga cuentas con sus tres cifras: Saldo de la cuenta, En metas y Disponible. */
+/** Carga cuentas con sus tres cifras: Saldo de la cuenta, En planes y Disponible. */
 export async function loadAccountsSummary(
   supabase: SupabaseClient,
   userId: string

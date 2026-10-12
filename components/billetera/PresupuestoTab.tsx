@@ -39,7 +39,7 @@ import {
 } from '@/components/icons'
 import { cn } from '@/lib/utils'
 import { notify } from '@/lib/notify'
-import { summarizeBudgets } from '@/lib/wallet/compute'
+import { parseAmount, summarizeBudgets } from '@/lib/wallet/compute'
 import { WalletDialogs } from './dialogs'
 import { BudgetsSummaryCard } from './BudgetsSummaryCard'
 import { AdviceCard } from './AdviceCard'
@@ -359,19 +359,19 @@ export function PresupuestoTab({ wallet, stats, dialogs, rates }: PresupuestoTab
         </div>
       )}
 
-      {/* Metas / Alcancías */}
+      {/* Planes de ahorro */}
       <div className="flex flex-col gap-3 border-t border-border/60 pt-5">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <h2 className="text-sm font-bold uppercase tracking-wider text-muted-foreground">
-              Metas de ahorro
+              Planes de ahorro
             </h2>
             <p className="text-xs text-muted-foreground">
-              Alcancías para tus objetivos. No dependen del mes.
+              Aparta dinero de tus cuentas, con Meta o sin ella. No dependen del mes.
             </p>
           </div>
           <Button onClick={() => setGoalForm({ open: true, editing: null })}>
-            <PlusIcon /> Nueva meta
+            <PlusIcon /> Nuevo plan
           </Button>
         </div>
 
@@ -380,8 +380,8 @@ export function PresupuestoTab({ wallet, stats, dialogs, rates }: PresupuestoTab
             <CardContent className="flex flex-col items-center gap-3 py-10 text-center">
               <TargetIcon className="size-10 text-muted-foreground/40" />
               <p className="text-sm text-muted-foreground">
-                Crea una meta (fondo de emergencia, un carro…) y mueve dinero de tus cuentas hacia
-                ella.
+                Crea un plan de ahorro (fondo de emergencia, un carro…) y aparta en él dinero de
+                tus cuentas.
               </p>
             </CardContent>
           </Card>
@@ -389,8 +389,9 @@ export function PresupuestoTab({ wallet, stats, dialogs, rates }: PresupuestoTab
           <div className="grid gap-3 sm:grid-cols-2">
             {state.goals.map((goal) => {
               const saved = goalBalanceById.get(goal.id) ?? 0
-              const target = parseFloat(String(goal.target ?? '0').replace(',', '.')) || 0
+              const target = parseAmount(goal.target)
               const pct = target > 0 ? Math.min(100, (saved / target) * 100) : 0
+              const reached = target > 0 && saved >= target
               const accent = goal.color ?? DEFAULT_ACCOUNT_COLOR
               const GoalIcon = getAccountIcon(goal.icon)
               return (
@@ -414,11 +415,11 @@ export function PresupuestoTab({ wallet, stats, dialogs, rates }: PresupuestoTab
                         </div>
                         <div className="min-w-0">
                           <p className="truncate font-bold">{goal.name}</p>
-                          <p className="text-xs text-muted-foreground tabular-nums">
-                            {target > 0
-                              ? `${formatMoney(saved, goal.currency)} de ${formatMoney(target, goal.currency)}`
-                              : formatMoney(saved, goal.currency)}
-                          </p>
+                          {target > 0 && (
+                            <p className="text-xs text-muted-foreground tabular-nums">
+                              {formatMoney(saved, goal.currency)} de {formatMoney(target, goal.currency)}
+                            </p>
+                          )}
                         </div>
                       </div>
                       <div className="flex items-center">
@@ -426,7 +427,7 @@ export function PresupuestoTab({ wallet, stats, dialogs, rates }: PresupuestoTab
                           variant="ghost"
                           size="icon-sm"
                           onClick={() => setGoalForm({ open: true, editing: goal })}
-                          aria-label="Editar meta"
+                          aria-label="Editar plan"
                         >
                           <PencilIcon className="size-4" />
                         </Button>
@@ -434,19 +435,36 @@ export function PresupuestoTab({ wallet, stats, dialogs, rates }: PresupuestoTab
                           variant="ghost"
                           size="icon-sm"
                           onClick={() => setPendingDeleteGoal(goal)}
-                          aria-label="Eliminar meta"
+                          aria-label="Eliminar plan"
                         >
                           <TrashIcon className="size-4" />
                         </Button>
                       </div>
                     </div>
 
-                    {target > 0 && (
-                      <div className="h-2 overflow-hidden rounded-full bg-muted">
+                    {target > 0 ? (
+                      <div className="flex flex-col gap-1">
                         <div
-                          className="h-full rounded-full transition-all"
-                          style={{ width: `${pct}%`, backgroundColor: accent }}
-                        />
+                          data-testid="plan-progress"
+                          className="h-2 overflow-hidden rounded-full bg-muted"
+                        >
+                          <div
+                            className="h-full rounded-full transition-all"
+                            style={{ width: `${pct}%`, backgroundColor: accent }}
+                          />
+                        </div>
+                        {reached && (
+                          <p className="text-xs font-semibold" style={{ color: accent }}>
+                            Meta alcanzada
+                          </p>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="flex flex-wrap items-baseline gap-x-2">
+                        <p data-testid="plan-saved" className="text-2xl font-black tabular-nums">
+                          {formatMoney(saved, goal.currency)}
+                        </p>
+                        <span className="text-xs text-muted-foreground">Sin meta</span>
                       </div>
                     )}
 
@@ -621,7 +639,7 @@ export function PresupuestoTab({ wallet, stats, dialogs, rates }: PresupuestoTab
       >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Eliminar meta</AlertDialogTitle>
+            <AlertDialogTitle>Eliminar plan de ahorro</AlertDialogTitle>
             <AlertDialogDescription>
               Se eliminará «{pendingDeleteGoal?.name}» y su historial de aportes. El dinero ya
               retirado a tus cuentas no se ve afectado. Esta acción no se puede deshacer.
@@ -633,7 +651,7 @@ export function PresupuestoTab({ wallet, stats, dialogs, rates }: PresupuestoTab
               onClick={() => {
                 if (pendingDeleteGoal) {
                   removeGoal(pendingDeleteGoal.id)
-                  notify.success('Meta eliminada')
+                  notify.success('Plan de ahorro eliminado')
                 }
                 setPendingDeleteGoal(null)
               }}

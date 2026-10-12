@@ -36,7 +36,7 @@ export function AccountFormDialog({ open, onOpenChange, wallet, editing }: Accou
   const [commissionType, setCommissionType] = useState<CommissionType>('percent')
 
   // El campo "Saldo" significa **Saldo de la cuenta**: quien lo abre está cuadrando
-  // contra su banco, y su banco no sabe nada de sus metas de ahorro (ADR 0002).
+  // contra su banco, y su banco no sabe nada de sus planes de ahorro (ADR 0002).
   const editingBalance = useMemo(() => {
     if (!editing) return 0
     return accountFunds.find((f) => f.accountId === editing.id)?.balance ?? 0
@@ -133,7 +133,7 @@ export function AccountFormDialog({ open, onOpenChange, wallet, editing }: Accou
             label="Saldo de la cuenta"
             hint={
               editing
-                ? 'Lo que dice tu banco, metas de ahorro incluidas. Si lo cambias, se ajusta al nuevo valor y los movimientos futuros lo afectan desde ahí.'
+                ? 'Lo que dice tu banco, planes de ahorro incluidos. Si lo cambias, se ajusta al nuevo valor y los movimientos futuros lo afectan desde ahí.'
                 : 'Opcional. El saldo se ajusta con tus movimientos.'
             }
             value={balance}

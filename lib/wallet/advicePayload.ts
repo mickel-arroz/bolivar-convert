@@ -66,7 +66,7 @@ export interface AdvicePayload {
   categories: { name: string; kind: 'income' | 'expense'; total: number }[]
   /** Avance de cada presupuesto del mes en curso. */
   budgets: { category: string; limit: number; spent: number; currency: CurrencyId }[]
-  /** Avance de cada meta de ahorro. */
+  /** Avance de cada Plan de ahorro; `target` es su Meta, si tiene. */
   goals: { name: string; saved: number; target: number | null; currency: CurrencyId }[]
   /** Listas de compras: sus nombres y el **Restante total por pagar**. */
   shopping: { lists: string[]; remaining: number | null }
@@ -166,7 +166,7 @@ export function buildAdvicePrompt(payload: AdvicePayload, now: Date = new Date()
     '',
     'Devuelve EXACTAMENTE un objeto JSON con dos claves de texto:',
     '- "stats": mira hacia atrás. Resume sus métricas globales del período (ingresos, gastos totales y patrimonio, en "totals") y recomienda a dónde asignar el dinero. Puedes nombrar sus categorías más grandes. No enumeres los gastos menores uno por uno.',
-    '- "budget": mira hacia adelante. Qué conviene ajustar este mes, considerando sus presupuestos, sus metas y lo que le falta por pagar en sus listas de compras.',
+    '- "budget": mira hacia adelante. Qué conviene ajustar este mes, considerando sus presupuestos, sus planes de ahorro (en "goals"; "target" es la Meta del plan, opcional) y lo que le falta por pagar en sus listas de compras.',
     '',
     `Cada texto debe ser un solo párrafo de máximo ${ADVICE_MAX_LENGTH} caracteres.`,
     'No uses markdown, ni listas, ni encabezados. No inventes cifras que no estén en los datos.',

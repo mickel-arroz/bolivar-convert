@@ -124,7 +124,7 @@ export function TransactionFormDialog({
 
   const accountCurrency = state.accounts.find((a) => a.id === accountId)?.currency
   const amountNum = parseFloat(amount.replace(',', '.')) || 0
-  // El **Disponible** de la cuenta: lo apartado en metas no se puede gastar (ADR 0002).
+  // El **Disponible** de la cuenta: lo apartado en planes no se puede gastar (ADR 0002).
   const currentAvailable = accountFunds.find((f) => f.accountId === accountId)?.available ?? 0
   const commissionNum = resolveCommission(amountNum, commission.trim() || undefined, commissionType)
   const overBalance =

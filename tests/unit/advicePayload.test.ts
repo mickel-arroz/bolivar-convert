@@ -170,6 +170,13 @@ describe('buildAdvicePayload', () => {
 })
 
 describe('buildAdvicePrompt', () => {
+  it('habla de planes de ahorro con Meta opcional, no de metas de ahorro', () => {
+    const prompt = buildAdvicePrompt(buildAdvicePayload(input(), RATES))
+
+    expect(prompt).toContain('planes de ahorro')
+    expect(prompt).not.toMatch(/metas? de ahorro|sus metas/i)
+  })
+
   it('pide los dos párrafos con el límite de longitud', () => {
     const prompt = buildAdvicePrompt(buildAdvicePayload(input(), RATES))
 

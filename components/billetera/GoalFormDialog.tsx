@@ -63,7 +63,7 @@ export function GoalFormDialog({ open, onOpenChange, wallet, editing }: GoalForm
     } else {
       addGoal(name, currency, target, icon, color, description)
     }
-    notify.success(editing ? 'Meta actualizada' : 'Meta creada')
+    notify.success(editing ? 'Plan de ahorro actualizado' : 'Plan de ahorro creado')
     onOpenChange(false)
   }
 
@@ -71,9 +71,9 @@ export function GoalFormDialog({ open, onOpenChange, wallet, editing }: GoalForm
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>{editing ? 'Editar meta' : 'Nueva meta'}</DialogTitle>
+          <DialogTitle>{editing ? 'Editar plan de ahorro' : 'Nuevo plan de ahorro'}</DialogTitle>
           <DialogDescription>
-            Una alcancía para ahorrar hacia un objetivo (fondo de emergencia, un carro, etc.).
+            Una alcancía donde apartas dinero (fondo de emergencia, un carro, etc.). Puede tener una Meta o acumular sin límite.
           </DialogDescription>
         </DialogHeader>
 
@@ -92,8 +92,8 @@ export function GoalFormDialog({ open, onOpenChange, wallet, editing }: GoalForm
           </Field>
 
           <AmountField
-            label="Objetivo"
-            hint="Opcional. Monto que quieres alcanzar (para la barra de progreso)."
+            label="Meta"
+            hint="Opcional. Monto que quieres alcanzar. Al llegar, el plan sigue aceptando aportes."
             value={target}
             onValueChange={setTarget}
           />
@@ -102,7 +102,7 @@ export function GoalFormDialog({ open, onOpenChange, wallet, editing }: GoalForm
             <Textarea
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              placeholder="Notas sobre esta meta…"
+              placeholder="Notas sobre este plan…"
               rows={2}
               maxLength={DESC_MAX}
             />
@@ -141,7 +141,7 @@ export function GoalFormDialog({ open, onOpenChange, wallet, editing }: GoalForm
             Cancelar
           </Button>
           <Button onClick={handleSubmit} disabled={!name.trim()}>
-            {editing ? 'Guardar' : 'Crear meta'}
+            {editing ? 'Guardar' : 'Crear plan'}
           </Button>
         </DialogFooter>
       </DialogContent>

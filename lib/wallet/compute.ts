@@ -305,7 +305,15 @@ export interface StatsInput {
   budgetTransfers: BudgetTransfer[]
 }
 
-/** Estado de presupuestos de un mes (requiere tasas), ordenado por título. */
+/** Presupuesto sobrepasado: gasto mayor que el límite efectivo; con límite ≤ 0, cualquier gasto. */
+export function isBudgetOver(actual: number, effectiveLimit: number): boolean {
+  return actual > Math.max(effectiveLimit, 0)
+}
+
+/**
+ * Estado de presupuestos de un mes (requiere tasas): primero los no sobrepasados y luego los
+ * sobrepasados, cada grupo ordenado por título.
+ */
 export function budgetStatusForMonth(
   input: Pick<StatsInput, 'accounts' | 'categories' | 'budgets' | 'transactions' | 'budgetTransfers'>,
   rates: Rates,
@@ -345,10 +353,14 @@ export function budgetStatusForMonth(
         carryover,
         effectiveLimit,
         ratio,
-        isOver: effectiveLimit > 0 && actual > effectiveLimit,
+        isOver: isBudgetOver(actual, effectiveLimit),
       }
     })
-    .sort((a, b) => a.categoryName.localeCompare(b.categoryName, 'es', { sensitivity: 'base' }))
+    .sort(
+      (a, b) =>
+        Number(a.isOver) - Number(b.isOver) ||
+        a.categoryName.localeCompare(b.categoryName, 'es', { sensitivity: 'base' })
+    )
 }
 
 /** Suma de todos los presupuestos de un mes, en una sola moneda. */

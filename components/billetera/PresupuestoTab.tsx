@@ -245,7 +245,7 @@ export function PresupuestoTab({ wallet, stats, dialogs, rates }: PresupuestoTab
         <div className="grid gap-3 lg:grid-cols-2">
           {stats.budgetStatus.map((row) => {
             const Icon = getCategoryIcon(row.categoryIcon)
-            const pct = row.effectiveLimit > 0 ? Math.min(100, (row.actual / row.effectiveLimit) * 100) : 0
+            const pct = row.isOver ? 100 : row.ratio * 100
             const nearLimit = !row.isOver && row.ratio >= 0.8
             const cur = row.budget.currency
             return (

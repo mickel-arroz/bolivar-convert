@@ -1,6 +1,7 @@
 import { render, screen } from '@testing-library/react'
 import { describe, it, expect, vi } from 'vitest'
 import { PresupuestoTab } from '@/components/billetera/PresupuestoTab'
+import { formatMoney } from '@/components/billetera/format'
 import type { Budget, BudgetStatusRow, StatsBundle, WalletApi } from '@/hooks/useWallet'
 import type { Rates } from '@/constants/rates'
 
@@ -103,5 +104,30 @@ describe('PresupuestoTab — resumen de todos los presupuestos', () => {
       .closest('[data-slot="card"]') as HTMLElement
     const banner = screen.getByText(/sin concluir/)
     expect(follows(summaryCard, banner)).toBe(true)
+  })
+})
+
+describe('PresupuestoTab — presupuesto con límite 0', () => {
+  const card = (name: string) => screen.getByText(name).closest('[data-slot="card"]') as HTMLElement
+
+  it('con gasto muestra la barra roja completa y cuánto se superó, sin «Cerca del límite»', () => {
+    renderTab([{ ...row('a', 'Ocio', 0, 25), ratio: Infinity, isOver: true }])
+
+    const ocio = card('Ocio')
+    const bar = ocio.querySelector('.bg-destructive') as HTMLElement
+    expect(bar).not.toBeNull()
+    expect(bar.style.width).toBe('100%')
+    expect(ocio).toHaveTextContent(`Superaste el presupuesto en ${formatMoney(25, 'VES')}`)
+    expect(ocio).not.toHaveTextContent(/Cerca del límite/)
+    expect(ocio).not.toHaveTextContent(/Infinity/)
+  })
+
+  it('sin gasto no muestra ningún mensaje', () => {
+    renderTab([row('a', 'Ocio', 0, 0)])
+
+    const ocio = card('Ocio')
+    expect(ocio).not.toHaveTextContent(/Superaste/)
+    expect(ocio).not.toHaveTextContent(/Cerca del límite/)
+    expect(ocio.querySelector('.bg-destructive')).toBeNull()
   })
 })

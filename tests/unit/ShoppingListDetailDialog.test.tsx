@@ -1,4 +1,4 @@
-import { render, screen, act, waitFor } from '@testing-library/react'
+import { render, screen, act, waitFor, fireEvent } from '@testing-library/react'
 import { describe, it, expect, vi } from 'vitest'
 import { ShoppingListDetailDialog } from '@/components/billetera/ShoppingListDetailDialog'
 import { DEFAULT_DISPLAY_CURRENCY } from '@/lib/wallet/displayCurrency'
@@ -204,5 +204,71 @@ describe('ShoppingListDetailDialog — deshacer una compra', () => {
 
     await waitFor(() => expect(screen.queryByText(TITLE)).not.toBeInTheDocument())
     expect(wallet.undoPurchase).not.toHaveBeenCalled()
+  })
+})
+
+describe('ShoppingListDetailDialog — buscador de productos', () => {
+  const searchable = [
+    { ...item('s1', 'Café', 2, false), description: 'Molido' },
+    item('s2', 'Arroz', 3, false),
+  ]
+  const search = () => screen.getByRole('searchbox', { name: 'Buscar productos' })
+  const dialogProps = () => ({
+    onOpenChange: vi.fn(),
+    wallet: walletStub({ shoppingItems: searchable }),
+    list,
+    rates: RATES,
+    onAddItem: vi.fn(),
+    onEditList: vi.fn(),
+    onPurchase: vi.fn(),
+    onOpenItem: vi.fn(),
+  })
+
+  it('filtra por fragmento sin distinguir acentos', () => {
+    renderDialog(walletStub({ shoppingItems: searchable }))
+
+    fireEvent.change(search(), { target: { value: 'cafe' } })
+
+    expect(screen.getByText('Café')).toBeInTheDocument()
+    expect(screen.queryByText('Arroz')).not.toBeInTheDocument()
+  })
+
+  it('sin coincidencias muestra el texto buscado', () => {
+    renderDialog(walletStub({ shoppingItems: searchable }))
+
+    fireEvent.change(search(), { target: { value: 'leche' } })
+
+    expect(screen.getByText('Ningún producto coincide con "leche"')).toBeInTheDocument()
+  })
+
+  it('al cerrar y reabrir el modal la búsqueda está vacía', async () => {
+    const props = dialogProps()
+    const { rerender } = render(<ShoppingListDetailDialog open {...props} />)
+
+    fireEvent.change(search(), { target: { value: 'cafe' } })
+    act(() => screen.getByRole('button', { name: 'Cerrar' }).click())
+    expect(props.onOpenChange).toHaveBeenCalledWith(false)
+    rerender(<ShoppingListDetailDialog open={false} {...props} />)
+    rerender(<ShoppingListDetailDialog open {...props} />)
+
+    await waitFor(() => expect(search()).toHaveValue(''))
+    expect(screen.getByText('Arroz')).toBeInTheDocument()
+  })
+
+  it('se limpia aunque el modal lo cierre el padre sin pasar por onOpenChange', async () => {
+    const props = dialogProps()
+    const { rerender } = render(<ShoppingListDetailDialog open {...props} />)
+
+    fireEvent.change(search(), { target: { value: 'cafe' } })
+    rerender(<ShoppingListDetailDialog open={false} {...props} />)
+    rerender(<ShoppingListDetailDialog open {...props} />)
+
+    await waitFor(() => expect(search()).toHaveValue(''))
+  })
+
+  it('sin productos en la lista no muestra el buscador', () => {
+    renderDialog(walletStub({ shoppingItems: [] }))
+
+    expect(screen.queryByRole('searchbox')).not.toBeInTheDocument()
   })
 })

@@ -31,9 +31,17 @@ import {
   DialogTitle,
   DialogDescription,
 } from '@/components/ui/dialog'
-import { CheckIcon, PlusIcon, PencilIcon, MaximizeIcon, MinimizeIcon } from '@/components/icons'
+import {
+  CheckIcon,
+  PlusIcon,
+  PencilIcon,
+  MaximizeIcon,
+  MinimizeIcon,
+  SearchIcon,
+} from '@/components/icons'
 import { PRIORITY_COLORS, PRIORITY_LABELS, normalizePriority } from '@/constants/shoppingPriority'
 import { computeShoppingTotals, type ResolvedRates } from '@/lib/wallet/shoppingTotals'
+import { filterShoppingItems } from '@/lib/wallet/shoppingSearch'
 import { cn } from '@/lib/utils'
 import { notify } from '@/lib/notify'
 import { formatMoney } from './format'
@@ -74,6 +82,12 @@ export function ShoppingListDetailDialog({
   const { state, undoPurchase, previewUndoPurchase, updateShoppingList } = wallet
   const [fullscreen, setFullscreen] = useState(false)
   const [breakdownOpen, setBreakdownOpen] = useState(false)
+  const [query, setQuery] = useState('')
+  const [wasOpen, setWasOpen] = useState(open)
+  if (open !== wasOpen) {
+    setWasOpen(open)
+    if (!open) setQuery('')
+  }
   // Deshacer una compra de un mes ya concluido pregunta qué hacer con el dinero.
   const [pendingUndo, setPendingUndo] = useState<{
     item: ShoppingListItem
@@ -106,6 +120,8 @@ export function ShoppingListDetailDialog({
         return a.title.localeCompare(b.title, 'es', { sensitivity: 'base' })
       })
   }, [list, state.shoppingItems])
+
+  const visibleItems = useMemo(() => filterShoppingItems(items, query), [items, query])
 
   const subtotals = useMemo(() => {
     const acc: Partial<Record<CurrencyId, number>> = {}
@@ -236,8 +252,32 @@ export function ShoppingListDetailDialog({
           </div>
 
           {items.length > 0 && (
+            <>
+              <div className="relative">
+                <SearchIcon
+                  aria-hidden
+                  className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
+                />
+                <Input
+                  type="search"
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  placeholder="Buscar productos"
+                  aria-label="Buscar productos"
+                  className="pl-8"
+                />
+              </div>
+              {visibleItems.length === 0 && (
+                <p className="break-words py-6 text-center text-sm text-muted-foreground">
+                  Ningún producto coincide con &quot;{query.trim()}&quot;
+                </p>
+              )}
+            </>
+          )}
+
+          {visibleItems.length > 0 && (
             <ul className={cn('gap-2', fullscreen ? 'grid grid-cols-1 md:grid-cols-2' : 'flex flex-col')}>
-              {items.map((it) => {
+              {visibleItems.map((it) => {
                 const price = parseFloat(String(it.price).replace(',', '.')) || 0
                 const pr = normalizePriority(it.priority)
                 return (

@@ -14,6 +14,7 @@ import {
   getCategoryIcon,
   CATEGORY_ICON_MAP,
   ACCOUNT_ICON_MAP,
+  initialCategoryId,
   userCategories,
 } from '@/constants/walletCategories'
 import { DotsIcon, WalletIcon, CalculatorIcon } from '@/components/icons'
@@ -110,13 +111,14 @@ export function TransactionFormDialog({
     [state.categories, type, editing?.categoryId]
   )
 
-  // Si cambia el tipo y la categoría seleccionada ya no aplica, limpiarla
+  // Un movimiento nuevo arranca en «Otros», y vuelve a él si cambia el tipo y la
+  // categoría elegida deja de aplicar.
   useEffect(() => {
-    if (categoryId && !categories.some((c) => c.id === categoryId)) {
+    if (!categories.some((c) => c.id === categoryId)) {
       // eslint-disable-next-line react-hooks/set-state-in-effect
-      setCategoryId('')
+      setCategoryId(initialCategoryId(categories, type))
     }
-  }, [categories, categoryId])
+  }, [categories, categoryId, type])
 
   const amountInput = useMathInput(amount, setAmount)
 

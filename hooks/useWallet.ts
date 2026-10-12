@@ -4,7 +4,11 @@ import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { CurrencyId } from '@/constants/currencies'
 import { Rates, RateId } from '@/constants/rates'
 import { generateId, parseAmount } from '@/hooks/useBillSplitter'
-import { DEFAULT_CATEGORIES, isSystemCategory } from '@/constants/walletCategories'
+import {
+  DEFAULT_CATEGORIES,
+  admitsBudget,
+  isSystemCategory,
+} from '@/constants/walletCategories'
 import { buildWalletDelta, isEmptyDelta } from '@/lib/wallet/delta'
 import {
   DEFAULT_DISPLAY_CURRENCY,
@@ -444,10 +448,12 @@ export function mergeCategories(
   stored: Category[] | undefined,
   deletedDefaults: string[] = []
 ): Category[] {
+  // Una categoría del sistema no se puede borrar: una lápida de antes no cuenta.
+  const staysDeleted = (id: string) => deletedDefaults.includes(id) && !isSystemCategory(id)
   if (!stored || stored.length === 0) {
     return deletedDefaults.length === 0
       ? DEFAULT_CATEGORIES
-      : DEFAULT_CATEGORIES.filter((c) => !deletedDefaults.includes(c.id))
+      : DEFAULT_CATEGORIES.filter((c) => !staysDeleted(c.id))
   }
   const defaultsById = new Map(DEFAULT_CATEGORIES.map((c) => [c.id, c]))
   const merged = stored.map((c) => {
@@ -456,7 +462,7 @@ export function mergeCategories(
   })
   for (const def of DEFAULT_CATEGORIES) {
     // Una categoría por defecto que el usuario borró no se vuelve a sembrar.
-    if (deletedDefaults.includes(def.id)) continue
+    if (staysDeleted(def.id)) continue
     if (!merged.some((c) => c.id === def.id)) merged.push(def)
   }
   return merged
@@ -711,7 +717,7 @@ export function useWallet() {
       // Refresca las categorías por defecto (por id) desde el código y conserva
       // las del usuario; si no hay ninguna guardada, siembra las por defecto.
       categories: mergeCategories(loaded.categories, loaded.deletedDefaultCategories ?? []),
-      budgets: loaded.budgets ?? [],
+      budgets: (loaded.budgets ?? []).filter((b) => admitsBudget(b.categoryId)),
       budgetTemplates: loaded.budgetTemplates ?? [],
       budgetTransfers: loaded.budgetTransfers ?? [],
       goals: loaded.goals ?? [],
@@ -1317,6 +1323,7 @@ export function useWallet() {
       carryover?: string,
       templateId?: string
     ) => {
+      if (!admitsBudget(categoryId)) return
       setState((s) => {
         const tid = templateId ?? s.activeBudgetTemplateId
         const existing = s.budgets.find(

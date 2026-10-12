@@ -2,7 +2,12 @@
 
 import { useMemo, useRef, useState } from 'react'
 import { Category, TransactionType, WalletApi } from '@/hooks/useWallet'
-import { CATEGORY_ICON_KEYS, getCategoryIcon, userCategories } from '@/constants/walletCategories'
+import {
+  CATEGORY_ICON_KEYS,
+  getCategoryIcon,
+  isSystemCategory,
+  userCategories,
+} from '@/constants/walletCategories'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import {
@@ -107,22 +112,26 @@ export function CategoryManagerDialog({ open, onOpenChange, wallet }: CategoryMa
               >
                 <Icon className="size-4 shrink-0" style={c.color ? { color: c.color } : undefined} />
                 <span className="min-w-0 flex-1 truncate text-sm font-medium">{c.name}</span>
-                <Button
-                  variant="ghost"
-                  size="icon-sm"
-                  onClick={() => startEdit(c)}
-                  aria-label={`Editar ${c.name}`}
-                >
-                  <PencilIcon className="size-4" />
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="icon-sm"
-                  onClick={() => setPendingDelete(c)}
-                  aria-label={`Eliminar ${c.name}`}
-                >
-                  <TrashIcon className="size-4" />
-                </Button>
+                {!isSystemCategory(c.id) && (
+                  <>
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
+                      onClick={() => startEdit(c)}
+                      aria-label={`Editar ${c.name}`}
+                    >
+                      <PencilIcon className="size-4" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
+                      onClick={() => setPendingDelete(c)}
+                      aria-label={`Eliminar ${c.name}`}
+                    >
+                      <TrashIcon className="size-4" />
+                    </Button>
+                  </>
+                )}
               </div>
             )
           })}

@@ -111,6 +111,35 @@ describe('useWallet Hook', () => {
     expect(result.current.state.deletedDefaultCategories).not.toContain('cat_shopping')
   })
 
+  it('«Otros» es una categoría del sistema: no se edita, elimina ni admite presupuesto', async () => {
+    const { result } = renderHook(() => useWallet())
+    await waitFor(() => expect(result.current.isMounted).toBe(true))
+    const other = (id: string) => result.current.state.categories.find((c) => c.id === id)
+
+    for (const id of ['cat_other_exp', 'cat_other_inc']) {
+      act(() => result.current.updateCategory(id, { name: 'Varios' }))
+      expect(other(id)?.name).toBe('Otros')
+      act(() => result.current.removeCategory(id))
+      expect(other(id)).toBeTruthy()
+      act(() => result.current.reassignCategory(id, 'cat_food', 'merge'))
+      expect(other(id)).toBeTruthy()
+    }
+
+    act(() => result.current.setBudget('cat_other_exp', today.slice(0, 7), '100', 'USD'))
+    expect(result.current.state.budgets.some((b) => b.categoryId === 'cat_other_exp')).toBe(false)
+  })
+
+  it('un presupuesto guardado sobre «Otros» de gasto se descarta al cargar', async () => {
+    const month = today.slice(0, 7)
+    cloud.store.budgets = [
+      { id: 'b1', templateId: DEFAULT_BUDGET_TEMPLATE_ID, categoryId: 'cat_other_exp', month, limit: '50', currency: 'USD' },
+      { id: 'b2', templateId: DEFAULT_BUDGET_TEMPLATE_ID, categoryId: 'cat_food', month, limit: '50', currency: 'USD' },
+    ]
+    const { result } = renderHook(() => useWallet())
+    await waitFor(() => expect(result.current.isMounted).toBe(true))
+    expect(result.current.state.budgets.map((b) => b.id)).toEqual(['b2'])
+  })
+
   it('una compra sin categoría sigue registrándose como «Compras»', async () => {
     const { result } = renderHook(() => useWallet())
     await waitFor(() => expect(result.current.isMounted).toBe(true))

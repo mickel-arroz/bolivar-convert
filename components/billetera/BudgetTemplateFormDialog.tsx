@@ -5,8 +5,8 @@ import { BudgetTemplate, WalletApi, monthKey } from '@/hooks/useWallet'
 import {
   ACCOUNT_ICON_KEYS,
   getAccountIcon,
+  budgetableCategories,
   getCategoryIcon,
-  userCategories,
 } from '@/constants/walletCategories'
 import { PlusIcon, PencilIcon, TrashIcon } from '@/components/icons'
 import { Button } from '@/components/ui/button'
@@ -231,8 +231,8 @@ export function BudgetTemplateFormDialog({
                   size="sm"
                   className="self-start"
                   onClick={() => setItemDialog({ open: true, editing: null })}
-                  disabled={userCategories(state.categories).every(
-                    (c) => c.kind !== 'expense' || items.some((i) => i.categoryId === c.id)
+                  disabled={budgetableCategories(state.categories).every((c) =>
+                    items.some((i) => i.categoryId === c.id)
                   )}
                 >
                   <PlusIcon className="size-4" /> Agregar presupuesto

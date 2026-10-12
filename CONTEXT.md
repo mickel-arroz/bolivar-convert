@@ -22,23 +22,37 @@ _Avoid_: moneda local, moneda de la vista, excepción
 De dónde sale la tasa usada en una conversión: BCV, Binance o personalizada (escrita a mano por el usuario).
 _Avoid_: proveedor, origen
 
-### Cuentas y metas
+### Cuentas y planes de ahorro
 
-**Meta de ahorro**:
-Una alcancía con nombre donde el usuario aparta dinero para un objetivo. No depende del mes.
-_Avoid_: objetivo, ahorro, hucha
+**Plan de ahorro**:
+Una alcancía con nombre donde el usuario aparta dinero. No depende del mes y puede tener Meta o no; sin Meta acumula indefinidamente.
+_Avoid_: meta de ahorro, objetivo, ahorro, hucha
+
+**Meta**:
+La cifra opcional que el usuario quiere alcanzar en un Plan de ahorro. Alcanzarla no cierra el plan: puede seguir recibiendo aportes.
+_Avoid_: objetivo, tope, límite
 
 **Saldo de la cuenta**:
-Todo el dinero que hay en una cuenta, metas incluidas: lo que diría el banco. Es la cifra que el usuario escribe al cuadrar una cuenta, y equivale a Disponible más En metas.
+Todo el dinero que hay en una cuenta, planes incluidos: lo que diría el banco. Es la cifra que el usuario escribe al cuadrar una cuenta, y equivale a Disponible más En planes.
 _Avoid_: saldo total, balance real
 
 **Disponible**:
-Lo que el usuario puede gastar de una cuenta: su Saldo de la cuenta menos lo que apartó en metas de ahorro.
+Lo que el usuario puede gastar de una cuenta: su Saldo de la cuenta menos lo que apartó en planes de ahorro.
 _Avoid_: saldo libre, balance disponible
 
-**En metas**:
-El dinero de una cuenta que el usuario apartó en metas de ahorro. Sigue siendo suyo y cuenta como patrimonio, pero no está Disponible.
-_Avoid_: bloqueado, reservado, apartado, congelado
+**En planes**:
+El dinero de una cuenta que el usuario apartó en planes de ahorro. Sigue siendo suyo y cuenta como patrimonio, pero no está Disponible.
+_Avoid_: en metas, bloqueado, reservado, apartado, congelado
+
+### Categorías y presupuestos
+
+**Otros**:
+La categoría de sistema que recibe lo que el usuario no clasificó. Hay una de gasto y una de ingreso; no se editan, no se borran y la de gasto no admite presupuesto. Los traspasos no tienen categoría.
+_Avoid_: sin categoría, varios, misceláneo
+
+**Presupuesto sobrepasado**:
+Un presupuesto cuyo gasto del mes es mayor que su límite efectivo (límite más arrastre). Con límite efectivo de cero o menos, cualquier gasto lo sobrepasa.
+_Avoid_: excedido, roto, pasado
 
 ### Lista de compras
 
@@ -105,8 +119,8 @@ Toda cifra de dinero que el Consejo menciona dice a qué moneda se refiere (bol�
 _Avoid_: cifra suelta, número sin moneda
 
 **Voz del consejo**:
-La de un asesor financiero venezolano que tutea y habla coloquial («chamo», «pana», «real»), cercano sin caricaturizarse. Es una decisión de producto, no un accidente del modelo: vive en `buildAdvicePrompt`.
-_Avoid_: tono neutro, español internacional, formal
+La de un asesor financiero venezolano que tutea y es cercano, con a lo sumo un modismo venezolano por consejo. Es una decisión de producto, no un accidente del modelo: vive en `buildAdvicePrompt`.
+_Avoid_: tono neutro, español internacional, formal, jerga recargada
 
 **Texto genérico**:
 El consejo que vive en el código y se muestra cuando no hay nada guardado, cuando el usuario no tiene datos suficientes o cuando la generación falla. Nunca es un error ni un espacio vacío.

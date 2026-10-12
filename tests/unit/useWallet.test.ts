@@ -4,6 +4,30 @@ import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { useWallet, convertTransferAmount, DEFAULT_BUDGET_TEMPLATE_ID } from '@/hooks/useWallet'
 import { Rates } from '@/constants/rates'
 import { OTHER_CATEGORY_IDS } from '@/constants/walletCategories'
+import type { MonthCloseAllocation } from '@/lib/wallet/monthClose'
+
+/** Deja `amount` sin cuenta en un plan en USD, como lo hace el cierre de un mes. */
+function sendMonthSurplusToPlan(
+  result: { current: ReturnType<typeof useWallet> },
+  goalId: string,
+  amount: number
+) {
+  const curMonth = new Date().toISOString().slice(0, 7)
+  act(() => result.current.setBudget('cat_health', '2026-01', String(amount), 'USD'))
+  act(() =>
+    result.current.concludeBudgetMonth('2026-01', curMonth, [
+      { fromCategoryId: 'cat_health', destination: { kind: 'goal', goalId }, amount },
+    ])
+  )
+}
+
+/** El cierre de siempre: todo el sobrante o déficit de cada categoría a sí misma. */
+const carryTo = (carryovers: Record<string, number>): MonthCloseAllocation[] =>
+  Object.entries(carryovers).map(([categoryId, amount]) => ({
+    fromCategoryId: categoryId,
+    destination: { kind: 'category', categoryId },
+    amount,
+  }))
 
 // "Nube" simulada: el hook llama a /api/wallet/state (GET) y /api/wallet/sync (POST).
 // Mockeamos fetch para probar la persistencia sin red ni Supabase real.
@@ -395,7 +419,7 @@ describe('useWallet Hook', () => {
     rows.forEach((r) => (carryovers[r.budget.categoryId] = r.effectiveLimit - r.actual))
     expect(carryovers['cat_food']).toBe(90)
 
-    act(() => result.current.concludeBudgetMonth(prevMonth, curMonth, carryovers))
+    act(() => result.current.concludeBudgetMonth(prevMonth, curMonth, carryTo(carryovers)))
 
     expect(result.current.state.concludedMonths).toContain(prevMonth)
     const newBudget = result.current.state.budgets.find(
@@ -410,6 +434,99 @@ describe('useWallet Hook', () => {
     expect(curRow?.effectiveLimit).toBe(190)
   })
 
+  describe('reparto del cierre', () => {
+    const prevMonth = '2026-05'
+    const curMonth = new Date().toISOString().slice(0, 7)
+    const budgetOf = (r: { current: ReturnType<typeof useWallet> }, categoryId: string, month: string) =>
+      r.current.state.budgets.find((b) => b.categoryId === categoryId && b.month === month)
+
+    it('reparte un sobrante entre su categoría, otra categoría, un plan y descartar', async () => {
+      const { result } = renderHook(() => useWallet())
+      await waitFor(() => expect(result.current.isMounted).toBe(true))
+      act(() => result.current.setBudget('cat_food', prevMonth, '100', 'VES'))
+      act(() => result.current.setBudget('cat_transport', prevMonth, '50', 'VES'))
+      act(() => result.current.addGoal('Viaje', 'VES'))
+      const goalId = result.current.state.goals[0].id
+
+      act(() =>
+        result.current.concludeBudgetMonth(prevMonth, curMonth, [
+          { fromCategoryId: 'cat_food', destination: { kind: 'category', categoryId: 'cat_food' }, amount: 20 },
+          { fromCategoryId: 'cat_food', destination: { kind: 'category', categoryId: 'cat_transport' }, amount: 30 },
+          { fromCategoryId: 'cat_food', destination: { kind: 'goal', goalId }, amount: 40 },
+          { fromCategoryId: 'cat_food', destination: { kind: 'discard' }, amount: 10 },
+        ])
+      )
+
+      expect(result.current.state.concludedMonths).toContain(prevMonth)
+      expect(budgetOf(result, 'cat_food', curMonth)?.carryover).toBe('20')
+      expect(budgetOf(result, 'cat_transport', curMonth)?.carryover).toBe('30')
+      expect(budgetOf(result, 'cat_transport', curMonth)?.limit).toBe('50')
+      expect(result.current.goalBalances.find((g) => g.goalId === goalId)?.balance).toBe(40)
+      expect(result.current.state.goalContributions[0].accountId).toBeUndefined()
+
+      const history = result.current.state.budgetTransfers
+      expect(history).toHaveLength(1)
+      expect(history[0]).toMatchObject({
+        month: curMonth,
+        fromCategoryId: 'cat_food',
+        toCategoryId: 'cat_transport',
+        extra: '30',
+        spent: '0',
+        currency: 'VES',
+      })
+    })
+
+    it('un déficit hacia otra categoría le baja el arrastre', async () => {
+      const { result } = renderHook(() => useWallet())
+      await waitFor(() => expect(result.current.isMounted).toBe(true))
+      act(() => result.current.setBudget('cat_food', prevMonth, '100', 'VES'))
+      act(() => result.current.setBudget('cat_transport', prevMonth, '50', 'VES'))
+
+      act(() =>
+        result.current.concludeBudgetMonth(prevMonth, curMonth, [
+          { fromCategoryId: 'cat_food', destination: { kind: 'category', categoryId: 'cat_transport' }, amount: -25 },
+        ])
+      )
+
+      expect(budgetOf(result, 'cat_transport', curMonth)?.carryover).toBe('-25')
+      expect(budgetOf(result, 'cat_food', curMonth)?.carryover).toBe('0')
+    })
+
+    it('una categoría destino sin presupuesto se crea con límite 0 y el arrastre recibido', async () => {
+      const { result } = renderHook(() => useWallet())
+      await waitFor(() => expect(result.current.isMounted).toBe(true))
+      act(() => result.current.setBudget('cat_food', prevMonth, '100', 'USD'))
+
+      act(() =>
+        result.current.concludeBudgetMonth(prevMonth, curMonth, [
+          { fromCategoryId: 'cat_food', destination: { kind: 'category', categoryId: 'cat_health' }, amount: 15 },
+        ])
+      )
+
+      const created = budgetOf(result, 'cat_health', curMonth)
+      expect(created).toMatchObject({ limit: '0', carryover: '15', currency: 'USD' })
+    })
+
+    it('ignora tramos inválidos: un déficit o una moneda distinta hacia un plan', async () => {
+      const { result } = renderHook(() => useWallet())
+      await waitFor(() => expect(result.current.isMounted).toBe(true))
+      act(() => result.current.setBudget('cat_food', prevMonth, '100', 'VES'))
+      act(() => result.current.addGoal('En dólares', 'USD'))
+      act(() => result.current.addGoal('En bolívares', 'VES'))
+      const [usd, ves] = result.current.state.goals.map((g) => g.id)
+
+      act(() =>
+        result.current.concludeBudgetMonth(prevMonth, curMonth, [
+          { fromCategoryId: 'cat_food', destination: { kind: 'goal', goalId: usd }, amount: 10 },
+          { fromCategoryId: 'cat_food', destination: { kind: 'goal', goalId: ves }, amount: -10 },
+        ])
+      )
+
+      expect(result.current.state.goalContributions).toHaveLength(0)
+      expect(result.current.state.concludedMonths).toContain(prevMonth)
+    })
+  })
+
   it('editar el estimado preserva el extra arrastrado', async () => {
     const { result } = renderHook(() => useWallet())
     await waitFor(() => expect(result.current.isMounted).toBe(true))
@@ -417,7 +534,7 @@ describe('useWallet Hook', () => {
 
     // Inyectar un carryover en el mes actual concluyendo un mes previo
     act(() => result.current.setBudget('cat_food', '2026-04', '50', 'VES'))
-    act(() => result.current.concludeBudgetMonth('2026-04', month, { cat_food: 30 }))
+    act(() => result.current.concludeBudgetMonth('2026-04', month, carryTo({ cat_food: 30 })))
 
     const before = result.current.state.budgets.find((b) => b.categoryId === 'cat_food' && b.month === month)
     expect(parseFloat(before?.carryover ?? '0')).toBe(30)
@@ -921,7 +1038,7 @@ describe('useWallet — listas de compras', () => {
     const carryovers: Record<string, number> = {}
     rows.forEach((r) => (carryovers[r.budget.categoryId] = r.effectiveLimit - r.actual))
     expect(carryovers['cat_food']).toBe(60)
-    act(() => result.current.concludeBudgetMonth(prevMonth, curMonth, carryovers))
+    act(() => result.current.concludeBudgetMonth(prevMonth, curMonth, carryTo(carryovers)))
 
     const curRow = () =>
       result.current.budgetStatusForMonth(RATES, curMonth).find((r) => r.budget.categoryId === 'cat_food')
@@ -975,7 +1092,7 @@ describe('useWallet — listas de compras', () => {
     const rows = result.current.budgetStatusForMonth(RATES, prevMonth)
     const carryovers: Record<string, number> = {}
     rows.forEach((r) => (carryovers[r.budget.categoryId] = r.effectiveLimit - r.actual))
-    act(() => result.current.concludeBudgetMonth(prevMonth, curMonth, carryovers))
+    act(() => result.current.concludeBudgetMonth(prevMonth, curMonth, carryTo(carryovers)))
     const curLimit = () =>
       result.current
         .budgetStatusForMonth(RATES, curMonth)
@@ -1078,7 +1195,7 @@ describe('useWallet — listas de compras', () => {
       })
     )
     // Se marca el mes como concluido sin arrastrar a ninguna categoría.
-    act(() => result.current.concludeBudgetMonth(prevMonth, curMonth, {}))
+    act(() => result.current.concludeBudgetMonth(prevMonth, curMonth, []))
     // Y se quita el presupuesto que la conclusión creó en el mes actual.
     const created = result.current.state.budgets.find(
       (b) => b.categoryId === 'cat_food' && b.month === curMonth
@@ -1569,7 +1686,7 @@ describe('useWallet — Saldo de la cuenta, En planes y Disponible', () => {
     act(() => result.current.addGoal('Viaje', 'USD'))
     const accountId = result.current.state.accounts[0].id
     const goalId = result.current.state.goals[0].id
-    act(() => result.current.allocateExtraToGoal(goalId, 50, today))
+    sendMonthSurplusToPlan(result, goalId, 50)
 
     let ok = false
     act(() => {
@@ -1599,7 +1716,7 @@ describe('useWallet — Saldo de la cuenta, En planes y Disponible', () => {
     act(() => {
       result.current.moveToGoal({ goalId, accountId, amount: '100', direction: 'in', date: today })
     })
-    act(() => result.current.allocateExtraToGoal(goalId, 50, today))
+    sendMonthSurplusToPlan(result, goalId, 50)
 
     let ok = false
     act(() => {
@@ -1862,7 +1979,7 @@ describe('useWallet — editar y eliminar movimientos', () => {
     w.current
       .budgetStatusForMonth(RATES, prevMonth)
       .forEach((r) => (carryovers[r.budget.categoryId] = r.effectiveLimit - r.actual))
-    act(() => w.current.concludeBudgetMonth(prevMonth, curMonth, carryovers))
+    act(() => w.current.concludeBudgetMonth(prevMonth, curMonth, carryTo(carryovers)))
   }
 
   const effectiveOf = (w: W, month: string, categoryId: string) =>

@@ -49,7 +49,7 @@ De ahí se sigue el resto:
   diferencia, y solo aparece cuando hay algo apartado.
 - El patrimonio neto de Resumen sube, de golpe, por el monto de lo ahorrado. Se
   acompaña de una línea "de lo cual X en metas" para que el salto tenga explicación.
-- Los aportes que vienen de un extra de presupuesto (`allocateExtraToGoal`) no
+- Los aportes que vienen de un extra de presupuesto (un Tramo del Reparto del cierre hacia un plan) no
   tienen cuenta: ese dinero cuenta en la meta pero no aparece como **En metas** de
   ninguna cuenta. La suma de "En metas" sobre todas las cuentas puede ser menor que
   la suma de los saldos de las metas, y es correcto que así sea.

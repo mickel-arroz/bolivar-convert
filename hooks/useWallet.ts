@@ -11,6 +11,7 @@ import {
   isSystemCategory,
 } from '@/constants/walletCategories'
 import { buildWalletDelta, isEmptyDelta } from '@/lib/wallet/delta'
+import type { MonthCloseAllocation } from '@/lib/wallet/monthClose'
 import {
   DEFAULT_DISPLAY_CURRENCY,
   clearLegacyNetWorthCurrency,
@@ -1367,42 +1368,82 @@ export function useWallet() {
   }, [])
 
   /**
-   * Concluye el presupuesto de `fromMonth` y arrastra el sobrante (con signo) a `toMonth`:
-   * copia estimado y moneda al mes destino (sumando el carryover si ya existía), conserva el
-   * mes origen como historial y lo marca como concluido. Los sobrantes se calculan en la UI
-   * (que tiene las tasas) y se pasan por categoría.
+   * Concluye `fromMonth` aplicando el Reparto del cierre de una sola vez: el estimado
+   * de cada presupuesto pasa a `toMonth` y cada Tramo suma su parte al arrastre de una
+   * categoría, aporta a un Plan de ahorro (sin cuenta) o se descarta. Los tramos hacia
+   * otra categoría quedan en el historial como `BudgetTransfer`.
    */
   const concludeBudgetMonth = useCallback(
-    (fromMonth: string, toMonth: string, carryovers: Record<string, number>) => {
+    (fromMonth: string, toMonth: string, allocations: readonly MonthCloseAllocation[]) => {
       setState((s) => {
         const tid = s.activeBudgetTemplateId
         const fromBudgets = s.budgets.filter((b) => b.templateId === tid && b.month === fromMonth)
         if (fromBudgets.length === 0) return s
+        const fromByCategory = new Map(fromBudgets.map((b) => [b.categoryId, b]))
         const budgets = [...s.budgets]
-        for (const fb of fromBudgets) {
-          const carry = carryovers[fb.categoryId] ?? 0
-          const idx = budgets.findIndex(
-            (b) => b.templateId === tid && b.categoryId === fb.categoryId && b.month === toMonth
-          )
-          if (idx >= 0) {
-            const ex = budgets[idx]
-            budgets[idx] = { ...ex, carryover: String(parseSigned(ex.carryover) + carry) }
-          } else {
-            budgets.push({
+        const indexIn = (categoryId: string) =>
+          budgets.findIndex((b) => b.templateId === tid && b.categoryId === categoryId && b.month === toMonth)
+        const ensureBudget = (categoryId: string, limit: string, currency: CurrencyId) => {
+          const idx = indexIn(categoryId)
+          if (idx >= 0) return idx
+          budgets.push({ id: generateId(), templateId: tid, categoryId, month: toMonth, limit, currency, carryover: '0' })
+          return budgets.length - 1
+        }
+        for (const fb of fromBudgets) ensureBudget(fb.categoryId, fb.limit, fb.currency)
+
+        const date = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Caracas' })
+        const createdAt = new Date().toISOString()
+        const goalContributions: GoalContribution[] = []
+        const budgetTransfers: BudgetTransfer[] = []
+        for (const a of allocations) {
+          const source = fromByCategory.get(a.fromCategoryId)
+          if (!source || a.amount === 0) continue
+          const dest = a.destination
+          if (dest.kind === 'category') {
+            if (!admitsBudget(dest.categoryId)) continue
+            const idx = ensureBudget(dest.categoryId, '0', source.currency)
+            const target = budgets[idx]
+            if (target.currency !== source.currency) continue
+            budgets[idx] = { ...target, carryover: String(parseSigned(target.carryover) + a.amount) }
+            if (dest.categoryId !== a.fromCategoryId) {
+              budgetTransfers.push({
+                id: generateId(),
+                month: toMonth,
+                fromTemplateId: tid,
+                fromCategoryId: a.fromCategoryId,
+                toTemplateId: tid,
+                toCategoryId: dest.categoryId,
+                extra: String(a.amount),
+                spent: '0',
+                currency: source.currency,
+                date,
+                createdAt,
+              })
+            }
+          } else if (dest.kind === 'goal') {
+            const goal = s.goals.find((g) => g.id === dest.goalId)
+            if (!goal || goal.currency !== source.currency || a.amount <= 0) continue
+            goalContributions.push({
               id: generateId(),
-              templateId: tid,
-              categoryId: fb.categoryId,
-              month: toMonth,
-              limit: fb.limit,
-              currency: fb.currency,
-              carryover: String(carry),
+              goalId: goal.id,
+              amount: String(a.amount),
+              note: 'Extra de presupuesto',
+              date,
+              createdAt,
             })
           }
         }
+
         const concludedMonths = s.concludedMonths.includes(fromMonth)
           ? s.concludedMonths
           : [...s.concludedMonths, fromMonth]
-        return { ...s, budgets, concludedMonths }
+        return {
+          ...s,
+          budgets,
+          concludedMonths,
+          goalContributions: [...s.goalContributions, ...goalContributions],
+          budgetTransfers: [...s.budgetTransfers, ...budgetTransfers],
+        }
       })
     },
     []
@@ -1645,28 +1686,6 @@ export function useWallet() {
     },
     [accountAvailableOf]
   )
-
-  /** Asigna un extra de presupuesto a un plan de ahorro (sin afectar cuentas). Usado al concluir el mes. */
-  const allocateExtraToGoal = useCallback((goalId: string, amount: number, date: string) => {
-    if (amount <= 0) return
-    setState((s) => {
-      if (!s.goals.some((g) => g.id === goalId)) return s
-      return {
-        ...s,
-        goalContributions: [
-          ...s.goalContributions,
-          {
-            id: generateId(),
-            goalId,
-            amount: String(amount),
-            note: 'Extra de presupuesto',
-            date,
-            createdAt: new Date().toISOString(),
-          },
-        ],
-      }
-    })
-  }, [])
 
   /* ── Listas de compras ── */
   const addShoppingList = useCallback((name: string, icon?: string, color?: string) => {
@@ -2116,7 +2135,6 @@ export function useWallet() {
     updateGoal,
     removeGoal,
     moveToGoal,
-    allocateExtraToGoal,
     // Listas de compras
     addShoppingList,
     updateShoppingList,

@@ -54,6 +54,14 @@ _Avoid_: sin categoría, varios, misceláneo
 Un presupuesto cuyo gasto del mes es mayor que su límite efectivo (límite más arrastre). Con límite efectivo de cero o menos, cualquier gasto lo sobrepasa.
 _Avoid_: excedido, roto, pasado
 
+**Reparto del cierre**:
+Lo que el usuario decide, al concluir un mes, sobre el sobrante o déficit de cada presupuesto. Se arma con uno o más Tramos, todos en % o todos en monto, y sus partes suman exactamente el sobrante o déficit. Por defecto, todo se arrastra a la misma categoría.
+_Avoid_: distribución, asignación, cierre
+
+**Tramo**:
+Una parte del Reparto del cierre con un destino: el arrastre de una categoría el mes siguiente (la misma u otra de la misma moneda), un Plan de ahorro de la misma moneda (solo un sobrante, y entra sin cuenta) o descartarla. El último tramo de una fila absorbe el redondeo de céntimos.
+_Avoid_: porción, división, partida
+
 ### Lista de compras
 
 **Lista de compras**:

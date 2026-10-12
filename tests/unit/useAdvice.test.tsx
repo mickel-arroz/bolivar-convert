@@ -109,10 +109,19 @@ describe('AdviceCard', () => {
     expect(screen.getByText('En qué se te fue el dinero')).toBeInTheDocument()
   })
 
-  it('trunca de forma defensiva un consejo hablador', () => {
-    render(<AdviceCard title="Consejo" text={'z'.repeat(ADVICE_MAX_LENGTH + 200)} />)
+  it('muestra completo, sin «…», un consejo que se pasa del límite del prompt', () => {
+    const long = 'z'.repeat(ADVICE_MAX_LENGTH + 50)
+    render(<AdviceCard title="Consejo" text={long} />)
 
-    expect(screen.getByTestId('advice-text').textContent).toHaveLength(ADVICE_MAX_LENGTH)
+    expect(screen.getByTestId('advice-text').textContent).toBe(long)
+  })
+
+  it('mientras se lee lo guardado muestra un skeleton y no el texto genérico', () => {
+    render(<AdviceCard title="Consejo" text={GENERIC_ADVICE.stats} loading />)
+
+    expect(screen.getByTestId('advice-skeleton')).toBeInTheDocument()
+    expect(screen.queryByTestId('advice-text')).not.toBeInTheDocument()
+    expect(screen.getByText('Consejo')).toBeInTheDocument()
   })
 
   it('preserva los saltos de línea del consejo', () => {

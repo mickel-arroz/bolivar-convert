@@ -64,7 +64,7 @@ interface PresupuestoTabProps {
 
 export function PresupuestoTab({ wallet, stats, dialogs, rates }: PresupuestoTabProps) {
   const { state, removeBudget, goalBalances, removeGoal, removeShoppingList } = wallet
-  const { advice } = useAdvice()
+  const { advice, loaded: adviceLoaded } = useAdvice()
   const month = useMemo(() => monthKey(new Date()), [])
   const [concludeOpen, setConcludeOpen] = useState(false)
   const [templatesOpen, setTemplatesOpen] = useState(false)
@@ -163,7 +163,7 @@ export function PresupuestoTab({ wallet, stats, dialogs, rates }: PresupuestoTab
 
   return (
     <div className="flex flex-col gap-5">
-      <AdviceCard title="Qué ajustar este mes" text={advice.budget} />
+      <AdviceCard title="Qué ajustar este mes" text={advice.budget} loading={!adviceLoaded} />
 
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="min-w-0">

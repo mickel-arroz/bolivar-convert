@@ -68,7 +68,7 @@ function compact(value: number): string {
 export function EstadisticasTab({ wallet }: EstadisticasTabProps) {
   const { state, setTimeRange, setDisplayCurrency, setStatsRateSource } = wallet
   const cur = state.displayCurrency
-  const { advice } = useAdvice()
+  const { advice, loaded: adviceLoaded } = useAdvice()
 
   const { data } = useWalletResource<StatsBundle>(
     `/api/wallet/stats?range=${state.timeRange}`,
@@ -152,7 +152,11 @@ export function EstadisticasTab({ wallet }: EstadisticasTabProps) {
 
   return (
     <div className="flex flex-col gap-6">
-      <AdviceCard title="En qué se te fue el dinero" text={advice.stats} />
+      <AdviceCard
+        title="En qué se te fue el dinero"
+        text={advice.stats}
+        loading={!adviceLoaded}
+      />
 
       {/* Controles */}
       <div className="flex flex-col gap-3">

@@ -37,7 +37,9 @@ movimientos) no se llama a la API: se muestra el texto genérico.
 - Un usuario que no entra en un mes no gasta ninguna llamada. El costo escala con
   el uso real, que es lo que un cron no sabe hacer: un cron semanal paga por cada
   usuario registrado, esté activo o no.
-- El usuario siempre ve el consejo al instante, nunca un spinner, a cambio de que
+- El usuario nunca espera a que se genere un consejo: mientras se lee lo guardado
+  la tarjeta muestra un skeleton breve (para no mostrar fugazmente el texto
+  genérico), y nunca un spinner por la generación, a cambio de que
   el consejo pueda tener hasta una semana y un día de antigüedad la primera vez que
   entra después de vencido.
 - Guardar la **fecha** es lo que hace funcionar la comparación, y por eso la caché

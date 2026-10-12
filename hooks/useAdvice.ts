@@ -13,7 +13,8 @@ let refreshInFlight = false
 /**
  * El consejo de la pestaña: **mostrar primero, actualizar después**.
  *
- * Pinta de inmediato lo guardado (o el texto genérico si no hay nada) y, sin indicador
+ * Mientras lee lo guardado, `loaded` es `false` y la tarjeta muestra un skeleton.
+ * Luego pinta lo guardado (o el texto genérico si no hay nada) y, sin indicador
  * de carga, pide una actualización cuando lo guardado pasó de 7 días. Lo que llega
  * **no** reemplaza el texto en pantalla: se ve en la visita siguiente.
  */

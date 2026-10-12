@@ -2,12 +2,12 @@ import { describe, it, expect, vi } from 'vitest'
 import {
   ADVICE_MAX_AGE_MS,
   ADVICE_MAX_LENGTH,
+  ADVICE_REJECT_LENGTH,
   GENERIC_ADVICE,
   isAdviceStale,
   meetsAdviceThreshold,
   parseAdviceResponse,
   runAdviceChain,
-  truncateAdvice,
   type AdviceModelCall,
 } from '@/lib/wallet/advice'
 
@@ -60,19 +60,6 @@ describe('meetsAdviceThreshold', () => {
   })
 })
 
-describe('truncateAdvice', () => {
-  it('deja intacto un párrafo dentro del límite', () => {
-    expect(truncateAdvice('  Gastaste mucho en comida.  ')).toBe('Gastaste mucho en comida.')
-  })
-
-  it('recorta un párrafo hablador al límite duro', () => {
-    const long = 'a'.repeat(ADVICE_MAX_LENGTH + 50)
-    const out = truncateAdvice(long)
-    expect(out).toHaveLength(ADVICE_MAX_LENGTH)
-    expect(out.endsWith('…')).toBe(true)
-  })
-})
-
 describe('parseAdviceResponse', () => {
   it('acepta la salida estructurada con los dos párrafos', () => {
     expect(parseAdviceResponse(json('Miraste atrás.', 'Mira adelante.'))).toEqual({
@@ -99,11 +86,29 @@ describe('parseAdviceResponse', () => {
     })
   })
 
-  it('recorta cada párrafo al límite duro', () => {
-    const long = 'b'.repeat(ADVICE_MAX_LENGTH + 100)
-    const advice = parseAdviceResponse(json(long, long))
-    expect(advice?.stats).toHaveLength(ADVICE_MAX_LENGTH)
-    expect(advice?.budget).toHaveLength(ADVICE_MAX_LENGTH)
+  it('quita los espacios de los bordes de cada párrafo', () => {
+    expect(parseAdviceResponse(json('  Atrás.  ', '\nAdelante.\n'))).toEqual({
+      stats: 'Atrás.',
+      budget: 'Adelante.',
+    })
+  })
+
+  it('nunca recorta un consejo que se pasa un poco del límite del prompt', () => {
+    const long = 'b'.repeat(ADVICE_MAX_LENGTH + 50)
+    const advice = parseAdviceResponse(json(long, 'Adelante.'))
+    expect(advice?.stats).toBe(long)
+  })
+
+  it('acepta un párrafo justo en 3 veces el límite', () => {
+    const edge = 'c'.repeat(ADVICE_REJECT_LENGTH)
+    expect(parseAdviceResponse(json(edge, edge))).toEqual({ stats: edge, budget: edge })
+  })
+
+  it('descarta la respuesta cuando un párrafo pasa de 3 veces el límite', () => {
+    const tooLong = 'd'.repeat(ADVICE_REJECT_LENGTH + 1)
+    expect(parseAdviceResponse(json(tooLong, 'Adelante.'))).toBeNull()
+    expect(parseAdviceResponse(json('Atrás.', tooLong))).toBeNull()
+    expect(parseAdviceResponse(`${tooLong}\n\nAdelante.`)).toBeNull()
   })
 
   it('descarta una respuesta vacía', () => {
@@ -146,6 +151,18 @@ describe('runAdviceChain', () => {
 
     expect(advice).toEqual({ stats: 'Atrás.', budget: 'Adelante.' })
     expect(call).toHaveBeenCalledTimes(2)
+  })
+
+  it('descarta el modelo que se pasa de 3 veces el límite y prueba el siguiente', async () => {
+    const call = vi.fn(async (model: string) => {
+      if (model === 'modelo-a') return json('e'.repeat(ADVICE_REJECT_LENGTH + 1), 'Adelante.')
+      return json('Atrás.', 'Adelante.')
+    })
+
+    const advice = await runAdviceChain('prompt', CHAIN, call)
+
+    expect(advice).toEqual({ stats: 'Atrás.', budget: 'Adelante.' })
+    expect(call.mock.calls.map((c) => c[0])).toEqual(['modelo-a', 'modelo-b'])
   })
 
   it('acepta la prosa sin JSON del último recurso de la cadena', async () => {

@@ -6,7 +6,7 @@ import type { Budget, BudgetStatusRow, StatsBundle, WalletApi } from '@/hooks/us
 import type { Rates } from '@/constants/rates'
 
 // Los diálogos hijos no son lo que se prueba aquí: se reemplazan por nada.
-vi.mock('@/hooks/useAdvice', () => ({ useAdvice: () => ({ advice: { budget: '' } }) }))
+vi.mock('@/hooks/useAdvice', () => ({ useAdvice: () => ({ advice: { budget: '' }, loaded: true }) }))
 vi.mock('@/components/billetera/AdviceCard', () => ({ AdviceCard: () => null }))
 vi.mock('@/components/billetera/ConcludeMonthDialog', () => ({ ConcludeMonthDialog: () => null }))
 vi.mock('@/components/billetera/BudgetTemplatesDialog', () => ({ BudgetTemplatesDialog: () => null }))

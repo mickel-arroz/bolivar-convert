@@ -126,6 +126,12 @@ describe('buildAdvicePayload', () => {
     ])
   })
 
+  it('lleva las métricas globales: ingresos, gastos totales y patrimonio', () => {
+    const payload = buildAdvicePayload(input(), RATES)
+
+    expect(payload.totals).toEqual({ income: 0, expense: 120, netWorth: 880 })
+  })
+
   it('lleva el Restante total por pagar de las listas y sus nombres', () => {
     const payload = buildAdvicePayload(input(), RATES)
 
@@ -164,7 +170,7 @@ describe('buildAdvicePayload', () => {
 })
 
 describe('buildAdvicePrompt', () => {
-  it('pide los dos párrafos con el límite duro de longitud', () => {
+  it('pide los dos párrafos con el límite de longitud', () => {
     const prompt = buildAdvicePrompt(buildAdvicePayload(input(), RATES))
 
     expect(prompt).toContain('"stats"')
@@ -172,11 +178,23 @@ describe('buildAdvicePrompt', () => {
     expect(prompt).toContain(String(ADVICE_MAX_LENGTH))
   })
 
-  it('fija el tono venezolano coloquial', () => {
+  it('fija la Voz del consejo: cercana, tuteando y a lo sumo un modismo', () => {
     const prompt = buildAdvicePrompt(buildAdvicePayload(input(), RATES))
 
     expect(prompt).toContain('venezolano')
-    expect(prompt).toContain('coloquial venezolana')
+    expect(prompt).toContain('tuteando')
+    expect(prompt).toContain('cercano')
+    expect(prompt).toContain('a lo sumo un modismo venezolano')
+  })
+
+  it('pide en Estadísticas métricas globales y recomendaciones, no el detalle de gastos menores', () => {
+    const prompt = buildAdvicePrompt(buildAdvicePayload(input(), RATES))
+
+    expect(prompt).toContain('ingresos')
+    expect(prompt).toContain('gastos totales')
+    expect(prompt).toContain('patrimonio')
+    expect(prompt).toContain('a dónde asignar')
+    expect(prompt).toContain('No enumeres los gastos menores')
   })
 
   it('exige que toda cifra de dinero diga su moneda', () => {

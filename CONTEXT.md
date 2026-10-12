@@ -111,7 +111,7 @@ _Avoid_: completados, pendientes, hechos
 ### Consejos
 
 **Consejo**:
-Un párrafo corto generado a partir de los datos agregados del usuario, que se muestra arriba de una pestaña. Hay dos: el de Estadísticas mira hacia atrás y el de Presupuesto hacia adelante. Se refresca al entrar si el guardado pasó de 7 días, y lo nuevo se ve en la visita siguiente.
+Un párrafo corto generado a partir de los datos agregados del usuario, que se muestra arriba de una pestaña. Hay dos: el de Estadísticas mira hacia atrás (resume ingresos, gastos totales y patrimonio y recomienda a dónde asignar el dinero, sin enumerar gastos menores) y el de Presupuesto hacia adelante. Se refresca al entrar si el guardado pasó de 7 días, y lo nuevo se ve en la visita siguiente. El prompt le pone un límite de largo, pero el consejo nunca se recorta: una respuesta que pasa del triple de ese límite se descarta y se prueba el siguiente modelo. Mientras se lee lo guardado, su tarjeta muestra un skeleton.
 _Avoid_: recomendación, insight, tip, análisis
 
 **Cifras del consejo**:

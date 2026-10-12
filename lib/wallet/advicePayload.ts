@@ -52,6 +52,8 @@ export interface AdviceInput {
 export interface AdvicePayload {
   /** Moneda en la que están expresadas todas las cifras agregadas. */
   currency: CurrencyId
+  /** Métricas globales del período: ingresos, gastos totales y patrimonio. */
+  totals: { income: number; expense: number; netWorth: number }
   /** Una entrada por cuenta con sus tres cifras. */
   accounts: {
     name: string
@@ -116,6 +118,11 @@ export function buildAdvicePayload(input: AdviceInput, rates: Rates): AdvicePayl
 
   return {
     currency: displayCurrency,
+    totals: {
+      income: round2(stats.incomeVsExpense.income),
+      expense: round2(stats.incomeVsExpense.expense),
+      netWorth: round2(stats.netWorth),
+    },
     accounts: funds.map((f) => ({
       name: accountById.get(f.accountId)?.name ?? 'Cuenta',
       currency: f.currency,
@@ -150,15 +157,15 @@ export function buildAdvicePayload(input: AdviceInput, rates: Rates): AdvicePayl
 /** El prompt de una sola petición que devuelve los dos párrafos. */
 export function buildAdvicePrompt(payload: AdvicePayload, now: Date = new Date()): string {
   return [
-    'Eres un asesor financiero personal venezolano. Hablas en español de Venezuela, tuteando, claro y concreto.',
-    'Suenas como un pana que sabe de plata: usa el habla coloquial venezolana con naturalidad ("chamo", "pana", "real", "vaina", "burda"), sin forzarla ni caricaturizarla.',
+    'Eres un asesor financiero personal venezolano, cercano y claro. Hablas en español de Venezuela, tuteando, concreto y sin formalidades.',
+    'Usa a lo sumo un modismo venezolano por consejo (por ejemplo "chamo", "pana" o "real"), y solo si sale natural; el resto, español claro y sin jerga recargada.',
     `Hoy es ${monthKey(now)}. Las cifras agregadas están en ${payload.currency} salvo donde se indique otra moneda.`,
     '',
     'Datos del usuario (agregados, sin detalle de movimientos):',
     JSON.stringify(payload),
     '',
     'Devuelve EXACTAMENTE un objeto JSON con dos claves de texto:',
-    '- "stats": mira hacia atrás. En qué se le fue el dinero, usando los nombres de sus categorías.',
+    '- "stats": mira hacia atrás. Resume sus métricas globales del período (ingresos, gastos totales y patrimonio, en "totals") y recomienda a dónde asignar el dinero. Puedes nombrar sus categorías más grandes. No enumeres los gastos menores uno por uno.',
     '- "budget": mira hacia adelante. Qué conviene ajustar este mes, considerando sus presupuestos, sus metas y lo que le falta por pagar en sus listas de compras.',
     '',
     `Cada texto debe ser un solo párrafo de máximo ${ADVICE_MAX_LENGTH} caracteres.`,

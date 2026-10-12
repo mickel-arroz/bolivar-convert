@@ -15,6 +15,16 @@ function MovementRowSkeleton() {
   )
 }
 
+export function AdviceSkeleton() {
+  return (
+    <div data-testid="advice-skeleton" className="flex flex-col gap-2 pt-1" aria-hidden>
+      <div className={`${pulse} h-3.5 w-full`} />
+      <div className={`${pulse} h-3.5 w-11/12`} />
+      <div className={`${pulse} h-3.5 w-2/3`} />
+    </div>
+  )
+}
+
 export function MovementListSkeleton({ rows = 6 }: { rows?: number }) {
   return (
     <div className="flex flex-col gap-2">

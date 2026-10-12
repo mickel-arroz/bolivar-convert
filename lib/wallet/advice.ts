@@ -23,8 +23,14 @@ export interface StoredAdvice extends Advice {
 /** Un consejo se refresca cuando pasaron más de 7 días desde que se generó. */
 export const ADVICE_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000
 
-/** Límite duro de cada párrafo, en el prompt y al renderizar. */
+/** Largo máximo que el prompt le pide a cada párrafo. */
 export const ADVICE_MAX_LENGTH = 300
+
+/**
+ * Un párrafo que pasa de 3 veces el límite del prompt es un modelo que no siguió la
+ * instrucción: la respuesta se descarta y la cadena prueba el siguiente modelo.
+ */
+export const ADVICE_REJECT_LENGTH = ADVICE_MAX_LENGTH * 3
 
 /**
  * Los textos que se muestran cuando no hay nada guardado, cuando no se alcanza el
@@ -62,13 +68,6 @@ export function isAdviceStale(generatedAt: string | null | undefined, now: Date 
   return now.getTime() - then > ADVICE_MAX_AGE_MS
 }
 
-/** Recorta un párrafo al límite duro, para que un modelo hablador no desmaquete la vista. */
-export function truncateAdvice(text: string, max: number = ADVICE_MAX_LENGTH): string {
-  const trimmed = text.trim()
-  if (trimmed.length <= max) return trimmed
-  return `${trimmed.slice(0, max - 1).trimEnd()}…`
-}
-
 /** Quita las vallas de código (```json … ```) con las que algunos modelos envuelven el JSON. */
 function stripCodeFences(raw: string): string {
   return raw.replace(/^\s*```(?:json)?\s*/i, '').replace(/\s*```\s*$/, '')
@@ -83,8 +82,9 @@ function usable(value: unknown): value is string {
  *
  * La salida estructurada solo está documentada en los modelos flash; para Gemma no
  * está confirmada, así que si no llega JSON válido se intenta partir el texto en dos
- * párrafos. **Los dos** tienen que ser usables: una respuesta con uno solo no se
- * acepta a medias, se descarta para que la cadena siga con el modelo siguiente.
+ * párrafos. **Los dos** tienen que ser usables: una respuesta con uno solo, o con
+ * uno que pasa de {@link ADVICE_REJECT_LENGTH}, no se acepta a medias, se descarta
+ * para que la cadena siga con el modelo siguiente.
  */
 export function parseAdviceResponse(raw: string): Advice | null {
   if (!usable(raw)) return null
@@ -93,9 +93,7 @@ export function parseAdviceResponse(raw: string): Advice | null {
     const parsed: unknown = JSON.parse(stripCodeFences(raw))
     if (parsed && typeof parsed === 'object') {
       const { stats, budget } = parsed as Record<string, unknown>
-      if (usable(stats) && usable(budget)) {
-        return { stats: truncateAdvice(stats), budget: truncateAdvice(budget) }
-      }
+      if (usable(stats) && usable(budget)) return withinRejectLength(stats, budget)
       return null
     }
   } catch {
@@ -107,7 +105,15 @@ export function parseAdviceResponse(raw: string): Advice | null {
     .map((p) => p.trim())
     .filter((p) => p.length > 0)
   if (paragraphs.length < 2) return null
-  return { stats: truncateAdvice(paragraphs[0]), budget: truncateAdvice(paragraphs[1]) }
+  return withinRejectLength(paragraphs[0], paragraphs[1])
+}
+
+function withinRejectLength(stats: string, budget: string): Advice | null {
+  const advice = { stats: stats.trim(), budget: budget.trim() }
+  if (advice.stats.length > ADVICE_REJECT_LENGTH || advice.budget.length > ADVICE_REJECT_LENGTH) {
+    return null
+  }
+  return advice
 }
 
 /** Una llamada al modelo: devuelve el texto crudo de la respuesta. */

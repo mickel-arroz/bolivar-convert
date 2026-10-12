@@ -3,6 +3,7 @@ import { renderHook, act, waitFor } from '@testing-library/react'
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { useWallet, convertTransferAmount, DEFAULT_BUDGET_TEMPLATE_ID } from '@/hooks/useWallet'
 import { Rates } from '@/constants/rates'
+import { OTHER_CATEGORY_IDS } from '@/constants/walletCategories'
 
 // "Nube" simulada: el hook llama a /api/wallet/state (GET) y /api/wallet/sync (POST).
 // Mockeamos fetch para probar la persistencia sin red ni Supabase real.
@@ -1533,6 +1534,85 @@ describe('useWallet — Saldo de la cuenta, En planes y Disponible', () => {
     expect(results).toEqual([true, true, true])
     expect(result.current.goalBalances.find((g) => g.goalId === sinMeta)?.balance).toBe(3000)
     expect(result.current.goalBalances.find((g) => g.goalId === conMeta)?.balance).toBe(150)
+  })
+
+  it('rechaza retirar hacia una cuenta lo que aportó otra', async () => {
+    const { result } = renderHook(() => useWallet())
+    await waitFor(() => expect(result.current.isMounted).toBe(true))
+
+    act(() => result.current.addAccount('A', 'USD', '500'))
+    act(() => result.current.addAccount('B', 'USD', '500'))
+    act(() => result.current.addGoal('Viaje', 'USD'))
+    const [a, b] = result.current.state.accounts.map((acc) => acc.id)
+    const goalId = result.current.state.goals[0].id
+    act(() => {
+      result.current.moveToGoal({ goalId, accountId: a, amount: '100', direction: 'in', date: today })
+    })
+
+    let ok = true
+    act(() => {
+      ok = result.current.moveToGoal({ goalId, accountId: b, amount: '100', direction: 'out', date: today })
+    })
+
+    expect(ok).toBe(false)
+    const fundsB = result.current.accountFunds.find((f) => f.accountId === b)
+    expect(fundsB?.inGoals).toBe(0)
+    expect(fundsB?.available).toBe(500)
+    expect(result.current.goalBalances.find((g) => g.goalId === goalId)?.balance).toBe(100)
+  })
+
+  it('retirar dinero que llegó sin cuenta lo registra como ingreso en «Otros» de la cuenta', async () => {
+    const { result } = renderHook(() => useWallet())
+    await waitFor(() => expect(result.current.isMounted).toBe(true))
+
+    act(() => result.current.addAccount('Banco', 'USD', '500'))
+    act(() => result.current.addGoal('Viaje', 'USD'))
+    const accountId = result.current.state.accounts[0].id
+    const goalId = result.current.state.goals[0].id
+    act(() => result.current.allocateExtraToGoal(goalId, 50, today))
+
+    let ok = false
+    act(() => {
+      ok = result.current.moveToGoal({ goalId, accountId, amount: '50', direction: 'out', date: today })
+    })
+
+    expect(ok).toBe(true)
+    const funds = result.current.accountFunds.find((f) => f.accountId === accountId)
+    expect(funds?.balance).toBe(550)
+    expect(funds?.inGoals).toBe(0)
+    expect(funds?.available).toBe(550)
+    expect(result.current.goalBalances.find((g) => g.goalId === goalId)?.balance).toBe(0)
+    const income = result.current.state.transactions.filter((t) => t.type === 'income')
+    expect(income).toHaveLength(1)
+    expect(income[0]).toMatchObject({ accountId, categoryId: OTHER_CATEGORY_IDS.income, amount: '50' })
+    expect(income[0].note).toContain('Viaje')
+  })
+
+  it('un retiro mayor que lo aportado saca primero lo de la cuenta y el resto entra como ingreso', async () => {
+    const { result } = renderHook(() => useWallet())
+    await waitFor(() => expect(result.current.isMounted).toBe(true))
+
+    act(() => result.current.addAccount('Banco', 'USD', '500'))
+    act(() => result.current.addGoal('Viaje', 'USD'))
+    const accountId = result.current.state.accounts[0].id
+    const goalId = result.current.state.goals[0].id
+    act(() => {
+      result.current.moveToGoal({ goalId, accountId, amount: '100', direction: 'in', date: today })
+    })
+    act(() => result.current.allocateExtraToGoal(goalId, 50, today))
+
+    let ok = false
+    act(() => {
+      ok = result.current.moveToGoal({ goalId, accountId, amount: '130', direction: 'out', date: today })
+    })
+
+    expect(ok).toBe(true)
+    const funds = result.current.accountFunds.find((f) => f.accountId === accountId)
+    expect(funds?.balance).toBe(530)
+    expect(funds?.inGoals).toBe(0)
+    expect(funds?.available).toBe(530)
+    expect(result.current.goalBalances.find((g) => g.goalId === goalId)?.balance).toBe(20)
+    expect(result.current.state.transactions.filter((t) => t.type === 'income')[0].amount).toBe('30')
   })
 })
 

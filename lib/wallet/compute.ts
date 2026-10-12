@@ -26,6 +26,9 @@ import type {
   BudgetStatusRow,
 } from '@/hooks/useWallet'
 
+/** Margen para comparaciones de saldo (evita rechazos por error de coma flotante). */
+export const OVERDRAW_EPS = 1e-6
+
 /** Id fijo de la plantilla de presupuesto por defecto (ver migración 0004). */
 export const DEFAULT_BUDGET_TEMPLATE_ID = 'tpl_default'
 
@@ -284,6 +287,41 @@ export function computeInGoalsByCurrency(funds: AccountFunds[]): Record<Currency
   const totals: Record<CurrencyId, number> = { VES: 0, USD: 0, EUR: 0 }
   for (const f of funds) totals[f.currency] += f.inGoals
   return totals
+}
+
+/** Las dos partes de un Plan de ahorro que se pueden retirar hacia una cuenta. */
+export interface PlanWithdrawable {
+  /** Lo que esa cuenta aportó al plan y sigue ahí: vuelve a su Disponible. */
+  fromAccount: number
+  /** Lo que llegó al plan sin cuenta (sobrante de un mes): entra a la cuenta como ingreso. */
+  unattributed: number
+}
+
+/**
+ * Cuánto se puede retirar de un plan hacia `accountId`. Nunca lo que aportó otra
+ * cuenta: eso dejaría su En planes negativo y su Disponible por encima de su Saldo.
+ */
+export function computePlanWithdrawable(
+  contributions: readonly GoalContribution[],
+  goalId: string,
+  accountId: string
+): PlanWithdrawable {
+  let fromAccount = 0
+  let unattributed = 0
+  for (const gc of contributions) {
+    if (gc.goalId !== goalId) continue
+    if (gc.accountId === accountId) fromAccount += parseSigned(gc.amount)
+    else if (!gc.accountId) unattributed += parseSigned(gc.amount)
+  }
+  return { fromAccount: Math.max(0, fromAccount), unattributed: Math.max(0, unattributed) }
+}
+
+/** Reparte un retiro: primero lo que aportó la cuenta, después lo sin cuenta. `null` si no alcanza. */
+export function splitPlanWithdrawal(withdrawable: PlanWithdrawable, value: number): PlanWithdrawable | null {
+  if (value - (withdrawable.fromAccount + withdrawable.unattributed) > OVERDRAW_EPS) return null
+  const unattributed = value - withdrawable.fromAccount
+  if (unattributed <= OVERDRAW_EPS) return { fromAccount: value, unattributed: 0 }
+  return { fromAccount: withdrawable.fromAccount, unattributed }
 }
 
 /* ─── Estadísticas ─── */

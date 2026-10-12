@@ -6,6 +6,7 @@ import { Rates, RateId } from '@/constants/rates'
 import { generateId, parseAmount } from '@/hooks/useBillSplitter'
 import {
   DEFAULT_CATEGORIES,
+  OTHER_CATEGORY_IDS,
   admitsBudget,
   isSystemCategory,
 } from '@/constants/walletCategories'
@@ -24,6 +25,9 @@ import {
   normalize,
   resolveCommission,
   computeAccountFunds,
+  computePlanWithdrawable,
+  splitPlanWithdrawal,
+  OVERDRAW_EPS,
   computeTotalsByCurrency,
   computeStats as computeStatsCore,
   budgetStatusForMonth as budgetStatusForMonthCore,
@@ -682,8 +686,6 @@ function applyCorrections(budgets: Budget[], corrections: CarryoverCorrection[])
 /** Tipo del valor devuelto por useWallet, útil para tipar props de componentes hijos. */
 export type WalletApi = ReturnType<typeof useWallet>
 
-/** Margen para comparaciones de saldo (evita rechazos por error de coma flotante). */
-const OVERDRAW_EPS = 1e-6
 
 /** Lo ahorrado en un Plan de ahorro: el tope de lo que se puede retirar de él. */
 function goalSavedOf(goalId: string, contributions: readonly GoalContribution[]): number {
@@ -1573,6 +1575,10 @@ export function useWallet() {
    * Mueve dinero entre una cuenta y un plan de ahorro de su misma moneda.
    * `direction` 'in' = aporta (sale de la cuenta), 'out' = retira (vuelve a la cuenta).
    * El monto se guarda con signo (aporte positivo, retiro negativo).
+   *
+   * Un retiro saca primero lo que esa cuenta aportó al plan y después lo que llegó sin
+   * cuenta; esa segunda parte entra a la cuenta como ingreso en «Otros», porque nunca
+   * estuvo en su Saldo. Lo que aportó otra cuenta no se puede retirar hacia esta.
    */
   const moveToGoal = useCallback(
     (params: {
@@ -1591,26 +1597,48 @@ export function useWallet() {
       const a0 = s0.accounts.find((a) => a.id === accountId)
       if (!g0 || !a0 || g0.currency !== a0.currency) return false
       if (direction === 'in' && accountAvailableOf(accountId, s0) - value < -OVERDRAW_EPS) return false
-      if (direction === 'out' && goalSavedOf(goalId, s0.goalContributions) - value < -OVERDRAW_EPS) return false
+      const split =
+        direction === 'out'
+          ? splitPlanWithdrawal(computePlanWithdrawable(s0.goalContributions, goalId, accountId), value)
+          : { fromAccount: value, unattributed: 0 }
+      if (!split) return false
       setState((s) => {
         const goal = s.goals.find((g) => g.id === goalId)
         const account = s.accounts.find((a) => a.id === accountId)
         if (!goal || !account || goal.currency !== account.currency) return s
-        const signed = direction === 'in' ? value : -value
+        const sign = direction === 'in' ? 1 : -1
+        const createdAt = new Date().toISOString()
+        const contribution = (amount: number, from?: string): GoalContribution => ({
+          id: generateId(),
+          goalId,
+          accountId: from,
+          amount: String(sign * amount),
+          note: note?.trim() || undefined,
+          date,
+          createdAt,
+        })
+        const contributions: GoalContribution[] = []
+        if (split.fromAccount > 0) contributions.push(contribution(split.fromAccount, accountId))
+        if (split.unattributed > 0) contributions.push(contribution(split.unattributed))
+        const income: Transaction[] =
+          split.unattributed > 0
+            ? [
+                {
+                  id: generateId(),
+                  type: 'income',
+                  accountId,
+                  categoryId: OTHER_CATEGORY_IDS.income,
+                  amount: String(split.unattributed),
+                  note: `Retiro del plan «${goal.name}»`,
+                  date,
+                  createdAt,
+                },
+              ]
+            : []
         return {
           ...s,
-          goalContributions: [
-            ...s.goalContributions,
-            {
-              id: generateId(),
-              goalId,
-              accountId,
-              amount: String(signed),
-              note: note?.trim() || undefined,
-              date,
-              createdAt: new Date().toISOString(),
-            },
-          ],
+          goalContributions: [...s.goalContributions, ...contributions],
+          transactions: [...s.transactions, ...income],
         }
       })
       return true

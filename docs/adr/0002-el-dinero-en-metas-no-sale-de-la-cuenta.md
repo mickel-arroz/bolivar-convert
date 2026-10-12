@@ -66,3 +66,11 @@ De ahí se sigue el resto:
 Las metas de ahorro pasaron a llamarse **Planes de ahorro** y la cifra **En metas**
 pasó a **En planes** (ver `CONTEXT.md`). La Meta es ahora la cifra opcional de un
 plan. La decisión no cambia: sigue sin columna nueva ni migración.
+
+## Nota (2026-10-12): retiros de un plan
+
+Un retiro hacia una cuenta saca primero lo que **esa** cuenta aportó al plan, y
+después lo que llegó al plan sin cuenta (sobrante de un mes, o aportes de una cuenta
+borrada). Esa segunda parte entra a la cuenta como un ingreso en «Otros», porque
+nunca estuvo en su Saldo de la cuenta. Lo que aportó otra cuenta no se puede retirar
+hacia esta: así En planes nunca queda negativo y el Disponible nunca supera el Saldo.

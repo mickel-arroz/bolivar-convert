@@ -18,6 +18,7 @@ import {
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select'
 import { cn } from '@/lib/utils'
 import { notify } from '@/lib/notify'
+import { computePlanWithdrawable, parseAmount, splitPlanWithdrawal } from '@/lib/wallet/compute'
 import { Field, AmountField } from './fields'
 import { formatMoney, todayInputValue } from './format'
 
@@ -71,10 +72,12 @@ export function GoalContributionDialog({
 
   if (!goal) return null
 
-  const amountNum = parseFloat(amount.replace(',', '.')) || 0
+  const amountNum = parseAmount(amount)
   const accountAvailable = availableByAccount.get(accountId) ?? 0
   const overAccount = direction === 'in' && amountNum > accountAvailable
-  const overGoal = direction === 'out' && amountNum > goalBalance
+  const withdrawable = computePlanWithdrawable(state.goalContributions, goal.id, accountId)
+  const split = direction === 'out' && amountNum > 0 ? splitPlanWithdrawal(withdrawable, amountNum) : null
+  const overGoal = direction === 'out' && amountNum > 0 && !split
   const canSubmit = !!accountId && amountNum > 0 && !overAccount && !overGoal
 
   const handleSubmit = () => {
@@ -84,7 +87,7 @@ export function GoalContributionDialog({
       notify.error(
         direction === 'in'
           ? 'El monto supera el Disponible de la cuenta'
-          : 'El monto supera lo ahorrado en el plan'
+          : 'El monto supera lo que puedes retirar hacia esta cuenta'
       )
       return
     }
@@ -181,6 +184,20 @@ export function GoalContributionDialog({
                 <span className="text-muted-foreground">Ahorrado en el plan</span>
                 <span className="font-black tabular-nums">{formatMoney(goalBalance, goal.currency)}</span>
               </div>
+              {direction === 'out' && (
+                <div className="mt-1 flex items-center justify-between">
+                  <span className="text-muted-foreground">Puedes retirar hacia esta cuenta</span>
+                  <span data-testid="plan-withdrawable" className="font-black tabular-nums">
+                    {formatMoney(withdrawable.fromAccount + withdrawable.unattributed, goal.currency)}
+                  </span>
+                </div>
+              )}
+              {split && split.unattributed > 0 && (
+                <p className="mt-1 text-xs text-muted-foreground">
+                  {formatMoney(split.unattributed, goal.currency)} entra a la cuenta como ingreso en
+                  «Otros»: llegó al plan sin salir de ninguna cuenta.
+                </p>
+              )}
               {overAccount && (
                 <p className="mt-1 text-xs text-destructive">
                   El monto supera el Disponible de la cuenta.
@@ -188,7 +205,8 @@ export function GoalContributionDialog({
               )}
               {overGoal && (
                 <p className="mt-1 text-xs text-destructive">
-                  No puedes retirar más de lo ahorrado en el plan.
+                  Supera lo que puedes retirar hacia esta cuenta: lo que aportó otra cuenta solo
+                  vuelve a esa cuenta.
                 </p>
               )}
             </div>

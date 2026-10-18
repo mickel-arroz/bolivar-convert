@@ -564,14 +564,24 @@ export function PresupuestoTab({ wallet, stats, dialogs, rates }: PresupuestoTab
                           </p>
                         </div>
                       </button>
-                      <Button
-                        variant="ghost"
-                        size="icon-sm"
-                        onClick={() => setPendingDeleteList(list)}
-                        aria-label="Eliminar lista"
-                      >
-                        <TrashIcon className="size-4" />
-                      </Button>
+                      <div className="flex items-center">
+                        <Button
+                          variant="ghost"
+                          size="icon-sm"
+                          onClick={() => setListForm({ open: true, editing: list })}
+                          aria-label="Editar lista"
+                        >
+                          <PencilIcon className="size-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon-sm"
+                          onClick={() => setPendingDeleteList(list)}
+                          aria-label="Eliminar lista"
+                        >
+                          <TrashIcon className="size-4" />
+                        </Button>
+                      </div>
                     </div>
 
                     {listItems.length > 0 && (
@@ -677,6 +687,7 @@ export function PresupuestoTab({ wallet, stats, dialogs, rates }: PresupuestoTab
         rates={rates}
         onAddItem={(listId) => setItemForm({ open: true, listId, editing: null })}
         onEditList={(list) => setListForm({ open: true, editing: list })}
+        onDeleteList={(list) => setPendingDeleteList(list)}
         onPurchase={(item) => setPurchaseItem(item)}
         onOpenItem={(item) => setItemDetailId(item.id)}
       />

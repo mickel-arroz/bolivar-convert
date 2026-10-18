@@ -64,6 +64,7 @@ function renderDialog(wallet: WalletApi = walletStub()) {
       rates={RATES}
       onAddItem={vi.fn()}
       onEditList={vi.fn()}
+      onDeleteList={vi.fn()}
       onPurchase={vi.fn()}
       onOpenItem={vi.fn()}
     />
@@ -94,6 +95,7 @@ describe('ShoppingListDetailDialog — moneda del Precio total', () => {
         rates={RATES}
         onAddItem={vi.fn()}
         onEditList={vi.fn()}
+        onDeleteList={vi.fn()}
         onPurchase={vi.fn()}
         onOpenItem={vi.fn()}
       />
@@ -220,6 +222,7 @@ describe('ShoppingListDetailDialog — buscador de productos', () => {
     rates: RATES,
     onAddItem: vi.fn(),
     onEditList: vi.fn(),
+    onDeleteList: vi.fn(),
     onPurchase: vi.fn(),
     onOpenItem: vi.fn(),
   })

@@ -35,6 +35,7 @@ import {
   CheckIcon,
   PlusIcon,
   PencilIcon,
+  TrashIcon,
   MaximizeIcon,
   MinimizeIcon,
   SearchIcon,
@@ -56,6 +57,7 @@ interface ShoppingListDetailDialogProps {
   rates: Rates
   onAddItem: (listId: string) => void
   onEditList: (list: ShoppingList) => void
+  onDeleteList: (list: ShoppingList) => void
   onPurchase: (item: ShoppingListItem) => void
   onOpenItem: (item: ShoppingListItem) => void
 }
@@ -76,6 +78,7 @@ export function ShoppingListDetailDialog({
   rates,
   onAddItem,
   onEditList,
+  onDeleteList,
   onPurchase,
   onOpenItem,
 }: ShoppingListDetailDialogProps) {
@@ -243,9 +246,14 @@ export function ShoppingListDetailDialog({
 
         <div className="flex flex-1 flex-col gap-3">
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <Button variant="outline" size="sm" onClick={() => onEditList(list)}>
-              <PencilIcon className="size-4" /> Editar lista
-            </Button>
+            <div className="flex flex-wrap items-center gap-2">
+              <Button variant="outline" size="sm" onClick={() => onEditList(list)}>
+                <PencilIcon className="size-4" /> Editar lista
+              </Button>
+              <Button variant="outline" size="sm" onClick={() => onDeleteList(list)}>
+                <TrashIcon className="size-4" /> Eliminar lista
+              </Button>
+            </div>
             <Button size="sm" onClick={() => onAddItem(list.id)}>
               <PlusIcon className="size-4" /> Añadir producto
             </Button>

@@ -12,6 +12,16 @@ import {
   DialogDescription,
   DialogFooter,
 } from '@/components/ui/dialog'
+import {
+  AlertDialog,
+  AlertDialogContent,
+  AlertDialogHeader,
+  AlertDialogFooter,
+  AlertDialogTitle,
+  AlertDialogDescription,
+  AlertDialogCancel,
+  AlertDialogAction,
+} from '@/components/ui/alert-dialog'
 import { ACCOUNT_ICON_KEYS, getAccountIcon } from '@/constants/walletCategories'
 import { cn } from '@/lib/utils'
 import { notify } from '@/lib/notify'
@@ -34,6 +44,7 @@ export function ShoppingListFormDialog({
   const [name, setName] = useState('')
   const [icon, setIcon] = useState('shopping')
   const [color, setColor] = useState<string | undefined>(undefined)
+  const [confirmOpen, setConfirmOpen] = useState(false)
 
   useEffect(() => {
     if (open) {
@@ -44,7 +55,7 @@ export function ShoppingListFormDialog({
     }
   }, [open, editing])
 
-  const handleSubmit = () => {
+  const save = () => {
     if (!name.trim()) return
     if (editing) {
       updateShoppingList(editing.id, { name: name.trim(), icon, color })
@@ -55,7 +66,14 @@ export function ShoppingListFormDialog({
     onOpenChange(false)
   }
 
+  const handleSubmit = () => {
+    if (!name.trim()) return
+    if (editing) setConfirmOpen(true)
+    else save()
+  }
+
   return (
+    <>
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
@@ -108,10 +126,28 @@ export function ShoppingListFormDialog({
             Cancelar
           </Button>
           <Button onClick={handleSubmit} disabled={!name.trim()}>
-            {editing ? 'Guardar' : 'Crear lista'}
+            {editing ? 'Guardar cambios' : 'Crear lista'}
           </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
+
+    <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Guardar cambios</AlertDialogTitle>
+          <AlertDialogDescription>
+            Se actualizará la lista «{editing?.name}» con el título, icono y color indicados.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel>Cancelar</AlertDialogCancel>
+          <AlertDialogAction render={<Button />} onClick={save}>
+            Guardar cambios
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+    </>
   )
 }

@@ -3,10 +3,12 @@
 import { ComponentProps } from 'react'
 import { AlertDialog as AlertDialogPrimitive } from '@base-ui/react/alert-dialog'
 import { cn } from '@/lib/utils'
+import { useBackDismissProps } from '@/hooks/useBackToClose'
 import { Button } from '@/components/ui/button'
 
 function AlertDialog({ ...props }: AlertDialogPrimitive.Root.Props) {
-  return <AlertDialogPrimitive.Root data-slot="alert-dialog" {...props} />
+  const backDismiss = useBackDismissProps(props)
+  return <AlertDialogPrimitive.Root data-slot="alert-dialog" {...props} {...backDismiss} />
 }
 
 function AlertDialogTrigger({ ...props }: AlertDialogPrimitive.Trigger.Props) {

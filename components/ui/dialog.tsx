@@ -3,10 +3,12 @@
 import { ComponentProps } from 'react'
 import { Dialog as DialogPrimitive } from '@base-ui/react/dialog'
 import { cn } from '@/lib/utils'
+import { useBackDismissProps } from '@/hooks/useBackToClose'
 import { CloseIcon } from '@/components/icons'
 
 function Dialog({ ...props }: DialogPrimitive.Root.Props) {
-  return <DialogPrimitive.Root data-slot="dialog" {...props} />
+  const backDismiss = useBackDismissProps(props)
+  return <DialogPrimitive.Root data-slot="dialog" {...props} {...backDismiss} />
 }
 
 function DialogTrigger({ ...props }: DialogPrimitive.Trigger.Props) {

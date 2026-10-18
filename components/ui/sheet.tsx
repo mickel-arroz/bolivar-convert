@@ -4,11 +4,13 @@ import { ComponentProps } from 'react'
 import { Dialog as SheetPrimitive } from '@base-ui/react/dialog'
 
 import { cn } from '@/lib/utils'
+import { useBackDismissProps } from '@/hooks/useBackToClose'
 import { Button } from '@/components/ui/button'
 import { CloseIcon } from '@/components/icons'
 
 function Sheet({ ...props }: SheetPrimitive.Root.Props) {
-  return <SheetPrimitive.Root data-slot="sheet" {...props} />
+  const backDismiss = useBackDismissProps(props)
+  return <SheetPrimitive.Root data-slot="sheet" {...props} {...backDismiss} />
 }
 
 function SheetTrigger({ ...props }: SheetPrimitive.Trigger.Props) {

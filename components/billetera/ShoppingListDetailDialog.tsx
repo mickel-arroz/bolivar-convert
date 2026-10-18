@@ -24,6 +24,7 @@ import {
   AlertDialogAction,
 } from '@/components/ui/alert-dialog'
 import { useMathInput } from '@/hooks/useMathInput'
+import { useIsCompactScreen } from '@/hooks/useMediaQuery'
 import {
   Dialog,
   DialogContent,
@@ -83,7 +84,9 @@ export function ShoppingListDetailDialog({
   onOpenItem,
 }: ShoppingListDetailDialogProps) {
   const { state, undoPurchase, previewUndoPurchase, updateShoppingList } = wallet
-  const [fullscreen, setFullscreen] = useState(false)
+  const [expanded, setFullscreen] = useState(false)
+  const compact = useIsCompactScreen()
+  const fullscreen = expanded || compact
   const [breakdownOpen, setBreakdownOpen] = useState(false)
   const [query, setQuery] = useState('')
   const [wasOpen, setWasOpen] = useState(open)
@@ -219,16 +222,18 @@ export function ShoppingListDetailDialog({
             : 'sm:max-w-2xl'
         )}
       >
-        <button
-          type="button"
-          onClick={() => setFullscreen((f) => !f)}
-          aria-label={fullscreen ? 'Salir de pantalla completa' : 'Pantalla completa'}
-          className="absolute right-11 top-4 rounded-lg p-1 text-muted-foreground outline-none transition-colors hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50"
-        >
-          {fullscreen ? <MinimizeIcon className="size-4" /> : <MaximizeIcon className="size-4" />}
-        </button>
+        {!compact && (
+          <button
+            type="button"
+            onClick={() => setFullscreen((f) => !f)}
+            aria-label={fullscreen ? 'Salir de pantalla completa' : 'Pantalla completa'}
+            className="absolute right-11 top-4 rounded-lg p-1 text-muted-foreground outline-none transition-colors hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50"
+          >
+            {fullscreen ? <MinimizeIcon className="size-4" /> : <MaximizeIcon className="size-4" />}
+          </button>
+        )}
 
-        <DialogHeader className="pr-16">
+        <DialogHeader className={compact ? 'pr-8' : 'pr-16'}>
           <DialogTitle className="flex items-center gap-2 break-words">
             <span
               aria-hidden

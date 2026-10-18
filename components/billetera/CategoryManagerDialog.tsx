@@ -2,6 +2,7 @@
 
 import { useMemo, useRef, useState } from 'react'
 import { Category, TransactionType, WalletApi } from '@/hooks/useWallet'
+import { useIsCompactScreen } from '@/hooks/useMediaQuery'
 import {
   CATEGORY_ICON_KEYS,
   getCategoryIcon,
@@ -37,7 +38,9 @@ export function CategoryManagerDialog({ open, onOpenChange, wallet }: CategoryMa
   const [icon, setIcon] = useState(CATEGORY_ICON_KEYS[0])
   const [color, setColor] = useState<string | undefined>(undefined)
   const [pendingDelete, setPendingDelete] = useState<Category | null>(null)
-  const [fullscreen, setFullscreen] = useState(false)
+  const [expanded, setFullscreen] = useState(false)
+  const compact = useIsCompactScreen()
+  const fullscreen = expanded || compact
   const formRef = useRef<HTMLDivElement>(null)
 
   const editingCategory = editingId
@@ -151,16 +154,18 @@ export function CategoryManagerDialog({ open, onOpenChange, wallet }: CategoryMa
               : ''
           )}
         >
-          <button
-            type="button"
-            onClick={() => setFullscreen((f) => !f)}
-            aria-label={fullscreen ? 'Salir de pantalla completa' : 'Pantalla completa'}
-            className="absolute right-11 top-4 rounded-lg p-1 text-muted-foreground outline-none transition-colors hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50"
-          >
-            {fullscreen ? <MinimizeIcon className="size-4" /> : <MaximizeIcon className="size-4" />}
-          </button>
+          {!compact && (
+            <button
+              type="button"
+              onClick={() => setFullscreen((f) => !f)}
+              aria-label={fullscreen ? 'Salir de pantalla completa' : 'Pantalla completa'}
+              className="absolute right-11 top-4 rounded-lg p-1 text-muted-foreground outline-none transition-colors hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50"
+            >
+              {fullscreen ? <MinimizeIcon className="size-4" /> : <MaximizeIcon className="size-4" />}
+            </button>
+          )}
 
-          <DialogHeader className="pr-16">
+          <DialogHeader className={compact ? 'pr-8' : 'pr-16'}>
             <DialogTitle>Categorías</DialogTitle>
             <DialogDescription>Crea y organiza tus categorías de gastos e ingresos.</DialogDescription>
           </DialogHeader>

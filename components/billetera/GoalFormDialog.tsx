@@ -14,7 +14,7 @@ import {
   DialogDescription,
   DialogFooter,
 } from '@/components/ui/dialog'
-import { ACCOUNT_ICON_KEYS, getAccountIcon } from '@/constants/walletCategories'
+import { PLAN_ICON_KEYS, getAccountIcon } from '@/constants/walletCategories'
 import { cn } from '@/lib/utils'
 import { notify } from '@/lib/notify'
 import { Field, AmountField, CurrencyToggle, ColorPicker } from './fields'
@@ -34,7 +34,7 @@ export function GoalFormDialog({ open, onOpenChange, wallet, editing }: GoalForm
   const [currency, setCurrency] = useState<CurrencyId>('VES')
   const [target, setTarget] = useState('')
   const [description, setDescription] = useState('')
-  const [icon, setIcon] = useState('wallet')
+  const [icon, setIcon] = useState('piggy')
   const [color, setColor] = useState<string | undefined>(undefined)
 
   useEffect(() => {
@@ -44,7 +44,7 @@ export function GoalFormDialog({ open, onOpenChange, wallet, editing }: GoalForm
       setCurrency(editing?.currency ?? 'VES')
       setTarget(editing?.target ?? '')
       setDescription(editing?.description ?? '')
-      setIcon(editing?.icon ?? 'wallet')
+      setIcon(editing?.icon ?? 'piggy')
       setColor(editing?.color)
     }
   }, [open, editing])
@@ -110,7 +110,7 @@ export function GoalFormDialog({ open, onOpenChange, wallet, editing }: GoalForm
 
           <Field label="Icono">
             <div className="grid grid-cols-5 gap-1.5">
-              {ACCOUNT_ICON_KEYS.map((key) => {
+              {PLAN_ICON_KEYS.map((key) => {
                 const Icon = getAccountIcon(key)
                 return (
                   <button

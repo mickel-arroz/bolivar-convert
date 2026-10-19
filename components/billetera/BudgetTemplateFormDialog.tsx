@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { BudgetTemplate, WalletApi, monthKey } from '@/hooks/useWallet'
 import {
-  ACCOUNT_ICON_KEYS,
+  TEMPLATE_ICON_KEYS,
   getAccountIcon,
   budgetableCategories,
   getCategoryIcon,
@@ -153,7 +153,7 @@ export function BudgetTemplateFormDialog({
 
             <Field label="Icono">
               <div className="grid grid-cols-5 gap-1.5">
-                {ACCOUNT_ICON_KEYS.map((key) => {
+                {TEMPLATE_ICON_KEYS.map((key) => {
                   const Icon = getAccountIcon(key)
                   return (
                     <button

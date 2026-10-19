@@ -22,7 +22,7 @@ import {
   AlertDialogCancel,
   AlertDialogAction,
 } from '@/components/ui/alert-dialog'
-import { ACCOUNT_ICON_KEYS, getAccountIcon } from '@/constants/walletCategories'
+import { PLAN_ICON_KEYS, getAccountIcon } from '@/constants/walletCategories'
 import { cn } from '@/lib/utils'
 import { notify } from '@/lib/notify'
 import { Field, ColorPicker } from './fields'
@@ -95,7 +95,7 @@ export function ShoppingListFormDialog({
 
           <Field label="Icono">
             <div className="grid grid-cols-5 gap-1.5">
-              {ACCOUNT_ICON_KEYS.map((key) => {
+              {PLAN_ICON_KEYS.map((key) => {
                 const Icon = getAccountIcon(key)
                 return (
                   <button

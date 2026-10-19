@@ -20,6 +20,25 @@ import {
   TrendingUpIcon,
   ShieldCheckIcon,
   ClockIcon,
+  BroomIcon,
+  PlantIcon,
+  PhoneIcon,
+  BarbellIcon,
+  ShirtIcon,
+  SchoolIcon,
+  PawIcon,
+  PiggyBankIcon,
+  StethoscopeIcon,
+  ToothIcon,
+  AppleIcon,
+  BitcoinIcon,
+  DesktopIcon,
+  PlaneIcon,
+  CreditCardIcon,
+  BanknoteIcon,
+  StoreIcon,
+  WorldIcon,
+  GamepadIcon,
 } from '@/components/icons'
 import type { Category, TransactionType } from '@/hooks/useWallet'
 
@@ -46,10 +65,37 @@ export const CATEGORY_ICON_MAP: Record<string, SvgIcon> = {
   insurance: ShieldCheckIcon,
   subscription: ClockIcon,
   other: DotsIcon,
+  cleaning: BroomIcon,
+  plant: PlantIcon,
+  phone: PhoneIcon,
+  gym: BarbellIcon,
+  clothing: ShirtIcon,
+  education: SchoolIcon,
+  pet: PawIcon,
 }
 
-/** Claves disponibles para que el usuario elija al crear una categoría. */
-export const CATEGORY_ICON_KEYS = Object.keys(CATEGORY_ICON_MAP)
+/**
+ * Claves que el usuario puede elegir al crear o editar una categoría. «other» es
+ * exclusiva de las categorías «Otros»; las demás que no aparecen aquí siguen en el
+ * mapa para que las categorías que ya las usan se sigan viendo.
+ */
+export const CATEGORY_ICON_KEYS: readonly string[] = [
+  'food',
+  'transport',
+  'services',
+  'health',
+  'shopping',
+  'home',
+  'salary',
+  'remittance',
+  'cleaning',
+  'plant',
+  'phone',
+  'gym',
+  'clothing',
+  'education',
+  'pet',
+]
 
 /** Resuelve el componente de icono de una categoría (fallback: DotsIcon). */
 export function getCategoryIcon(iconKey: string): SvgIcon {
@@ -57,8 +103,8 @@ export function getCategoryIcon(iconKey: string): SvgIcon {
 }
 
 /**
- * Mapa de claves de icono para CUENTAS. Los iconos se pueden reutilizar libremente
- * entre cuentas (una misma clave puede usarse en varias).
+ * Mapa de claves de icono de cuentas, plantillas, planes de ahorro y listas de compras.
+ * Una misma clave puede usarse en varias.
  */
 export const ACCOUNT_ICON_MAP: Record<string, SvgIcon> = {
   wallet: WalletIcon,
@@ -76,10 +122,86 @@ export const ACCOUNT_ICON_MAP: Record<string, SvgIcon> = {
   growth: TrendingUpIcon,
   insurance: ShieldCheckIcon,
   subscription: ClockIcon,
+  piggy: PiggyBankIcon,
+  car: CarIcon,
+  nutrition: AppleIcon,
+  dental: ToothIcon,
+  medical: StethoscopeIcon,
+  crypto: BitcoinIcon,
+  desktop: DesktopIcon,
+  travel: PlaneIcon,
+  plant: PlantIcon,
+  education: SchoolIcon,
+  pet: PawIcon,
+  creditCard: CreditCardIcon,
+  banknote: BanknoteIcon,
+  mobile: PhoneIcon,
+  store: StoreIcon,
+  world: WorldIcon,
+  gaming: GamepadIcon,
 }
 
-/** Claves disponibles para que el usuario elija el icono de una cuenta. */
-export const ACCOUNT_ICON_KEYS = Object.keys(ACCOUNT_ICON_MAP)
+/** Claves que el usuario puede elegir para una cuenta. */
+export const ACCOUNT_ICON_KEYS: readonly string[] = [
+  'wallet',
+  'bank',
+  'creditCard',
+  'banknote',
+  'cash',
+  'dollar',
+  'euro',
+  'binance',
+  'crypto',
+  'mobile',
+  'piggy',
+  'card',
+  'store',
+  'world',
+  'home',
+]
+
+/** Claves que el usuario puede elegir para una plantilla de presupuesto. */
+export const TEMPLATE_ICON_KEYS: readonly string[] = [
+  'wallet',
+  'bank',
+  'cash',
+  'dollar',
+  'euro',
+  'binance',
+  'card',
+  'home',
+  'gift',
+  'shopping',
+  'savings',
+  'investment',
+  'growth',
+  'insurance',
+  'subscription',
+]
+
+/** Claves que el usuario puede elegir para un plan de ahorro o una lista de compras. */
+export const PLAN_ICON_KEYS: readonly string[] = [
+  'piggy',
+  'bank',
+  'dollar',
+  'euro',
+  'binance',
+  'crypto',
+  'card',
+  'home',
+  'car',
+  'travel',
+  'medical',
+  'dental',
+  'nutrition',
+  'gaming',
+  'gift',
+  'shopping',
+  'desktop',
+  'education',
+  'pet',
+  'plant',
+]
 
 /** Resuelve el componente de icono de una cuenta (fallback: WalletIcon). */
 export function getAccountIcon(iconKey: string | undefined): SvgIcon {
@@ -161,5 +283,5 @@ export const DEFAULT_CATEGORIES: Category[] = [
   // Ingresos
   { id: 'cat_salary', name: 'Salario', kind: 'income', icon: 'salary', color: 'var(--rate-usd)', isDefault: true },
   { id: 'cat_remittance', name: 'Remesas', kind: 'income', icon: 'remittance', color: 'var(--rate-eur)', isDefault: true },
-  { id: 'cat_other_inc', name: 'Otros', kind: 'income', icon: 'coin', color: 'var(--rate-binance)', isDefault: true },
+  { id: 'cat_other_inc', name: 'Otros', kind: 'income', icon: 'other', color: 'var(--muted-foreground)', isDefault: true },
 ]

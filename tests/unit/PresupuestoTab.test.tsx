@@ -180,3 +180,31 @@ describe('PresupuestoTab — planes de ahorro', () => {
     expect(card).not.toHaveTextContent('Sin meta')
   })
 })
+
+describe('PresupuestoTab — restante de cada presupuesto', () => {
+  const card = (name: string) => screen.getByText(name).closest('[data-slot="card"]') as HTMLElement
+
+  it('con gasto, cada tarjeta muestra su restante justo después del estimado', () => {
+    renderTab([row('a', 'Comida', 100, 20), { ...row('b', 'Transporte', 50, 10), carryover: 5, effectiveLimit: 55 }])
+
+    const comida = card('Comida')
+    expect(comida).toHaveTextContent(
+      new RegExp(`Estimado: ${formatMoney(100, 'VES')}\s*Restante: ${formatMoney(80, 'VES')}`)
+    )
+    expect(card('Transporte')).toHaveTextContent(`Restante: ${formatMoney(45, 'VES')}`)
+  })
+
+  it('sin gasto no muestra el restante', () => {
+    renderTab([row('a', 'Comida', 100, 0)])
+
+    expect(card('Comida')).not.toHaveTextContent(/Restante/)
+  })
+
+  it('si se superó el presupuesto, el restante sale en negativo y en rojo', () => {
+    renderTab([{ ...row('a', 'Ocio', 30, 45), isOver: true, ratio: 1.5 }])
+
+    const restante = screen.getByText(/Restante:/)
+    expect(restante).toHaveTextContent(`Restante: ${formatMoney(-15, 'VES')}`)
+    expect(restante).toHaveClass('text-destructive')
+  })
+})

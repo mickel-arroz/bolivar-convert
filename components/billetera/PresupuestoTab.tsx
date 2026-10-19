@@ -308,6 +308,11 @@ export function PresupuestoTab({ wallet, stats, dialogs, rates }: PresupuestoTab
                   {/* Desglose estimado + extra arrastrado */}
                   <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[11px] text-muted-foreground tabular-nums">
                     <span>Estimado: {formatMoney(row.limit, cur)}</span>
+                    {row.actual > 0 && (
+                      <span className={cn(row.isOver && 'text-destructive')}>
+                        Restante: {formatMoney(row.effectiveLimit - row.actual, cur)}
+                      </span>
+                    )}
                     {row.carryover !== 0 && (
                       <span className={cn(row.carryover < 0 && 'text-destructive')}>
                         Extra: {row.carryover > 0 ? '+' : ''}
@@ -323,7 +328,8 @@ export function PresupuestoTab({ wallet, stats, dialogs, rates }: PresupuestoTab
                     </p>
                   )}
                   {nearLimit && (
-                    <p className="text-xs font-medium text-amber-600 dark:text-amber-500">
+                    <p className="flex items-center gap-1.5 text-xs font-medium text-amber-600 dark:text-amber-500">
+                      <AlertIcon className="size-3.5" />
                       Cerca del límite ({Math.round(row.ratio * 100)}%)
                     </p>
                   )}

@@ -36,6 +36,11 @@ const recent: FeedItem[] = [
   { kind: 'tx', id: 't1', date: tx.date, tx },
 ]
 
+const funds = vi.hoisted(() => ({
+  totalsByCurrency: { VES: 0, USD: 0, EUR: 0 },
+  inGoalsByCurrency: { VES: 0, USD: 0, EUR: 0 },
+}))
+
 vi.mock('@/hooks/useWalletResource', () => ({
   useWalletResource: (url: string) => ({
     data: url.includes('recent')
@@ -43,8 +48,7 @@ vi.mock('@/hooks/useWalletResource', () => ({
       : {
           accounts,
           funds: [],
-          totalsByCurrency: { VES: 0, USD: 0, EUR: 0 },
-          inGoalsByCurrency: { VES: 0, USD: 0, EUR: 0 },
+          ...funds,
         },
     loading: false,
     error: false,
@@ -109,5 +113,19 @@ describe('ResumenTab — acciones en movimientos recientes', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Eliminar traspaso' }))
 
     expect(screen.getByTestId('delete-dialog')).toHaveTextContent('transfer:tr1')
+  })
+})
+
+describe('ResumenTab — patrimonio neto', () => {
+  it('con dinero en planes muestra también cuánto está disponible', () => {
+    funds.totalsByCurrency = { VES: 1000, USD: 0, EUR: 0 }
+    funds.inGoalsByCurrency = { VES: 300, USD: 0, EUR: 0 }
+    renderTab()
+
+    expect(screen.getByText(/en planes/)).toHaveTextContent('Bs. 300,00')
+    expect(screen.getByText(/^Disponible:/)).toHaveTextContent('Bs. 700,00')
+
+    funds.totalsByCurrency = { VES: 0, USD: 0, EUR: 0 }
+    funds.inGoalsByCurrency = { VES: 0, USD: 0, EUR: 0 }
   })
 })

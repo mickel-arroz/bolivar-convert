@@ -167,12 +167,23 @@ export function ResumenTab({ wallet, rates, dialogs }: ResumenTabProps) {
                 {formatMoney(netWorthCalc.value, netWorthCurrency)}
               </p>
               {netWorthCalc.inGoals !== 0 && (
-                <p className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground">
-                  <TargetIcon className="size-3.5 shrink-0" />
-                  <span className="tabular-nums">
-                    De lo cual {formatMoney(netWorthCalc.inGoals, netWorthCurrency)} en planes
-                  </span>
-                </p>
+                <>
+                  <p className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground">
+                    <TargetIcon className="size-3.5 shrink-0" />
+                    <span className="tabular-nums">
+                      De lo cual {formatMoney(netWorthCalc.inGoals, netWorthCurrency)} en planes
+                    </span>
+                  </p>
+                  <p className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground">
+                    <WalletIcon className="size-3.5 shrink-0" />
+                    <span className="tabular-nums">
+                      Disponible:{' '}
+                      <span className="text-foreground">
+                        {formatMoney(netWorthCalc.value - netWorthCalc.inGoals, netWorthCurrency)}
+                      </span>
+                    </span>
+                  </p>
+                </>
               )}
             </div>
           ) : (

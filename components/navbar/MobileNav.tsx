@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { MenuIcon, GripVerticalIcon } from '@/components/icons'
@@ -20,6 +20,13 @@ export function MobileNav() {
   const pathname = usePathname()
   const [open, setOpen] = useState(false)
   const { orderedItems, reorder, resetOrder } = useNavOrder()
+
+  // El menú se cierra cuando la ruta ya cambió: cerrarlo en el mismo clic del enlace haría
+  // que su entrada del historial (el "atrás" que lo cierra) deshiciera la navegación.
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setOpen(false)
+  }, [pathname])
 
   return (
     <nav className="md:hidden fixed bottom-4 left-1/2 -translate-x-1/2 z-50 w-[92%] max-w-lg h-16 rounded-2xl shadow-[0_12px_40px_rgba(0,0,0,0.12)] dark:shadow-[0_25px_100px_rgba(0,0,0,0.7)] bg-background/60 backdrop-blur-md border border-border/50">

@@ -65,7 +65,7 @@ function SortableNavRow({
     >
       <Link
         href={item.href}
-        onClick={onNavigate}
+        onClick={isActive ? onNavigate : undefined}
         className={cn(
           'flex flex-1 items-center gap-4 p-5 rounded-l-xl transition-transform active:scale-95',
           isActive ? 'text-primary' : 'text-foreground'

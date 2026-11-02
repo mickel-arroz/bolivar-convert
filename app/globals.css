@@ -199,10 +199,17 @@
   }
 }
 
-html,
-* {
-  scrollbar-width: thin;
-  scrollbar-color: var(--scrollbar-thumb) transparent;
+/*
+ * Chrome ignora los pseudo-elementos ::-webkit-scrollbar si ve scrollbar-width o
+ * scrollbar-color (y en Windows la barra «thin» trae flechas), así que las propiedades
+ * estándar quedan solo para navegadores sin ::-webkit-scrollbar (Firefox).
+ */
+@supports not selector(::-webkit-scrollbar) {
+  html,
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: var(--scrollbar-thumb) transparent;
+  }
 }
 *::-webkit-scrollbar {
   width: 8px;
@@ -211,6 +218,21 @@ html,
 *::-webkit-scrollbar-track,
 *::-webkit-scrollbar-corner {
   background: transparent;
+}
+/* El margen del track aleja la barra de las esquinas redondeadas del contenedor. */
+*::-webkit-scrollbar-track:vertical {
+  margin-block: 10px;
+}
+*::-webkit-scrollbar-track:horizontal {
+  margin-inline: 10px;
+}
+html::-webkit-scrollbar-track,
+body::-webkit-scrollbar-track {
+  margin: 0;
+}
+[data-slot='dialog-content']::-webkit-scrollbar-track:vertical,
+[data-slot='alert-dialog-content']::-webkit-scrollbar-track:vertical {
+  margin-block: 20px;
 }
 *::-webkit-scrollbar-thumb {
   background-color: var(--scrollbar-thumb);

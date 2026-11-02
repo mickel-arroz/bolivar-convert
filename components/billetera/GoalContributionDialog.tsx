@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { Goal, WalletApi } from '@/hooks/useWallet'
 import { getCurrency } from '@/constants/currencies'
 import { ACCOUNT_ICON_MAP } from '@/constants/walletCategories'
-import { WalletIcon } from '@/components/icons'
+import { CheckIcon, WalletIcon } from '@/components/icons'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import {
@@ -59,6 +59,7 @@ export function GoalContributionDialog({
     () => (goal ? (goalBalances.find((b) => b.goalId === goal.id)?.balance ?? 0) : 0),
     [goal, goalBalances]
   )
+  const target = parseAmount(goal?.target)
 
   useEffect(() => {
     if (open) {
@@ -184,6 +185,21 @@ export function GoalContributionDialog({
                 <span className="text-muted-foreground">Ahorrado en el plan</span>
                 <span className="font-black tabular-nums">{formatMoney(goalBalance, goal.currency)}</span>
               </div>
+              {target > 0 && (
+                <div className="mt-1 flex items-center justify-between">
+                  <span className="text-muted-foreground">Restante para la meta</span>
+                  {goalBalance >= target ? (
+                    <span className="flex items-center gap-1 font-black text-green-600 dark:text-green-400">
+                      <CheckIcon className="size-3.5 shrink-0" />
+                      Meta alcanzada
+                    </span>
+                  ) : (
+                    <span data-testid="plan-remaining" className="font-black tabular-nums">
+                      {formatMoney(target - goalBalance, goal.currency)}
+                    </span>
+                  )}
+                </div>
+              )}
               {direction === 'out' && (
                 <div className="mt-1 flex items-center justify-between">
                   <span className="text-muted-foreground">Puedes retirar hacia esta cuenta</span>

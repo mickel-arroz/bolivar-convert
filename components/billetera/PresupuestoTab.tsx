@@ -428,13 +428,21 @@ export function PresupuestoTab({ wallet, stats, dialogs, rates }: PresupuestoTab
                         </div>
                         <div className="min-w-0">
                           <p className="truncate font-bold">{goal.name}</p>
-                          <p
-                            data-testid="plan-saved"
-                            className="text-xs text-muted-foreground tabular-nums"
-                          >
-                            {formatMoney(saved, goal.currency)}
-                            {target > 0 && <> de {formatMoney(target, goal.currency)}</>}
-                          </p>
+                          <div className="flex flex-wrap items-center gap-x-4 gap-y-0.5">
+                            <p
+                              data-testid="plan-saved"
+                              className="text-xs text-muted-foreground tabular-nums"
+                            >
+                              {formatMoney(saved, goal.currency)}
+                              {target > 0 && <> de {formatMoney(target, goal.currency)}</>}
+                            </p>
+                            {reached && (
+                              <p className="flex items-center gap-1 text-xs font-semibold text-green-600 dark:text-green-400">
+                                <CheckIcon className="size-3.5 shrink-0" />
+                                Meta alcanzada
+                              </p>
+                            )}
+                          </div>
                         </div>
                       </div>
                       <div className="flex items-center">
@@ -468,12 +476,6 @@ export function PresupuestoTab({ wallet, stats, dialogs, rates }: PresupuestoTab
                             style={{ width: `${pct}%`, backgroundColor: accent }}
                           />
                         </div>
-                        {reached && (
-                          <p className="flex items-center gap-1 text-xs font-semibold text-green-600 dark:text-green-400">
-                            <CheckIcon className="size-3.5 shrink-0" />
-                            Meta alcanzada
-                          </p>
-                        )}
                       </div>
                     ) : (
                       <p className="flex h-2 items-center text-xs leading-none text-muted-foreground">

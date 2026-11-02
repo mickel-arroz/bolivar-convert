@@ -46,7 +46,7 @@ export function GoalDeleteDialog({ goal, onOpenChange, wallet }: GoalDeleteDialo
       byAccount: [...sums].filter(([, amount]) => amount >= 0.005),
       unattributed: orphan >= 0.005 ? orphan : 0,
     }
-  }, [state.goalContributions, goal?.id])
+  }, [state.goalContributions, goal])
 
   const accounts = state.accounts.filter((a) => a.currency === goal?.currency)
   const accountId =

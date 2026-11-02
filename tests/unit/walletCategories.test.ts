@@ -4,6 +4,7 @@ import {
   OTHER_CATEGORY_IDS,
   budgetableCategories,
   initialCategoryId,
+  isDuplicateCategoryName,
   isSystemCategory,
   userCategories,
 } from '@/constants/walletCategories'
@@ -26,6 +27,15 @@ describe('categorías de sistema', () => {
     expect(ids).toContain(OTHER_CATEGORY_IDS.expense)
     expect(ids).toContain(OTHER_CATEGORY_IDS.income)
     expect(ids).not.toContain('cat_shopping')
+  })
+
+  it('«Otros» va siempre al final, aunque se creen categorías después', () => {
+    const ids = userCategories([...DEFAULT_CATEGORIES, custom]).map((c) => c.id)
+    expect(ids.slice(-2)).toEqual([OTHER_CATEGORY_IDS.expense, OTHER_CATEGORY_IDS.income])
+
+    const expense = userCategories([...DEFAULT_CATEGORIES, custom].filter((c) => c.kind === 'expense'))
+    expect(expense.at(-1)?.id).toBe(OTHER_CATEGORY_IDS.expense)
+    expect(expense.map((c) => c.id)).toContain('cat_custom')
   })
 
   it('el «Otros» de gasto no admite presupuesto', () => {
@@ -68,5 +78,15 @@ describe('categoría preseleccionada', () => {
   it('sin «Otros» disponible queda vacía', () => {
     const noOther = DEFAULT_CATEGORIES.filter((c) => c.id !== OTHER_CATEGORY_IDS.expense)
     expect(initialCategoryId(noOther, 'expense')).toBe('')
+  })
+})
+
+describe('isDuplicateCategoryName', () => {
+  it('compara sin mayúsculas ni espacios, dentro del mismo tipo y sin contarse a sí misma', () => {
+    const cats = [...DEFAULT_CATEGORIES, custom]
+    expect(isDuplicateCategoryName(cats, '  mascotas ', 'expense')).toBe(true)
+    expect(isDuplicateCategoryName(cats, 'Mascotas', 'income')).toBe(false)
+    expect(isDuplicateCategoryName(cats, 'Mascotas', 'expense', 'cat_custom')).toBe(false)
+    expect(isDuplicateCategoryName(cats, '   ', 'expense')).toBe(false)
   })
 })

@@ -236,12 +236,33 @@ export const SYSTEM_CATEGORY_IDS: readonly string[] = [
 export const isSystemCategory = (id: string | undefined): boolean =>
   !!id && SYSTEM_CATEGORY_IDS.includes(id)
 
+const OTHER_IDS: readonly string[] = Object.values(OTHER_CATEGORY_IDS)
+
 /**
- * Categorías que el usuario puede ver y elegir. `keep` conserva una categoría oculta
- * que ya está en uso (p. ej. al editar un movimiento que ya la tiene).
+ * Categorías que el usuario puede ver y elegir, con «Otros» siempre al final. `keep`
+ * conserva una categoría oculta que ya está en uso (p. ej. al editar un movimiento que
+ * ya la tiene).
  */
 export function userCategories<T extends { id: string }>(categories: T[], keep?: string): T[] {
-  return categories.filter((c) => !HIDDEN_CATEGORY_IDS.includes(c.id) || c.id === keep)
+  const visible = categories.filter((c) => !HIDDEN_CATEGORY_IDS.includes(c.id) || c.id === keep)
+  return [
+    ...visible.filter((c) => !OTHER_IDS.includes(c.id)),
+    ...visible.filter((c) => OTHER_IDS.includes(c.id)),
+  ]
+}
+
+/** Ya hay otra categoría del mismo tipo con ese nombre (sin distinguir mayúsculas). */
+export function isDuplicateCategoryName(
+  categories: { id: string; name: string; kind: TransactionType }[],
+  name: string,
+  kind: TransactionType,
+  exceptId?: string
+): boolean {
+  const n = name.trim().toLowerCase()
+  if (!n) return false
+  return categories.some(
+    (c) => c.id !== exceptId && c.kind === kind && c.name.trim().toLowerCase() === n
+  )
 }
 
 /** El «Otros» de gasto no admite presupuesto. */

@@ -3,7 +3,7 @@ import { CURRENCIES, CurrencyId } from '@/constants/currencies'
 import { Category, TransactionType, CommissionType } from '@/hooks/useWallet'
 import { WALLET_COLORS, DEFAULT_ACCOUNT_COLOR, isDefaultColor } from '@/constants/walletColors'
 import { CheckIcon } from '@/components/icons'
-import { getCategoryIcon, userCategories } from '@/constants/walletCategories'
+import { CATEGORY_ICON_KEYS, getCategoryIcon, userCategories } from '@/constants/walletCategories'
 import { cn } from '@/lib/utils'
 import { Input } from '@/components/ui/input'
 import {
@@ -246,6 +246,52 @@ export function CurrencyToggle({
           {c.symbol}
         </button>
       ))}
+    </div>
+  )
+}
+
+/** Cuadrícula de iconos de categoría; el elegido se tiñe con `color`. */
+export function CategoryIconPicker({
+  value,
+  onChange,
+  color,
+}: {
+  value: string
+  onChange: (icon: string) => void
+  color: string | undefined
+}) {
+  const accent = color ?? DEFAULT_ACCOUNT_COLOR
+  return (
+    <div className="grid grid-cols-5 gap-1.5">
+      {CATEGORY_ICON_KEYS.map((key) => {
+        const Icon = getCategoryIcon(key)
+        const selected = value === key
+        return (
+          <button
+            key={key}
+            type="button"
+            onClick={() => onChange(key)}
+            aria-pressed={selected}
+            className={cn(
+              'flex aspect-square items-center justify-center rounded-xl border transition-all',
+              selected
+                ? 'border-transparent'
+                : 'border-border/50 bg-card text-muted-foreground hover:border-border hover:text-foreground'
+            )}
+            style={
+              selected
+                ? {
+                    color: accent,
+                    backgroundColor: `color-mix(in oklch, ${accent} 18%, transparent)`,
+                    boxShadow: `0 0 0 2px color-mix(in oklch, ${accent} 55%, transparent)`,
+                  }
+                : undefined
+            }
+          >
+            <Icon className="size-5" />
+          </button>
+        )
+      })}
     </div>
   )
 }

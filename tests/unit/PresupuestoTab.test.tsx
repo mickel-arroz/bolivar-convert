@@ -1,7 +1,11 @@
 import { render, screen } from '@testing-library/react'
 import { describe, it, expect, vi } from 'vitest'
 import { PresupuestoTab } from '@/components/billetera/PresupuestoTab'
-import { formatMoney } from '@/components/billetera/format'
+import { formatMoney as rawFormatMoney } from '@/components/billetera/format'
+
+/** Como lo lee `toHaveTextContent`, que convierte el espacio de no separación en uno normal. */
+const formatMoney = (...args: Parameters<typeof rawFormatMoney>) =>
+  rawFormatMoney(...args).replace(/ /g, ' ')
 import type { Budget, BudgetStatusRow, Goal, GoalBalance, StatsBundle, WalletApi } from '@/hooks/useWallet'
 import type { Rates } from '@/constants/rates'
 

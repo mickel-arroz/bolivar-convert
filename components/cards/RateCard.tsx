@@ -46,7 +46,7 @@ export function RateCard({
       <CardContent>
         <div className="flex items-baseline gap-3">
           <span className="text-4xl font-extrabold tracking-tighter">
-            Bs. {rate}
+            Bs.&nbsp;{rate}
           </span>
           {percentageBadge}
         </div>

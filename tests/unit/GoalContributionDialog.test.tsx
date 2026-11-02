@@ -1,7 +1,11 @@
 import { fireEvent, render, screen } from '@testing-library/react'
 import { describe, it, expect, vi } from 'vitest'
 import { GoalContributionDialog } from '@/components/billetera/GoalContributionDialog'
-import { formatMoney } from '@/components/billetera/format'
+import { formatMoney as rawFormatMoney } from '@/components/billetera/format'
+
+/** Como lo lee `toHaveTextContent`, que convierte el espacio de no separación en uno normal. */
+const formatMoney = (...args: Parameters<typeof rawFormatMoney>) =>
+  rawFormatMoney(...args).replace(/ /g, ' ')
 import type { Account, Goal, GoalContribution, WalletApi } from '@/hooks/useWallet'
 
 const account = (id: string, name: string): Account => ({

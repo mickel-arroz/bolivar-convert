@@ -68,19 +68,19 @@ export function GrandTotalCard({
             {!tipIncluded && tipValue > 0 && (
               <div className="flex items-center justify-between">
                 <span>Propina</span>
-                <span className="font-mono">+ {symbol}{fmt(tipValue)}</span>
+                <span className="font-mono">+&nbsp;{symbol}{fmt(tipValue)}</span>
               </div>
             )}
             {!ivaIncluded && (
               <div className="flex items-center justify-between">
                 <span>IVA ({TAX_RATES.IVA * 100}%)</span>
-                <span className="font-mono">+ {symbol}{fmt(ivaValue)}</span>
+                <span className="font-mono">+&nbsp;{symbol}{fmt(ivaValue)}</span>
               </div>
             )}
             {showIgtf && (
               <div className="flex items-center justify-between">
                 <span>IGTF ({TAX_RATES.IGTF * 100}%)</span>
-                <span className="font-mono">+ {symbol}{fmt(igtfValue)}</span>
+                <span className="font-mono">+&nbsp;{symbol}{fmt(igtfValue)}</span>
               </div>
             )}
           </div>

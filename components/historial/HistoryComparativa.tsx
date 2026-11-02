@@ -27,7 +27,7 @@ function formatDate(date: string) {
 
 function formatBs(value: number) {
   const sign = value >= 0 ? '+' : '-'
-  return `${sign}Bs. ${Math.abs(value).toLocaleString('es-VE', {
+  return `${sign}Bs. ${Math.abs(value).toLocaleString('es-VE', {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   })}`

@@ -1,6 +1,9 @@
 import { CurrencyId, getCurrency } from '@/constants/currencies'
 
-/** Formatea un monto con el símbolo de su moneda (es-VE para Bs., en-US para divisas). */
+/**
+ * Formatea un monto con el símbolo de su moneda (es-VE para Bs., en-US para divisas).
+ * Símbolo y monto van unidos por un espacio de no separación: nunca se parten en dos líneas.
+ */
 export function formatMoney(value: number, currency: CurrencyId): string {
   const { symbol } = getCurrency(currency)
   const locale = currency === 'VES' ? 'es-VE' : 'en-US'
@@ -9,7 +12,7 @@ export function formatMoney(value: number, currency: CurrencyId): string {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   })
-  return `${symbol} ${formatted}`
+  return `${symbol} ${formatted}`
 }
 
 /** Formatea una fecha 'YYYY-MM-DD' o ISO a 'dd mmm yyyy' (en UTC para evitar desfases). */

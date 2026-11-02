@@ -36,6 +36,7 @@ import {
   TransferIcon,
   ShoppingCartIcon,
   TemplateIcon,
+  CheckIcon,
 } from '@/components/icons'
 import { cn } from '@/lib/utils'
 import { notify } from '@/lib/notify'
@@ -467,7 +468,8 @@ export function PresupuestoTab({ wallet, stats, dialogs, rates }: PresupuestoTab
                           />
                         </div>
                         {reached && (
-                          <p className="text-xs font-semibold" style={{ color: accent }}>
+                          <p className="flex items-center gap-1 text-xs font-semibold text-green-600 dark:text-green-400">
+                            <CheckIcon className="size-3.5 shrink-0" />
                             Meta alcanzada
                           </p>
                         )}

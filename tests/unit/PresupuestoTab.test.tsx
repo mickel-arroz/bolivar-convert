@@ -173,6 +173,7 @@ describe('PresupuestoTab — planes de ahorro', () => {
 
     const card = screen.getByText('Viaje').closest('[data-slot="card"]') as HTMLElement
     expect(card).toHaveTextContent('Meta alcanzada')
+    expect(screen.getByText('Meta alcanzada')).toHaveClass('text-green-600')
     expect(card.querySelector('[data-testid="plan-progress"]')).not.toBeNull()
     expect(card).toHaveTextContent('Mover dinero')
   })

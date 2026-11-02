@@ -421,11 +421,13 @@ export function PresupuestoTab({ wallet, stats, dialogs, rates }: PresupuestoTab
                         </div>
                         <div className="min-w-0">
                           <p className="truncate font-bold">{goal.name}</p>
-                          {target > 0 && (
-                            <p className="text-xs text-muted-foreground tabular-nums">
-                              {formatMoney(saved, goal.currency)} de {formatMoney(target, goal.currency)}
-                            </p>
-                          )}
+                          <p
+                            data-testid="plan-saved"
+                            className="text-xs text-muted-foreground tabular-nums"
+                          >
+                            {formatMoney(saved, goal.currency)}
+                            {target > 0 && <> de {formatMoney(target, goal.currency)}</>}
+                          </p>
                         </div>
                       </div>
                       <div className="flex items-center">
@@ -466,12 +468,9 @@ export function PresupuestoTab({ wallet, stats, dialogs, rates }: PresupuestoTab
                         )}
                       </div>
                     ) : (
-                      <div className="flex flex-wrap items-baseline gap-x-2">
-                        <p data-testid="plan-saved" className="text-2xl font-black tabular-nums">
-                          {formatMoney(saved, goal.currency)}
-                        </p>
-                        <span className="text-xs text-muted-foreground">Sin meta</span>
-                      </div>
+                      <p className="flex h-2 items-center text-xs leading-none text-muted-foreground">
+                        Sin meta
+                      </p>
                     )}
 
                     {goal.description && (

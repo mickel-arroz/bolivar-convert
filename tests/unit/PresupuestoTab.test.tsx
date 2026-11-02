@@ -154,7 +154,7 @@ describe('PresupuestoTab — planes de ahorro', () => {
     expect(screen.getByRole('button', { name: /Nuevo plan/ })).toBeInTheDocument()
   })
 
-  it('un plan sin Meta muestra el acumulado en grande y «Sin meta», sin barra', () => {
+  it('un plan sin Meta muestra el acumulado como los demás y «Sin meta» en lugar de la barra', () => {
     renderTab([], [], { goals: [plan('g1', 'Colchón')], goalBalances: [saved('g1', 250)] })
 
     const card = screen.getByText('Colchón').closest('[data-slot="card"]') as HTMLElement

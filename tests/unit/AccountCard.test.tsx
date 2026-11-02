@@ -38,6 +38,7 @@ describe('AccountCard', () => {
 
     expect(screen.getByTestId('account-available')).toHaveTextContent('1.000,00')
     expect(screen.queryByTestId('account-in-goals')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('account-total')).not.toBeInTheDocument()
   })
 
   it('muestra el Disponible en grande y En planes debajo cuando hay algo apartado', () => {
@@ -46,6 +47,11 @@ describe('AccountCard', () => {
     expect(screen.getByTestId('account-available')).toHaveTextContent('700,00')
     expect(screen.getByTestId('account-in-goals')).toHaveTextContent('300,00')
     expect(screen.getByTestId('account-in-goals')).toHaveTextContent('300,00 en planes')
+    expect(screen.getByTestId('account-total')).toHaveTextContent('1.000,00')
+    expect(
+      screen.getByTestId('account-total').compareDocumentPosition(screen.getByTestId('account-in-goals')) &
+        Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy()
   })
 
   describe('conversiones', () => {

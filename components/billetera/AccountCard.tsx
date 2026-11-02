@@ -9,7 +9,7 @@ import { getAccountIcon } from '@/constants/walletCategories'
 import { DEFAULT_ACCOUNT_COLOR } from '@/constants/walletColors'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { PencilIcon, TrashIcon, TargetIcon } from '@/components/icons'
+import { PencilIcon, TrashIcon, TargetIcon, WalletIcon } from '@/components/icons'
 import { cn } from '@/lib/utils'
 import { formatMoney } from './format'
 
@@ -73,9 +73,6 @@ export function AccountCard({
         </div>
 
         <div className="flex flex-col gap-0.5">
-          <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-            Disponible
-          </span>
           <p
             data-testid="account-available"
             className={cn(
@@ -97,6 +94,17 @@ export function AccountCard({
                 </span>
               ))}
             </div>
+          )}
+          {inGoals !== 0 && (
+            <p
+              data-testid="account-total"
+              className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground"
+            >
+              <WalletIcon className="size-3.5 shrink-0" />
+              <span className="tabular-nums">
+                Total: <span className="text-foreground">{formatMoney(available + inGoals, account.currency)}</span>
+              </span>
+            </p>
           )}
           {inGoals !== 0 && (
             <p

@@ -258,18 +258,19 @@ export function ShoppingListDetailDialog({
             ? 'h-[100dvh] w-screen max-h-[100dvh] max-w-[100vw] rounded-none border-0'
             : 'sm:max-w-2xl'
         )}
+        actions={
+          !compact && (
+            <button
+              type="button"
+              onClick={() => setFullscreen((f) => !f)}
+              aria-label={fullscreen ? 'Salir de pantalla completa' : 'Pantalla completa'}
+              className="rounded-full p-1 text-muted-foreground outline-none transition-colors hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50"
+            >
+              {fullscreen ? <MinimizeIcon className="size-4" /> : <MaximizeIcon className="size-4" />}
+            </button>
+          )
+        }
       >
-        {!compact && (
-          <button
-            type="button"
-            onClick={() => setFullscreen((f) => !f)}
-            aria-label={fullscreen ? 'Salir de pantalla completa' : 'Pantalla completa'}
-            className="absolute right-11 top-4 rounded-lg p-1 text-muted-foreground outline-none transition-colors hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50"
-          >
-            {fullscreen ? <MinimizeIcon className="size-4" /> : <MaximizeIcon className="size-4" />}
-          </button>
-        )}
-
         <DialogHeader className={cn('gap-3', compact ? 'pr-8' : 'pr-16')}>
           <div className="flex items-center gap-3">
             <div

@@ -24,7 +24,7 @@ function AlertDialogOverlay({ className, ...props }: AlertDialogPrimitive.Backdr
     <AlertDialogPrimitive.Backdrop
       data-slot="alert-dialog-overlay"
       className={cn(
-        'fixed inset-0 z-50 bg-black/60 backdrop-blur-sm transition-opacity duration-200 data-ending-style:opacity-0 data-starting-style:opacity-0',
+        'fixed inset-0 z-50 bg-black/50 backdrop-blur-[6px] transition-opacity duration-300 ease-out data-ending-style:opacity-0 data-starting-style:opacity-0',
         className
       )}
       {...props}
@@ -43,8 +43,8 @@ function AlertDialogContent({
       <AlertDialogPrimitive.Popup
         data-slot="alert-dialog-content"
         className={cn(
-          'fixed left-1/2 top-1/2 z-50 w-full max-w-sm -translate-x-1/2 -translate-y-1/2 rounded-2xl border border-border/60 bg-card p-6 shadow-2xl transition-all duration-200 data-ending-style:opacity-0 data-ending-style:scale-95 data-starting-style:opacity-0 data-starting-style:scale-95',
-          'max-lg:flex max-lg:flex-col max-lg:justify-center max-lg:overflow-y-auto max-lg:h-dvh! max-lg:max-h-dvh! max-lg:w-screen! max-lg:max-w-[100vw]! max-lg:rounded-none! max-lg:border-0!',
+          'fixed inset-0 z-50 m-auto h-fit w-[calc(100%-2rem)] max-w-sm rounded-3xl bg-card ring-1 ring-border/70 p-6 shadow-[0_24px_64px_-16px_rgb(0_0_0/0.5)] transition-all duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] data-ending-style:translate-y-2 data-ending-style:scale-[0.97] data-ending-style:opacity-0 data-ending-style:duration-150 data-starting-style:translate-y-4 data-starting-style:scale-[0.97] data-starting-style:opacity-0',
+          'max-lg:flex max-lg:flex-col max-lg:justify-center max-lg:overflow-y-auto max-lg:h-dvh! max-lg:max-h-dvh! max-lg:w-screen! max-lg:max-w-[100vw]! max-lg:rounded-none! max-lg:border-0! max-lg:shadow-none max-lg:ring-0 max-lg:data-starting-style:translate-y-12 max-lg:data-starting-style:scale-100 max-lg:data-ending-style:scale-100',
           className
         )}
         {...props}
@@ -59,7 +59,7 @@ function AlertDialogHeader({ className, ...props }: ComponentProps<'div'>) {
   return (
     <div
       data-slot="alert-dialog-header"
-      className={cn('flex flex-col gap-2 mb-5', className)}
+      className={cn('mb-6 flex flex-col gap-1', className)}
       {...props}
     />
   )
@@ -79,7 +79,7 @@ function AlertDialogTitle({ className, ...props }: AlertDialogPrimitive.Title.Pr
   return (
     <AlertDialogPrimitive.Title
       data-slot="alert-dialog-title"
-      className={cn('text-lg font-black text-foreground', className)}
+      className={cn('text-xl font-black leading-tight tracking-tight text-foreground', className)}
       {...props}
     />
   )
@@ -92,7 +92,7 @@ function AlertDialogDescription({
   return (
     <AlertDialogPrimitive.Description
       data-slot="alert-dialog-description"
-      className={cn('text-sm text-muted-foreground', className)}
+      className={cn('text-sm leading-relaxed text-muted-foreground', className)}
       {...props}
     />
   )

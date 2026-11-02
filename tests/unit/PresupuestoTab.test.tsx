@@ -16,6 +16,7 @@ vi.mock('@/components/billetera/ConcludeMonthDialog', () => ({ ConcludeMonthDial
 vi.mock('@/components/billetera/BudgetTemplatesDialog', () => ({ BudgetTemplatesDialog: () => null }))
 vi.mock('@/components/billetera/GoalFormDialog', () => ({ GoalFormDialog: () => null }))
 vi.mock('@/components/billetera/GoalContributionDialog', () => ({ GoalContributionDialog: () => null }))
+vi.mock('@/components/billetera/GoalDeleteDialog', () => ({ GoalDeleteDialog: () => null }))
 vi.mock('@/components/billetera/ShoppingSummaryButton', () => ({ ShoppingSummaryButton: () => null }))
 vi.mock('@/components/billetera/ShoppingListFormDialog', () => ({ ShoppingListFormDialog: () => null }))
 vi.mock('@/components/billetera/ShoppingListDetailDialog', () => ({ ShoppingListDetailDialog: () => null }))

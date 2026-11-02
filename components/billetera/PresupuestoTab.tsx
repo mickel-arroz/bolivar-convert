@@ -48,6 +48,7 @@ import { formatMoney } from './format'
 import { ConcludeMonthDialog } from './ConcludeMonthDialog'
 import { BudgetTemplatesDialog } from './BudgetTemplatesDialog'
 import { GoalFormDialog } from './GoalFormDialog'
+import { GoalDeleteDialog } from './GoalDeleteDialog'
 import { GoalContributionDialog } from './GoalContributionDialog'
 import { ShoppingSummaryButton } from './ShoppingSummaryButton'
 import { ShoppingListFormDialog } from './ShoppingListFormDialog'
@@ -64,7 +65,7 @@ interface PresupuestoTabProps {
 }
 
 export function PresupuestoTab({ wallet, stats, dialogs, rates }: PresupuestoTabProps) {
-  const { state, removeBudget, goalBalances, removeGoal, removeShoppingList } = wallet
+  const { state, removeBudget, goalBalances, removeShoppingList } = wallet
   const { advice, loaded: adviceLoaded } = useAdvice()
   const month = useMemo(() => monthKey(new Date()), [])
   const [concludeOpen, setConcludeOpen] = useState(false)
@@ -655,34 +656,11 @@ export function PresupuestoTab({ wallet, stats, dialogs, rates }: PresupuestoTab
         goal={contributionGoal}
       />
 
-      <AlertDialog
-        open={!!pendingDeleteGoal}
+      <GoalDeleteDialog
+        goal={pendingDeleteGoal}
         onOpenChange={(o) => !o && setPendingDeleteGoal(null)}
-      >
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Eliminar plan de ahorro</AlertDialogTitle>
-            <AlertDialogDescription>
-              Se eliminará «{pendingDeleteGoal?.name}» y su historial de aportes. El dinero ya
-              retirado a tus cuentas no se ve afectado. Esta acción no se puede deshacer.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancelar</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={() => {
-                if (pendingDeleteGoal) {
-                  removeGoal(pendingDeleteGoal.id)
-                  notify.success('Plan de ahorro eliminado')
-                }
-                setPendingDeleteGoal(null)
-              }}
-            >
-              Eliminar
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+        wallet={wallet}
+      />
 
       <ShoppingListFormDialog
         open={listForm.open}

@@ -96,26 +96,23 @@ export function AccountCard({
             </div>
           )}
           {inGoals !== 0 && (
-            <p
-              data-testid="account-total"
-              className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground"
-            >
-              <WalletIcon className="size-3.5 shrink-0" />
-              <span className="tabular-nums">
-                Total: <span className="text-foreground">{formatMoney(available + inGoals, account.currency)}</span>
-              </span>
-            </p>
-          )}
-          {inGoals !== 0 && (
-            <p
-              data-testid="account-in-goals"
-              className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground"
-            >
-              <TargetIcon className="size-3.5 shrink-0" />
-              <span className="tabular-nums">
-                {formatMoney(inGoals, account.currency)} en planes
-              </span>
-            </p>
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-0.5 text-xs font-semibold text-muted-foreground">
+              <p data-testid="account-total" className="flex items-center gap-1.5">
+                <WalletIcon className="size-3.5 shrink-0" />
+                <span className="tabular-nums">
+                  Total:{' '}
+                  <span className="text-foreground">
+                    {formatMoney(available + inGoals, account.currency)}
+                  </span>
+                </span>
+              </p>
+              <p data-testid="account-in-goals" className="flex items-center gap-1.5">
+                <TargetIcon className="size-3.5 shrink-0" />
+                <span className="tabular-nums">
+                  {formatMoney(inGoals, account.currency)} en planes
+                </span>
+              </p>
+            </div>
           )}
         </div>
       </CardContent>

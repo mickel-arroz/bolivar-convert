@@ -33,6 +33,9 @@ export function BudgetsSummaryCard({
     { label: 'Presupuesto gastado', value: summary.spentBudget },
     { label: 'Extra gastado', value: summary.spentExtra },
     { label: 'Gastado de más', value: summary.overspent, bad: summary.overspent > 1e-9 },
+    ...(summary.carriedDeficit > 1e-9
+      ? [{ label: 'Déficit previo', value: summary.carriedDeficit, bad: true }]
+      : []),
   ]
 
   return (
@@ -87,12 +90,6 @@ export function BudgetsSummaryCard({
           ))}
         </div>
 
-        {summary.carriedDeficit > 1e-9 && (
-          <p className="text-[11px] text-muted-foreground tabular-nums">
-            Lo gastado incluye {formatMoney(summary.carriedDeficit, cur)} de déficit arrastrado del mes
-            anterior.
-          </p>
-        )}
         {over && (
           <p className="flex items-center gap-1.5 text-xs font-bold text-destructive">
             <AlertIcon className="size-3.5" />

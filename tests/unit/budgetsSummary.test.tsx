@@ -243,6 +243,16 @@ describe('BudgetsSummaryCard', () => {
     expect(screen.getByText('2 presupuestos')).toBeInTheDocument()
   })
 
+  it('muestra el «Déficit previo» solo si hay déficit arrastrado', () => {
+    const { rerender } = render(<BudgetsSummaryCard summary={summary} />)
+    expect(screen.queryByText(/^Déficit previo:/)).not.toBeInTheDocument()
+
+    const withDeficit = summarize([{ ...row({ limit: 100, actual: 30 }), carriedDeficit: 30 }])
+    rerender(<BudgetsSummaryCard summary={withDeficit} />)
+    expect(screen.getByText(/^Déficit previo:/)).toHaveTextContent('Bs. 30,00')
+    expect(screen.queryByText(/incluye/i)).not.toBeInTheDocument()
+  })
+
   it('la barra es toda verde sin gastos y el rojo crece con el gasto', () => {
     const { rerender } = render(
       <BudgetsSummaryCard summary={summarize([row({ limit: 100 }), row({ limit: 100 })])} />

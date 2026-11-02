@@ -15,6 +15,7 @@ import {
 } from '@/components/icons'
 import { SectionHeader } from '@/components/SectionHeader'
 import { evaluateExpression } from '@/lib/mathExpression'
+import { toCopyableAmount } from '@/lib/copyAmount'
 import { useMathInput, formatPreview } from '@/hooks/useMathInput'
 
 const STORAGE_KEY = 'bolivar_convert_prefs'
@@ -251,10 +252,7 @@ function ResultCard({ label, value, currency, icon, subLabel, colorClass, textCo
   const [copied, setCopied] = useState(false)
 
   const handleCopy = () => {
-    // Eliminar separadores de miles para copiar un número limpio si es necesario, 
-    // pero usualmente el usuario quiere el texto tal cual. 
-    // Copiamos el valor visible.
-    navigator.clipboard.writeText(value).then(() => {
+    navigator.clipboard.writeText(toCopyableAmount(value)).then(() => {
       setCopied(true)
       setTimeout(() => setCopied(false), 2000)
     })

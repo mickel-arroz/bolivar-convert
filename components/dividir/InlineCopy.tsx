@@ -3,11 +3,12 @@
 import { useState } from 'react'
 import { CheckIcon, CopyIcon } from '@/components/icons'
 import { cn } from '@/lib/utils'
+import { toCopyableAmount } from '@/lib/copyAmount'
 
 export function InlineCopy({ textToCopy, className }: { textToCopy: string; className?: string }) {
   const [copied, setCopied] = useState(false)
   const handleCopy = () => {
-    navigator.clipboard.writeText(textToCopy)
+    navigator.clipboard.writeText(toCopyableAmount(textToCopy))
     setCopied(true)
     setTimeout(() => setCopied(false), 2000)
   }

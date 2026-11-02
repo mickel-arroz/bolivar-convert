@@ -420,6 +420,13 @@ export interface BudgetsSummary {
   /** Extra que queda libre (negativo mientras haya un déficit arrastrado sin cubrir). */
   extraLeft: number
   /**
+   * Gastado por encima de lo disponible de cada presupuesto (estimado + extra), sumado
+   * presupuesto a presupuesto. Cierra las cuentas del desglose:
+   * `spentBudget + spentExtra + overspent = spent` y
+   * `freeBudget + extraLeft − overspent = total − spent`.
+   */
+  overspent: number
+  /**
    * Gastado por encima del total general (presupuesto + extra de todos sumados); 0 si lo
    * gastado cabe en la suma. Un presupuesto que se pasó solo no cuenta si otros tienen
    * holgura para cubrirlo: es la suma lo que se compara.
@@ -442,8 +449,8 @@ export interface BudgetsSummary {
  *
  * Reparto del gasto de cada presupuesto: consume primero el estimado y, agotado este, el
  * extra. Un extra negativo (déficit) no se gasta: reduce lo disponible y sigue figurando
- * en `extraLeft`, de modo que `freeBudget + extraLeft = total − gastado` mientras ningún
- * presupuesto se pase por su cuenta.
+ * en `extraLeft`. Lo que un presupuesto gasta por encima de su estimado + extra va a
+ * `overspent`, así el desglose siempre cuadra con lo gastado y lo disponible.
  *
  * `overflow` compara la suma de lo gastado contra la suma de lo disponible: un presupuesto
  * que se pasó no cuenta mientras la suma general alcance.
@@ -472,6 +479,7 @@ export function summarizeBudgets(
     spentExtra: 0,
     freeBudget: 0,
     extraLeft: 0,
+    overspent: 0,
     spent: 0,
   }
   for (const row of rows) {
@@ -489,6 +497,7 @@ export function summarizeBudgets(
     s.spentExtra += spentExtra
     s.freeBudget += limit - spentBudget
     s.extraLeft += carry - spentExtra
+    s.overspent += actual - spentBudget - spentExtra
     s.spent += actual
   }
 

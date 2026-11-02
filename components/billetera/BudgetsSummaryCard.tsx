@@ -24,8 +24,7 @@ export function BudgetsSummaryCard({
   const pct = summary.ratio * 100
   const over = summary.overflow > 1e-9
 
-  // Los siete datos pedidos, en el orden en que se leen: qué hay, y qué va de eso.
-  const items: { label: string; value: number }[] = [
+  const items: { label: string; value: number; bad?: boolean }[] = [
     { label: 'Presupuesto total', value: summary.budget },
     { label: 'Extra', value: summary.extra },
     { label: 'Presupuesto + extra', value: summary.total },
@@ -33,6 +32,7 @@ export function BudgetsSummaryCard({
     { label: 'Extra libre', value: summary.extraLeft },
     { label: 'Presupuesto gastado', value: summary.spentBudget },
     { label: 'Extra gastado', value: summary.spentExtra },
+    { label: 'Gastado de más', value: summary.overspent, bad: summary.overspent > 1e-9 },
   ]
 
   return (
@@ -80,7 +80,7 @@ export function BudgetsSummaryCard({
           {items.map((it) => (
             <span key={it.label}>
               {it.label}:{' '}
-              <span className={cn('font-bold text-foreground', it.value < 0 && 'text-destructive')}>
+              <span className={cn('font-bold text-foreground', (it.value < 0 || it.bad) && 'text-destructive')}>
                 {formatMoney(it.value, cur)}
               </span>
             </span>

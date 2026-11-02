@@ -151,6 +151,34 @@ describe('summarizeBudgets', () => {
     }
   })
 
+  it('lo gastado por encima de cada presupuesto va a «gastado de más»', () => {
+    // El primero gastó 150 de 100 + 10: 40 de más. El segundo gastó 20 de 50.
+    const s = summarize([
+      row({ limit: 100, carryover: 10, actual: 150 }),
+      row({ limit: 50, actual: 20 }),
+    ])
+
+    expect(s.spentBudget).toBe(120)
+    expect(s.spentExtra).toBe(10)
+    expect(s.overspent).toBe(40)
+    expect(s.freeBudget).toBe(30)
+  })
+
+  it('el desglose siempre cuadra con lo gastado y lo disponible', () => {
+    const cases = [
+      [row({ limit: 100, carryover: 10, actual: 150 }), row({ limit: 50, actual: 20 })],
+      [row({ limit: 100, actual: 150 }), row({ limit: 200 })],
+      [row({ limit: 50, carryover: -80, actual: 10 }), row({ limit: 0 })],
+      [row({ limit: 100, carryover: -30, actual: 120 }), row({ limit: 100, carryover: 20, actual: 300 })],
+      [row({ limit: 100, carryover: 20, actual: 60 }), row({ limit: 200, carryover: 30, actual: 100 })],
+    ]
+    for (const rows of cases) {
+      const s = summarize(rows)
+      expect(s.spentBudget + s.spentExtra + s.overspent).toBeCloseTo(s.spent)
+      expect(s.freeBudget + s.extraLeft - s.overspent).toBeCloseTo(s.total - s.spent)
+    }
+  })
+
   it('con una sola moneda se queda en ella aunque la preferida sea otra, sin necesitar tasas', () => {
     const s = summarize(
       [row({ limit: 10, currency: 'USD' }), row({ limit: 5, actual: 2, currency: 'USD' })],
@@ -195,7 +223,7 @@ describe('BudgetsSummaryCard', () => {
     row({ limit: 200, carryover: 30, actual: 100 }),
   ])
 
-  it('muestra los siete datos pedidos', () => {
+  it('muestra el desglose completo', () => {
     render(<BudgetsSummaryCard summary={summary} />)
 
     for (const label of [
@@ -206,6 +234,7 @@ describe('BudgetsSummaryCard', () => {
       'Extra libre',
       'Presupuesto gastado',
       'Extra gastado',
+      'Gastado de más',
     ]) {
       expect(screen.getByText(new RegExp(`^${label.replace('+', '\\+')}:`))).toBeInTheDocument()
     }

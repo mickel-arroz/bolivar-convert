@@ -488,8 +488,48 @@ describe('useWallet Hook', () => {
         ])
       )
 
-      expect(budgetOf(result, 'cat_transport', curMonth)?.carryover).toBe('-25')
+      expect(budgetOf(result, 'cat_transport', curMonth)).toMatchObject({ carryover: '0', carriedDeficit: '25' })
       expect(budgetOf(result, 'cat_food', curMonth)?.carryover).toBe('0')
+    })
+
+    it('el neto negativo arranca como déficit arrastrado, sin tope, y cuenta como utilizado', async () => {
+      const { result } = renderHook(() => useWallet())
+      await waitFor(() => expect(result.current.isMounted).toBe(true))
+      act(() => result.current.setBudget('cat_food', prevMonth, '200', 'VES'))
+      act(() => result.current.setBudget('cat_transport', prevMonth, '100', 'VES'))
+
+      act(() =>
+        result.current.concludeBudgetMonth(prevMonth, curMonth, [
+          { fromCategoryId: 'cat_food', destination: { kind: 'category', categoryId: 'cat_food' }, amount: 50 },
+          { fromCategoryId: 'cat_food', destination: { kind: 'category', categoryId: 'cat_transport' }, amount: 30 },
+          { fromCategoryId: 'cat_transport', destination: { kind: 'category', categoryId: 'cat_transport' }, amount: -150 },
+        ])
+      )
+
+      expect(budgetOf(result, 'cat_food', curMonth)).toMatchObject({ limit: '200', carryover: '50' })
+      expect(budgetOf(result, 'cat_food', curMonth)?.carriedDeficit).toBeUndefined()
+      expect(budgetOf(result, 'cat_transport', curMonth)).toMatchObject({
+        limit: '100',
+        carryover: '0',
+        carriedDeficit: '120',
+      })
+
+      const rows = result.current.budgetStatusForMonth(RATES, curMonth)
+      const transport = rows.find((r) => r.budget.categoryId === 'cat_transport')!
+      expect(transport).toMatchObject({ actual: 120, carriedDeficit: 120, effectiveLimit: 100 })
+      expect(transport.effectiveLimit - transport.actual).toBe(-20)
+      expect(rows.find((r) => r.budget.categoryId === 'cat_food')?.effectiveLimit).toBe(250)
+    })
+
+    it('el déficit se netea primero con el extra que ya tenía el mes nuevo', async () => {
+      const { result } = renderHook(() => useWallet())
+      await waitFor(() => expect(result.current.isMounted).toBe(true))
+      act(() => result.current.setBudget('cat_transport', prevMonth, '100', 'VES'))
+      act(() => result.current.setBudget('cat_transport', curMonth, '100', 'VES', '20'))
+
+      act(() => result.current.concludeBudgetMonth(prevMonth, curMonth, carryTo({ cat_transport: -50 })))
+
+      expect(budgetOf(result, 'cat_transport', curMonth)).toMatchObject({ carryover: '0', carriedDeficit: '30' })
     })
 
     it('una categoría destino sin presupuesto se crea con límite 0 y el arrastre recibido', async () => {

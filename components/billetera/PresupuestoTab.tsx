@@ -39,7 +39,7 @@ import {
 } from '@/components/icons'
 import { cn } from '@/lib/utils'
 import { notify } from '@/lib/notify'
-import { parseAmount, summarizeBudgets } from '@/lib/wallet/compute'
+import { parseAmount, previousMonth, summarizeBudgets } from '@/lib/wallet/compute'
 import { WalletDialogs } from './dialogs'
 import { BudgetsSummaryCard } from './BudgetsSummaryCard'
 import { AdviceCard } from './AdviceCard'
@@ -320,6 +320,13 @@ export function PresupuestoTab({ wallet, stats, dialogs, rates }: PresupuestoTab
                       </span>
                     )}
                   </div>
+
+                  {row.carriedDeficit > 0 && (
+                    <p className="text-[11px] text-muted-foreground tabular-nums">
+                      Incluye {formatMoney(row.carriedDeficit, cur)} del déficit de{' '}
+                      {formatMonthLabel(previousMonth(row.budget.month))}
+                    </p>
+                  )}
 
                   {row.isOver && (
                     <p className="flex items-center gap-1.5 text-xs font-bold text-destructive">

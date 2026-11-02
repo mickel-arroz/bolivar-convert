@@ -50,6 +50,10 @@ _Avoid_: en metas, bloqueado, reservado, apartado, congelado
 La categoría de sistema que recibe lo que el usuario no clasificó. Hay una de gasto y una de ingreso; no se editan, no se borran y la de gasto no admite presupuesto. Los traspasos no tienen categoría.
 _Avoid_: sin categoría, varios, misceláneo
 
+**Déficit arrastrado**:
+Lo que un presupuesto recibe como neto negativo al concluir el mes anterior. Arranca el mes como ya utilizado de su estimado, sin tope (puede superarlo), y el extra queda en 0: al empezar un mes el extra nunca es negativo. No es un gasto del mes: no crea movimientos ni cuenta en Estadísticas.
+_Avoid_: extra negativo, deuda, déficit heredado
+
 **Presupuesto sobrepasado**:
 Un presupuesto cuyo gasto del mes es mayor que su límite efectivo (límite más arrastre). Con límite efectivo de cero o menos, cualquier gasto lo sobrepasa.
 _Avoid_: excedido, roto, pasado

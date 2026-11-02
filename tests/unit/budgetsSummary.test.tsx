@@ -31,6 +31,7 @@ const row = (o: {
     actual: o.actual ?? 0,
     limit: o.limit,
     carryover,
+    carriedDeficit: 0,
     effectiveLimit: o.limit + carryover,
     ratio: 0,
     isOver: false,

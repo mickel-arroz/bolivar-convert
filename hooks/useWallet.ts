@@ -11,7 +11,7 @@ import {
   isSystemCategory,
 } from '@/constants/walletCategories'
 import { buildWalletDelta, isEmptyDelta } from '@/lib/wallet/delta'
-import type { MonthCloseAllocation } from '@/lib/wallet/monthClose'
+import { settleCarryover, type MonthCloseAllocation } from '@/lib/wallet/monthClose'
 import {
   DEFAULT_DISPLAY_CURRENCY,
   clearLegacyNetWorthCurrency,
@@ -131,6 +131,8 @@ export interface Budget {
   currency: CurrencyId
   /** Sobrante/déficit arrastrado de meses anteriores (con signo). Independiente de `limit`. */
   carryover?: string
+  /** Déficit arrastrado: lo que el cierre del mes anterior dejó como ya utilizado (positivo). */
+  carriedDeficit?: string
 }
 
 /** Traspaso de presupuesto entre categorías al activar otra plantilla (queda en el feed). */
@@ -341,6 +343,8 @@ export interface BudgetStatusRow {
   limit: number
   /** Extra arrastrado (con signo). */
   carryover: number
+  /** Déficit arrastrado, ya incluido en `actual`. */
+  carriedDeficit: number
   /** Disponible real = limit + carryover. */
   effectiveLimit: number
   ratio: number
@@ -673,14 +677,25 @@ export function linkedShoppingItem(s: WalletState, txId: string): ShoppingListIt
   return s.shoppingItems.find((it) => it.purchase?.transactionId === txId)
 }
 
-/** Suma las correcciones al extra arrastrado de sus presupuestos (acumula si se repiten). */
+/**
+ * Suma `amount` al arrastre con que arrancó un presupuesto, neteado con su Déficit
+ * arrastrado: el extra nunca queda negativo, lo que falta pasa a déficit.
+ */
+function addToCarry(b: Budget, amount: number): Budget {
+  return { ...b, ...settleCarryover(parseSigned(b.carryover) - parseSigned(b.carriedDeficit) + amount) }
+}
+
+function sumDeficits(a: string | undefined, b: string | undefined): string | undefined {
+  const n = parseSigned(a) + parseSigned(b)
+  return n > 0 ? String(n) : undefined
+}
+
+/** Suma las correcciones al arrastre de sus presupuestos (acumula si se repiten). */
 function applyCorrections(budgets: Budget[], corrections: CarryoverCorrection[]): Budget[] {
   if (corrections.length === 0) return budgets
   const byId = new Map<string, number>()
   for (const c of corrections) byId.set(c.budgetId, (byId.get(c.budgetId) ?? 0) + c.amount)
-  return budgets.map((b) =>
-    byId.has(b.id) ? { ...b, carryover: String(parseSigned(b.carryover) + byId.get(b.id)!) } : b
-  )
+  return budgets.map((b) => (byId.has(b.id) ? addToCarry(b, byId.get(b.id)!) : b))
 }
 
 /* ─── Hook ─── */
@@ -1302,9 +1317,16 @@ export function useWallet() {
                 ...ex,
                 limit: String(parseAmount(ex.limit) + parseAmount(fb.limit)),
                 carryover: String(parseSigned(ex.carryover) + parseSigned(fb.carryover)),
+                carriedDeficit: sumDeficits(ex.carriedDeficit, fb.carriedDeficit),
               }
             } else {
-              budgets[idx] = { ...ex, limit: fb.limit, currency: fb.currency, carryover: fb.carryover }
+              budgets[idx] = {
+                ...ex,
+                limit: fb.limit,
+                currency: fb.currency,
+                carryover: fb.carryover,
+                carriedDeficit: fb.carriedDeficit,
+              }
             }
           } else {
             budgets.push({ ...fb, id: generateId(), categoryId: toId })
@@ -1371,7 +1393,8 @@ export function useWallet() {
    * Concluye `fromMonth` aplicando el Reparto del cierre de una sola vez: el estimado
    * de cada presupuesto pasa a `toMonth` y cada Tramo suma su parte al arrastre de una
    * categoría, aporta a un Plan de ahorro (sin cuenta) o se descarta. Los tramos hacia
-   * otra categoría quedan en el historial como `BudgetTransfer`.
+   * otra categoría quedan en el historial como `BudgetTransfer`. El neto que recibe cada
+   * categoría va al extra si es positivo, o al Déficit arrastrado si es negativo.
    */
   const concludeBudgetMonth = useCallback(
     (fromMonth: string, toMonth: string, allocations: readonly MonthCloseAllocation[]) => {
@@ -1395,6 +1418,7 @@ export function useWallet() {
         const createdAt = new Date().toISOString()
         const goalContributions: GoalContribution[] = []
         const budgetTransfers: BudgetTransfer[] = []
+        const incoming = new Map<number, number>()
         for (const a of allocations) {
           const source = fromByCategory.get(a.fromCategoryId)
           if (!source || a.amount === 0) continue
@@ -1404,7 +1428,7 @@ export function useWallet() {
             const idx = ensureBudget(dest.categoryId, '0', source.currency)
             const target = budgets[idx]
             if (target.currency !== source.currency) continue
-            budgets[idx] = { ...target, carryover: String(parseSigned(target.carryover) + a.amount) }
+            incoming.set(idx, (incoming.get(idx) ?? 0) + a.amount)
             if (dest.categoryId !== a.fromCategoryId) {
               budgetTransfers.push({
                 id: generateId(),
@@ -1433,6 +1457,9 @@ export function useWallet() {
             })
           }
         }
+
+        // Cada categoría arranca con el neto de todo lo que le llegó (y lo que ya tenía).
+        for (const [idx, amount] of incoming) budgets[idx] = addToCarry(budgets[idx], amount)
 
         const concludedMonths = s.concludedMonths.includes(fromMonth)
           ? s.concludedMonths

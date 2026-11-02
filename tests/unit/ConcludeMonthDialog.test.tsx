@@ -50,6 +50,16 @@ const editar = (name: string) =>
   fireEvent.click(screen.getByRole('button', { name: `Cambiar reparto de ${name}` }))
 const concluir = () => screen.getByRole('button', { name: 'Concluir mes' })
 
+/** Elige un destino del selector n-ésimo; el Select de base-ui elige con eventos de puntero. */
+async function elegirDestino(n: number, name: RegExp) {
+  fireEvent.click(screen.getAllByRole('combobox')[n])
+  const option = await screen.findByRole('option', { name })
+  fireEvent.pointerDown(option, { pointerType: 'mouse' })
+  fireEvent.pointerUp(option, { pointerType: 'mouse' })
+  fireEvent.mouseUp(option)
+  fireEvent.click(option)
+}
+
 describe('ConcludeMonthDialog — reparto del cierre', () => {
   it('por defecto muestra el arrastre sin editor y agrupa las categorías en cero', () => {
     renderDialog([row('cat_food', 'Comida', 100, 10), row('cat_transport', 'Transporte', 50, 50)])
@@ -59,6 +69,13 @@ describe('ConcludeMonthDialog — reparto del cierre', () => {
     expect(screen.getByText('Sin sobrante ni déficit:')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Cambiar reparto de Transporte' })).not.toBeInTheDocument()
     expect(concluir()).toBeEnabled()
+  })
+
+  it('el déficit arrastrado se descuenta del estimado del mes nuevo', () => {
+    renderDialog([row('cat_transport', 'Transporte', 50, 80)])
+
+    expect(screen.getByText('Disponible').nextElementSibling).toHaveTextContent('Bs. 20,00')
+    expect(screen.getByText('Arranca con Bs. 30,00 ya utilizado por el déficit.')).toBeInTheDocument()
   })
 
   it('sin tocar nada arrastra todo el sobrante a la misma categoría', () => {
@@ -163,6 +180,45 @@ describe('ConcludeMonthDialog — reparto del cierre', () => {
     rerender(<ConcludeMonthDialog {...props} wallet={{ ...wallet }} rates={{ ...RATES }} />)
 
     expect(tramo('Comida', 1)).toHaveValue('60')
+  })
+
+  it('pasar sobrante a una categoría con deuda muestra en vivo cuánto le queda', async () => {
+    renderDialog([row('cat_food', 'Comida', 100, 10), row('cat_transport', 'Transporte', 50, 80)])
+
+    editar('Comida')
+    fireEvent.click(screen.getByRole('button', { name: 'Monto' }))
+    fireEvent.change(tramo('Comida', 1), { target: { value: '70' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Agregar destino a Comida' }))
+
+    await elegirDestino(1, /Transporte/)
+
+    expect(screen.getByText('→').parentElement).toHaveTextContent('+Bs. 20,00→+Bs. 40,00')
+    expect(screen.getByText('Arranca con Bs. 10,00 ya utilizado por el déficit.')).toBeInTheDocument()
+    expect(screen.getByText('De Comida')).toBeInTheDocument()
+
+    fireEvent.change(tramo('Comida', 1), { target: { value: '50' } })
+    fireEvent.change(tramo('Comida', 2), { target: { value: '40' } })
+
+    expect(screen.getByText('Va al extra: +Bs. 10,00.')).toBeInTheDocument()
+  })
+
+  it('concluye con lo editado aunque no se haya pulsado «Listo»', async () => {
+    const conclude = renderDialog([row('cat_food', 'Comida', 100, 10), row('cat_transport', 'Transporte', 50, 80)])
+
+    editar('Comida')
+    fireEvent.click(screen.getByRole('button', { name: 'Monto' }))
+    fireEvent.change(tramo('Comida', 1), { target: { value: '60' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Agregar destino a Comida' }))
+    await elegirDestino(1, /Transporte/)
+
+    expect(screen.getByRole('button', { name: 'Listo' })).toBeInTheDocument()
+    fireEvent.click(concluir())
+
+    expect(conclude).toHaveBeenCalledWith('2026-09', '2026-10', [
+      { fromCategoryId: 'cat_food', destination: { kind: 'category', categoryId: 'cat_food' }, amount: 60 },
+      { fromCategoryId: 'cat_food', destination: { kind: 'category', categoryId: 'cat_transport' }, amount: 30 },
+      { fromCategoryId: 'cat_transport', destination: { kind: 'category', categoryId: 'cat_transport' }, amount: -30 },
+    ])
   })
 
   it('quitar un tramo vuelve a dejar el reparto incompleto', () => {

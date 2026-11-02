@@ -100,13 +100,14 @@ export function EstadisticasTab({ wallet }: EstadisticasTabProps) {
     [stats.monthlySeries]
   )
 
-  // Presupuesto (disponible) vs gastado del mes actual, por categoría.
+  // Presupuesto (disponible) vs gastado del mes actual, por categoría. El Déficit
+  // arrastrado no es gasto de este mes: aquí solo cuenta lo gastado de verdad.
   const budgetData = useMemo(
     () =>
       stats.budgetStatus.map((r) => ({
         label: r.categoryName,
         presupuesto: r.effectiveLimit,
-        gastado: r.actual,
+        gastado: r.actual - r.carriedDeficit,
       })),
     [stats.budgetStatus]
   )

@@ -87,6 +87,12 @@ export function BudgetsSummaryCard({
           ))}
         </div>
 
+        {summary.carriedDeficit > 1e-9 && (
+          <p className="text-[11px] text-muted-foreground tabular-nums">
+            Lo gastado incluye {formatMoney(summary.carriedDeficit, cur)} de déficit arrastrado del mes
+            anterior.
+          </p>
+        )}
         {over && (
           <p className="flex items-center gap-1.5 text-xs font-bold text-destructive">
             <AlertIcon className="size-3.5" />

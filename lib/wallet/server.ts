@@ -171,6 +171,7 @@ function budgetToRow(b: Budget, userId: string) {
     limit: b.limit,
     currency: b.currency,
     carryover: nn(b.carryover),
+    carried_deficit: nn(b.carriedDeficit),
   }
 }
 function rowToBudget(r: Record<string, unknown>): Budget {
@@ -182,6 +183,7 @@ function rowToBudget(r: Record<string, unknown>): Budget {
     limit: r.limit as string,
     currency: r.currency as CurrencyId,
     carryover: un(r.carryover as string | null),
+    carriedDeficit: un(r.carried_deficit as string | null),
   }
 }
 
@@ -657,7 +659,7 @@ export async function resetWalletMoney(supabase: SupabaseClient, userId: string)
   // 2) Poner en cero los montos de los elementos conservados.
   await Promise.all([
     update('accounts', { opening_balance: '0' }),
-    update('budgets', { limit: '0', carryover: null }),
+    update('budgets', { limit: '0', carryover: null, carried_deficit: null }),
     update('shopping_list_items', { purchased: false, purchase: null }),
   ])
 

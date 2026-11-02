@@ -56,3 +56,46 @@ export function splitMonthRemainder(
   if (Math.sign(last) !== sign) return null
   return [...parts, last]
 }
+
+export interface CarryoverFlow {
+  fromCategoryId: string
+  amount: number
+}
+
+export interface CarryoverProjection {
+  /** Arrastre que la categoría ya tenía en el mes nuevo. */
+  base: number
+  /** Lo que le llega del Reparto del cierre, de sí misma o de otras categorías. */
+  flows: CarryoverFlow[]
+  total: number
+}
+
+/**
+ * Arrastre con que arrancaría cada categoría que recibe algo del Reparto del cierre:
+ * lo que ya tenía en el mes nuevo más todos los tramos que apuntan a ella.
+ */
+export function projectCarryovers(
+  base: ReadonlyMap<string, number>,
+  allocations: readonly MonthCloseAllocation[]
+): Map<string, CarryoverProjection> {
+  const out = new Map<string, CarryoverProjection>()
+  for (const a of allocations) {
+    if (a.destination.kind !== 'category' || a.amount === 0) continue
+    const id = a.destination.categoryId
+    const p = out.get(id) ?? { base: base.get(id) ?? 0, flows: [], total: base.get(id) ?? 0 }
+    p.flows.push({ fromCategoryId: a.fromCategoryId, amount: a.amount })
+    p.total = round2(p.total + a.amount)
+    out.set(id, p)
+  }
+  return out
+}
+
+/**
+ * Cómo arranca un presupuesto del mes nuevo con el neto que le dejó el cierre: si es
+ * positivo va al extra; si es negativo, el extra queda en 0 y el neto entero pasa a ser
+ * Déficit arrastrado, que cuenta como ya utilizado del estimado (sin tope).
+ */
+export function settleCarryover(net: number): { carryover: string; carriedDeficit: string | undefined } {
+  const n = round2(net)
+  return n < 0 ? { carryover: '0', carriedDeficit: String(-n) } : { carryover: String(n), carriedDeficit: undefined }
+}

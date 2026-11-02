@@ -83,6 +83,13 @@ export function formatMonthLabel(month: string): string {
   return d.toLocaleDateString('es-VE', { month: 'short', year: 'numeric' })
 }
 
+/** Clave 'YYYY-MM' del mes anterior. */
+export function previousMonth(month: string): string {
+  const [y, m] = month.split('-').map(Number)
+  const d = new Date(y, (m || 1) - 2, 1)
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+}
+
 /** Lista de claves de mes 'YYYY-MM' desde `startKey` hasta `endKey` (inclusive). */
 export function enumerateMonths(startKey: string, endKey: string): string[] {
   const [sy, sm] = startKey.split('-').map(Number)
@@ -377,6 +384,9 @@ export function budgetStatusForMonth(
         if (bt.month !== month) continue
         actual += normalize(parseAmount(bt.spent), bt.currency, budget.currency, rates, statsRateSource)
       }
+      // El Déficit arrastrado cuenta como ya utilizado del mes.
+      const carriedDeficit = parseAmount(budget.carriedDeficit)
+      actual += carriedDeficit
       const limit = parseAmount(budget.limit)
       const carryover = parseSigned(budget.carryover)
       const effectiveLimit = limit + carryover
@@ -389,6 +399,7 @@ export function budgetStatusForMonth(
         actual,
         limit,
         carryover,
+        carriedDeficit,
         effectiveLimit,
         ratio,
         isOver: isBudgetOver(actual, effectiveLimit),
@@ -434,6 +445,8 @@ export interface BudgetsSummary {
   overflow: number
   /** Σ gastado real, tal como lo muestra cada tarjeta. */
   spent: number
+  /** Parte de `spent` que es Déficit arrastrado del mes anterior, no gasto de este mes. */
+  carriedDeficit: number
   /** Parte gastada del total, de 0 a 1. 1 si no hay total y sí gasto. */
   ratio: number
   /** Se convirtieron presupuestos de otra moneda. */
@@ -481,6 +494,7 @@ export function summarizeBudgets(
     extraLeft: 0,
     overspent: 0,
     spent: 0,
+    carriedDeficit: 0,
   }
   for (const row of rows) {
     const from = row.budget.currency
@@ -499,6 +513,7 @@ export function summarizeBudgets(
     s.extraLeft += carry - spentExtra
     s.overspent += actual - spentBudget - spentExtra
     s.spent += actual
+    s.carriedDeficit += conv(row.carriedDeficit, from)
   }
 
   const total = s.budget + s.extra

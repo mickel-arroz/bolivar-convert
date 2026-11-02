@@ -35,9 +35,10 @@ import {
   SelectItem,
 } from '@/components/ui/select'
 import { cn } from '@/lib/utils'
-import { parseAmount } from '@/lib/wallet/compute'
+import { parseAmount, parseSigned } from '@/lib/wallet/compute'
 import {
   isSettled,
+  projectCarryovers,
   remainderGap,
   round2,
   splitMonthRemainder,
@@ -75,6 +76,8 @@ interface Row {
   icon: string
   color?: string
   currency: CurrencyId
+  /** Estimado del mes que se concluye. */
+  limit: number
   remaining: number
 }
 
@@ -97,7 +100,7 @@ function toDestination(dest: string): CloseDestination {
   return { kind: 'discard' }
 }
 
-function DestinationLabel({ info }: { info: DestinationInfo }) {
+function DestinationLabel({ info, note }: { info: DestinationInfo; note?: string }) {
   return (
     <span className="flex min-w-0 items-center gap-2">
       <info.Icon
@@ -105,7 +108,39 @@ function DestinationLabel({ info }: { info: DestinationInfo }) {
         style={info.color ? { color: info.color } : undefined}
       />
       <span className="truncate">{info.label}</span>
+      {note && <span className="shrink-0 text-[11px] font-semibold text-destructive">{note}</span>}
     </span>
+  )
+}
+
+const signedColor = (n: number) =>
+  n >= 0.005 ? 'text-green-600 dark:text-green-400' : n <= -0.005 ? 'text-destructive' : 'text-foreground'
+
+const formatSigned = (n: number, currency: CurrencyId) => `${n >= 0.005 ? '+' : ''}${formatMoney(n, currency)}`
+
+/** Cómo cambia la deuda de una categoría con lo que este tramo le lleva. */
+function DebtChange({
+  before,
+  after,
+  currency,
+  className,
+}: {
+  before: number
+  after: number
+  currency: CurrencyId
+  className?: string
+}) {
+  return (
+    <p
+      className={cn(
+        'flex items-center gap-1 overflow-hidden whitespace-nowrap text-[11px] tabular-nums text-muted-foreground',
+        className
+      )}
+    >
+      <span className={cn('font-semibold', signedColor(before))}>{formatSigned(before, currency)}</span>
+      <span aria-hidden>→</span>
+      <span className={cn('font-semibold', signedColor(after))}>{formatSigned(after, currency)}</span>
+    </p>
   )
 }
 
@@ -129,6 +164,7 @@ export function ConcludeMonthDialog({
       icon: r.categoryIcon,
       color: r.categoryColor,
       currency: r.budget.currency,
+      limit: r.limit,
       remaining: r.effectiveLimit - r.actual,
     }))
   }, [fromMonth, rates, budgetStatusForMonth])
@@ -145,6 +181,19 @@ export function ConcludeMonthDialog({
     }
     return byCategory
   }, [state.budgets, state.activeBudgetTemplateId, fromMonth, toMonth])
+
+  // Arrastre neto (extra − Déficit arrastrado) y estimado que cada categoría ya tiene en
+  // el mes nuevo, antes del Reparto del cierre.
+  const { baseCarryover, nextLimit } = useMemo(() => {
+    const carry = new Map<string, number>()
+    const limits = new Map<string, number>()
+    for (const b of state.budgets) {
+      if (b.templateId !== state.activeBudgetTemplateId || b.month !== toMonth) continue
+      carry.set(b.categoryId, parseSigned(b.carryover) - parseAmount(b.carriedDeficit))
+      limits.set(b.categoryId, parseAmount(b.limit))
+    }
+    return { baseCarryover: carry, nextLimit: limits }
+  }, [state.budgets, state.activeBudgetTemplateId, toMonth])
 
   const categories = useMemo(() => budgetableCategories(state.categories), [state.categories])
 
@@ -190,16 +239,26 @@ export function ConcludeMonthDialog({
   const canConfirm = splits.every((s) => s !== null)
   const pendingCount = splits.filter((s) => s === null).length
 
+  const allocations: MonthCloseAllocation[] = []
+  rows.forEach((r, i) => {
+    planOf(r).tramos.forEach((t, j) => {
+      const amount = splits[i]?.[j]
+      if (!amount) return
+      allocations.push({ fromCategoryId: r.categoryId, destination: toDestination(t.dest), amount })
+    })
+  })
+  const projections = projectCarryovers(baseCarryover, allocations)
+  const projectedOf = (categoryId: string) =>
+    projections.get(categoryId)?.total ?? baseCarryover.get(categoryId) ?? 0
+  // Si la categoría aún no tiene presupuesto en el mes nuevo, arranca con el estimado
+  // del mes que se concluye (el que se copia al concluir).
+  const estimateOf = (categoryId: string) =>
+    nextLimit.get(categoryId) ?? rows.find((r) => r.categoryId === categoryId)?.limit ?? 0
+  const categoryName = (categoryId: string) =>
+    categories.find((c) => c.id === categoryId)?.name ?? rows.find((r) => r.categoryId === categoryId)?.name ?? '—'
+
   const handleConfirm = () => {
     if (!canConfirm) return
-    const allocations: MonthCloseAllocation[] = []
-    rows.forEach((r, i) => {
-      planOf(r).tramos.forEach((t, j) => {
-        const amount = splits[i]?.[j]
-        if (!amount) return
-        allocations.push({ fromCategoryId: r.categoryId, destination: toDestination(t.dest), amount })
-      })
-    })
     concludeBudgetMonth(fromMonth, toMonth, allocations)
     onOpenChange(false)
   }
@@ -351,6 +410,46 @@ export function ConcludeMonthDialog({
             const removeTramo = (j: number) =>
               updatePlan(r.categoryId, { ...plan, tramos: plan.tramos.filter((_, k) => k !== j) })
 
+            // Lo que un tramo hacia otra categoría le hace a su deuda, con todos los
+            // demás tramos que también le llegan ya contados.
+            const debtChange = (t: Tramo, j: number, className?: string) => {
+              const amount = split?.[j]
+              if (!amount || !t.dest.startsWith('cat:') || t.dest === `cat:${r.categoryId}`) return null
+              const id = t.dest.slice(4)
+              const after = projectedOf(id)
+              const before = round2(after - amount)
+              if (before > -0.005 && after > -0.005) return null
+              const estimate = estimateOf(id)
+              return (
+                <DebtChange
+                  before={round2(estimate + before)}
+                  after={round2(estimate + after)}
+                  currency={r.currency}
+                  className={className}
+                />
+              )
+            }
+            const owedNote = (categoryId: string) => {
+              const owed = projectedOf(categoryId)
+              return owed <= -0.005 ? `Debe ${formatMoney(-owed, r.currency)}` : undefined
+            }
+
+            const projection = projections.get(r.categoryId)
+            const incoming = new Map<string, number>()
+            let own = projection?.base ?? baseCarryover.get(r.categoryId) ?? 0
+            for (const f of projection?.flows ?? []) {
+              if (f.fromCategoryId === r.categoryId) own += f.amount
+              else incoming.set(f.fromCategoryId, (incoming.get(f.fromCategoryId) ?? 0) + f.amount)
+            }
+            own = round2(own)
+            const finalCarry = projectedOf(r.categoryId)
+            const nextEstimate = estimateOf(r.categoryId)
+            const available = round2(nextEstimate + finalCarry)
+            const canBeCovered =
+              negative &&
+              incoming.size === 0 &&
+              rows.some((o) => o.currency === r.currency && o.remaining >= 0.005)
+
             return (
               <div
                 key={r.categoryId}
@@ -385,17 +484,73 @@ export function ConcludeMonthDialog({
                   </div>
                 </div>
 
+                <div className="flex flex-col gap-1.5 rounded-lg border border-dashed border-border/70 p-3 text-xs tabular-nums">
+                  <span className="font-semibold text-muted-foreground">Así queda en {toLabel}</span>
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-muted-foreground">Estimado</span>
+                    <span className="font-semibold">{formatMoney(nextEstimate, r.currency)}</span>
+                  </div>
+                  {Math.abs(own) >= 0.005 && (
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-muted-foreground">{own < 0 ? 'Déficit propio' : 'Arrastre propio'}</span>
+                      <span className={cn('font-semibold', signedColor(own))}>{formatSigned(own, r.currency)}</span>
+                    </div>
+                  )}
+                  {[...incoming].map(([fromId, amount]) => {
+                    const from = rows.find((x) => x.categoryId === fromId)
+                    const FromIcon = getCategoryIcon(from?.icon ?? 'other')
+                    return (
+                      <div key={fromId} className="flex items-center justify-between gap-2">
+                        <span className="flex min-w-0 items-center gap-1.5 text-muted-foreground">
+                          <FromIcon
+                            className="size-3.5 shrink-0"
+                            style={from?.color ? { color: from.color } : undefined}
+                          />
+                          <span className="truncate">De {categoryName(fromId)}</span>
+                        </span>
+                        <span className={cn('shrink-0 font-semibold', signedColor(amount))}>
+                          {formatSigned(amount, r.currency)}
+                        </span>
+                      </div>
+                    )
+                  })}
+                  <div className="h-px bg-border/60" />
+                  <div className="flex items-center justify-between gap-2 font-bold">
+                    <span>Disponible</span>
+                    <span className={signedColor(available)}>{formatSigned(available, r.currency)}</span>
+                  </div>
+                  {finalCarry <= -0.005 && (
+                    <span className="text-[11px] text-muted-foreground">
+                      Arranca con {formatMoney(-finalCarry, r.currency)} ya utilizado por el déficit.
+                    </span>
+                  )}
+                  {finalCarry >= 0.005 && (
+                    <span className="text-[11px] text-muted-foreground">
+                      Va al extra: {formatSigned(finalCarry, r.currency)}.
+                    </span>
+                  )}
+                </div>
+
+                {canBeCovered && (
+                  <p className="text-[11px] text-muted-foreground">
+                    Puedes cubrir este déficit enviándole sobrante de otra categoría.
+                  </p>
+                )}
+
                 {!isEditing ? (
                   <div className="flex items-center justify-between gap-2 rounded-lg bg-muted/40 py-1.5 pl-3 pr-1.5">
                     <ul className="flex min-w-0 flex-1 flex-col gap-1 text-sm">
                       {plan.tramos.map((t, j) => (
-                        <li key={j} className="flex items-center justify-between gap-2">
-                          <DestinationLabel info={destinationInfo(r, t.dest)} />
-                          {plan.tramos.length > 1 && (
-                            <span className="shrink-0 text-xs tabular-nums text-muted-foreground">
-                              {formatMoney(split?.[j] ?? 0, r.currency)}
-                            </span>
-                          )}
+                        <li key={j} className="flex flex-col gap-0.5">
+                          <div className="flex items-center justify-between gap-2">
+                            <DestinationLabel info={destinationInfo(r, t.dest)} />
+                            {plan.tramos.length > 1 && (
+                              <span className="shrink-0 text-xs tabular-nums text-muted-foreground">
+                                {formatMoney(split?.[j] ?? 0, r.currency)}
+                              </span>
+                            )}
+                          </div>
+                          {debtChange(t, j, 'pl-6')}
                         </li>
                       ))}
                     </ul>
@@ -440,7 +595,8 @@ export function ConcludeMonthDialog({
                     </div>
 
                     {plan.tramos.map((t, j) => (
-                      <div key={j} className="flex flex-col gap-1.5 @sm:flex-row @sm:items-start @sm:gap-2">
+                      <div key={j} className="flex flex-col gap-1">
+                      <div className="flex flex-col gap-1.5 @sm:flex-row @sm:items-start @sm:gap-2">
                         <div className="min-w-0 @sm:flex-1">
                           <Select value={t.dest} onValueChange={(v) => setTramo(j, { dest: v as string })}>
                             <SelectTrigger className="w-full bg-card">
@@ -457,7 +613,7 @@ export function ConcludeMonthDialog({
                                   <SelectLabel>Pasar a otra categoría</SelectLabel>
                                   {otherCategories.map((c) => (
                                     <SelectItem key={c.id} value={`cat:${c.id}`}>
-                                      <DestinationLabel info={destinationInfo(r, `cat:${c.id}`)} />
+                                      <DestinationLabel info={destinationInfo(r, `cat:${c.id}`)} note={owedNote(c.id)} />
                                     </SelectItem>
                                   ))}
                                 </SelectGroup>
@@ -513,6 +669,8 @@ export function ConcludeMonthDialog({
                             </Button>
                           )}
                         </div>
+                      </div>
+                      {debtChange(t, j)}
                       </div>
                     ))}
 

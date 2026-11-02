@@ -35,6 +35,7 @@ const row = (id: string, name: string, limit: number, actual: number): BudgetSta
   actual,
   limit,
   carryover: 0,
+  carriedDeficit: 0,
   effectiveLimit: limit,
   ratio: limit > 0 ? actual / limit : 0,
   isOver: false,

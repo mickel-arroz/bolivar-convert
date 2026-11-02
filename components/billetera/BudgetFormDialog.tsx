@@ -17,6 +17,8 @@ import {
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select'
 import { Field, AmountField, CurrencyToggle } from './fields'
 import { notify } from '@/lib/notify'
+import { parseAmount, previousMonth } from '@/lib/wallet/compute'
+import { formatMoney } from './format'
 
 /** Presupuesto en borrador (sin persistir) para la vista de lista de una plantilla. */
 export interface BudgetDraftItem {
@@ -115,6 +117,14 @@ export function BudgetFormDialog({
     }
   }, [categoryId, open, isItemMode, state.budgets, month, activeTemplateId])
 
+  const carriedDeficit = isItemMode
+    ? 0
+    : parseAmount(
+        state.budgets.find(
+          (b) => b.templateId === activeTemplateId && b.categoryId === categoryId && b.month === month
+        )?.carriedDeficit
+      )
+
   // Validación: título (nombre de categoría) no repetido en el mismo ámbito.
   const duplicateTitle = useMemo(() => {
     const name = state.categories.find((c) => c.id === categoryId)?.name.trim().toLowerCase()
@@ -136,7 +146,10 @@ export function BudgetFormDialog({
 
   const limitValue = limit.trim() === '' ? '0' : limit
   const limitNum = parseFloat(limitValue.replace(',', '.'))
-  const canSubmit = !!categoryId && Number.isFinite(limitNum) && limitNum >= 0 && !duplicateTitle
+  // El extra nunca es negativo: un déficit solo lo deja el cierre del mes, como Déficit arrastrado.
+  const negativeExtra = !isItemMode && parseAmount(carryover) < 0
+  const canSubmit =
+    !!categoryId && Number.isFinite(limitNum) && limitNum >= 0 && !duplicateTitle && !negativeExtra
 
   const handleSubmit = () => {
     if (!canSubmit) return
@@ -211,12 +224,30 @@ export function BudgetFormDialog({
           />
 
           {!isItemMode && (
-            <AmountField
-              label="Extra"
-              hint="Sobrante o déficit arrastrado. Por defecto 0; puedes ajustarlo (admite negativos)."
-              value={carryover}
-              onValueChange={setCarryover}
-            />
+            <div className="flex flex-col gap-1.5">
+              <AmountField
+                label="Extra"
+                hint="Sobrante arrastrado o dinero adicional para este mes. Por defecto 0."
+                value={carryover}
+                onValueChange={setCarryover}
+              />
+              {negativeExtra && (
+                <span className="text-xs text-destructive">
+                  El extra no puede ser negativo. Los déficits los registra el cierre del mes.
+                </span>
+              )}
+            </div>
+          )}
+
+          {carriedDeficit > 0 && (
+            <Field
+              label="Déficit del mes anterior"
+              hint={`Lo dejó el cierre de ${formatMonthLabel(previousMonth(month))}: cuenta como ya utilizado de este presupuesto.`}
+            >
+              <div className="flex h-10 items-center justify-end rounded-lg border border-input bg-muted/40 px-3 text-sm font-semibold tabular-nums text-destructive">
+                {formatMoney(carriedDeficit, currency)}
+              </div>
+            </Field>
           )}
         </div>
 

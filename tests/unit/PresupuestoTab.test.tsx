@@ -200,11 +200,15 @@ describe('PresupuestoTab — restante de cada presupuesto', () => {
     expect(card('Comida')).not.toHaveTextContent(/Restante/)
   })
 
-  it('si se superó el presupuesto, el restante sale en negativo y en rojo', () => {
-    renderTab([{ ...row('a', 'Ocio', 30, 45), isOver: true, ratio: 1.5 }])
+  it('si el gasto iguala o supera el estimado, no muestra el restante', () => {
+    renderTab([
+      row('a', 'Comida', 100, 100),
+      { ...row('b', 'Ocio', 30, 45), isOver: true, ratio: 1.5 },
+      { ...row('c', 'Transporte', 50, 60), carryover: 20, effectiveLimit: 70 },
+    ])
 
-    const restante = screen.getByText(/Restante:/)
-    expect(restante).toHaveTextContent(`Restante: ${formatMoney(-15, 'VES')}`)
-    expect(restante).toHaveClass('text-destructive')
+    expect(card('Comida')).not.toHaveTextContent(/Restante/)
+    expect(card('Ocio')).not.toHaveTextContent(/Restante/)
+    expect(card('Transporte')).not.toHaveTextContent(/Restante/)
   })
 })

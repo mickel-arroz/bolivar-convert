@@ -308,7 +308,7 @@ export function PresupuestoTab({ wallet, stats, dialogs, rates }: PresupuestoTab
                   {/* Desglose estimado + extra arrastrado */}
                   <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[11px] text-muted-foreground tabular-nums">
                     <span>Estimado: {formatMoney(row.limit, cur)}</span>
-                    {row.actual > 0 && (
+                    {row.actual > 0 && row.actual < row.limit && (
                       <span className={cn(row.isOver && 'text-destructive')}>
                         Restante: {formatMoney(row.effectiveLimit - row.actual, cur)}
                       </span>

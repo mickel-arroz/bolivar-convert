@@ -73,6 +73,9 @@ export function AccountCard({
         </div>
 
         <div className="flex flex-col gap-0.5">
+          <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+            Disponible
+          </span>
           <p
             data-testid="account-available"
             className={cn(

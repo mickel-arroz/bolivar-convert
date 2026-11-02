@@ -45,12 +45,25 @@ function renderDialog(rows: BudgetStatusRow[]) {
   return concludeBudgetMonth
 }
 
-const tramo = (name: string, n: number) => screen.getByLabelText(`Tramo ${n} de ${name}`)
+const tramo = (name: string, n: number) => screen.getByLabelText(`Destino ${n} de ${name}`)
+const editar = (name: string) =>
+  fireEvent.click(screen.getByRole('button', { name: `Cambiar reparto de ${name}` }))
 const concluir = () => screen.getByRole('button', { name: 'Concluir mes' })
 
 describe('ConcludeMonthDialog — reparto del cierre', () => {
+  it('por defecto muestra el arrastre sin editor y agrupa las categorías en cero', () => {
+    renderDialog([row('cat_food', 'Comida', 100, 10), row('cat_transport', 'Transporte', 50, 50)])
+
+    expect(screen.getByText(/Arrastrar a/)).toBeInTheDocument()
+    expect(screen.queryByLabelText('Destino 1 de Comida')).not.toBeInTheDocument()
+    expect(screen.getByText('Sin sobrante ni déficit:')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Cambiar reparto de Transporte' })).not.toBeInTheDocument()
+    expect(concluir()).toBeEnabled()
+  })
+
   it('sin tocar nada arrastra todo el sobrante a la misma categoría', () => {
     const conclude = renderDialog([row('cat_food', 'Comida', 100, 10)])
+    editar('Comida')
 
     expect(tramo('Comida', 1)).toHaveValue('100')
     fireEvent.click(concluir())
@@ -62,6 +75,7 @@ describe('ConcludeMonthDialog — reparto del cierre', () => {
 
   it('un reparto incompleto avisa cuánto falta y no deja concluir', () => {
     renderDialog([row('cat_food', 'Comida', 100, 10)])
+    editar('Comida')
 
     fireEvent.change(tramo('Comida', 1), { target: { value: '60' } })
 
@@ -71,9 +85,10 @@ describe('ConcludeMonthDialog — reparto del cierre', () => {
 
   it('un tramo nuevo arranca con lo que falta asignar y se reparte por porcentaje', () => {
     const conclude = renderDialog([row('cat_food', 'Comida', 100, 10)])
+    editar('Comida')
 
     fireEvent.change(tramo('Comida', 1), { target: { value: '60' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Agregar tramo a Comida' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Agregar destino a Comida' }))
 
     expect(tramo('Comida', 2)).toHaveValue('40')
     expect(concluir()).toBeEnabled()
@@ -85,6 +100,7 @@ describe('ConcludeMonthDialog — reparto del cierre', () => {
 
   it('en modo monto los tramos se escriben en la moneda del presupuesto', () => {
     const conclude = renderDialog([row('cat_food', 'Comida', 100, 10)])
+    editar('Comida')
 
     fireEvent.click(screen.getByRole('button', { name: 'Monto' }))
     expect(tramo('Comida', 1)).toHaveValue('90')
@@ -92,7 +108,7 @@ describe('ConcludeMonthDialog — reparto del cierre', () => {
     fireEvent.change(tramo('Comida', 1), { target: { value: '50' } })
     expect(screen.getByText(/Falta asignar/)).toHaveTextContent('40,00')
 
-    fireEvent.click(screen.getByRole('button', { name: 'Agregar tramo a Comida' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Agregar destino a Comida' }))
     fireEvent.click(concluir())
     expect(conclude.mock.calls[0][2].map((a: { amount: number }) => a.amount)).toEqual([50, 40])
   })
@@ -107,11 +123,12 @@ describe('ConcludeMonthDialog — reparto del cierre', () => {
 
   it('cambiar de % a monto mantiene el reparto cuadrado', () => {
     renderDialog([row('cat_food', 'Comida', 10, 0)])
+    editar('Comida')
 
     fireEvent.change(tramo('Comida', 1), { target: { value: '33.33' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Agregar tramo a Comida' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Agregar destino a Comida' }))
     fireEvent.change(tramo('Comida', 2), { target: { value: '33.33' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Agregar tramo a Comida' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Agregar destino a Comida' }))
     expect(concluir()).toBeEnabled()
 
     fireEvent.click(screen.getByRole('button', { name: 'Monto' }))
@@ -122,11 +139,12 @@ describe('ConcludeMonthDialog — reparto del cierre', () => {
 
   it('un tramo agregado con todo repartido nace vacío y pide una cantidad', () => {
     renderDialog([row('cat_food', 'Comida', 100, 10)])
+    editar('Comida')
 
-    fireEvent.click(screen.getByRole('button', { name: 'Agregar tramo a Comida' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Agregar destino a Comida' }))
 
     expect(tramo('Comida', 2)).toHaveValue('')
-    expect(screen.getByText('Cada tramo necesita una cantidad')).toBeInTheDocument()
+    expect(screen.getByText('Cada destino necesita una cantidad')).toBeInTheDocument()
     expect(concluir()).toBeDisabled()
   })
 
@@ -139,6 +157,7 @@ describe('ConcludeMonthDialog — reparto del cierre', () => {
     } as unknown as WalletApi
     const props = { open: true, onOpenChange: vi.fn(), fromMonth: '2026-09', toMonth: '2026-10' }
     const { rerender } = render(<ConcludeMonthDialog {...props} wallet={wallet} rates={RATES} />)
+    editar('Comida')
 
     fireEvent.change(tramo('Comida', 1), { target: { value: '60' } })
     rerender(<ConcludeMonthDialog {...props} wallet={{ ...wallet }} rates={{ ...RATES }} />)
@@ -148,10 +167,11 @@ describe('ConcludeMonthDialog — reparto del cierre', () => {
 
   it('quitar un tramo vuelve a dejar el reparto incompleto', () => {
     renderDialog([row('cat_food', 'Comida', 100, 10)])
+    editar('Comida')
 
     fireEvent.change(tramo('Comida', 1), { target: { value: '60' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Agregar tramo a Comida' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Quitar tramo 2 de Comida' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Agregar destino a Comida' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Quitar destino 2 de Comida' }))
 
     expect(concluir()).toBeDisabled()
   })

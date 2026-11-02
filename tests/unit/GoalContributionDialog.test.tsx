@@ -31,7 +31,7 @@ const gc = (amount: number, accountId?: string): GoalContribution => ({
 function renderDialog(accounts: Account[], contributions: GoalContribution[], goal: Goal = plan) {
   const saved = contributions.reduce((sum, c) => sum + Number(c.amount), 0)
   const wallet = {
-    state: { accounts, goalContributions: contributions },
+    state: { accounts, goalContributions: contributions, goals: [goal], transactions: [], transfers: [] },
     accountFunds: accounts.map((a) => ({
       accountId: a.id,
       currency: 'USD',

@@ -9,4 +9,5 @@ export interface WalletDialogs {
   openTransfer: () => void
   openCategories: () => void
   openBudget: (categoryId?: string) => void
+  openEditGoalMovement: (movementId: string) => void
 }

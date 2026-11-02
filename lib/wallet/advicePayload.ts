@@ -83,6 +83,7 @@ export function buildAdvicePayload(input: AdviceInput, rates: Rates): AdvicePayl
     transactions: input.transactions,
     transfers: input.transfers,
     goalContributions: input.goalContributions,
+    goals: input.goals,
   })
   const accountById = new Map(input.accounts.map((a) => [a.id, a]))
 

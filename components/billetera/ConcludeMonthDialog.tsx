@@ -377,7 +377,7 @@ export function ConcludeMonthDialog({
             const otherCategories = categories.filter(
               (c) => c.id !== r.categoryId && acceptsCurrency(c.id)
             )
-            const goals = negative ? [] : state.goals.filter((g) => g.currency === r.currency)
+            const goals = negative ? [] : state.goals.filter((g) => !g.completedAt && g.currency === r.currency)
 
             // Al cambiar de modo el último tramo se queda con lo que falte, para que un
             // reparto que cuadraba siga cuadrando pese al redondeo.

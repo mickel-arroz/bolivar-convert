@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Goal, WalletApi } from '@/hooks/useWallet'
 import { getCurrency } from '@/constants/currencies'
-import { ACCOUNT_ICON_MAP } from '@/constants/walletCategories'
+import { ACCOUNT_ICON_MAP, getAccountIcon } from '@/constants/walletCategories'
 import { CheckIcon, WalletIcon } from '@/components/icons'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -18,15 +18,26 @@ import {
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select'
 import { cn } from '@/lib/utils'
 import { notify } from '@/lib/notify'
-import { computePlanWithdrawable, parseAmount, splitPlanWithdrawal } from '@/lib/wallet/compute'
+import {
+  computeAccountFunds,
+  computePlanWithdrawable,
+  parseAmount,
+  parseSigned,
+  splitPlanWithdrawal,
+} from '@/lib/wallet/compute'
+import { buildGoalMovements, movementIdOf } from '@/lib/wallet/goalMovements'
 import { Field, AmountField } from './fields'
 import { formatMoney, todayInputValue } from './format'
+import { mutationError } from './mutationMessages'
 
 interface GoalContributionDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   wallet: WalletApi
-  goal: Goal | null
+  /** Plan al que se mueve dinero (aporte o retiro nuevo). */
+  goal?: Goal | null
+  /** Aporte o retiro que se edita: permite cambiar también la cuenta y el plan. */
+  editingMovementId?: string | null
 }
 
 type Direction = 'in' | 'out'
@@ -35,56 +46,119 @@ export function GoalContributionDialog({
   open,
   onOpenChange,
   wallet,
-  goal,
+  goal: goalProp = null,
+  editingMovementId = null,
 }: GoalContributionDialogProps) {
-  const { state, accountFunds, goalBalances, moveToGoal } = wallet
+  const { state, moveToGoal, updateGoalMovement } = wallet
   const [direction, setDirection] = useState<Direction>('in')
+  const [goalId, setGoalId] = useState('')
   const [accountId, setAccountId] = useState('')
   const [amount, setAmount] = useState('')
   const [date, setDate] = useState(todayInputValue())
+  const [note, setNote] = useState('')
 
-  // Cuentas de la misma moneda que el plan.
+  const editing = useMemo(
+    () =>
+      editingMovementId
+        ? buildGoalMovements(state.goals, state.goalContributions).find((m) => m.id === editingMovementId)
+        : undefined,
+    [editingMovementId, state.goals, state.goalContributions]
+  )
+
+  // Al editar, todo se valida como si el movimiento original no existiera.
+  const base = useMemo(
+    () =>
+      editingMovementId
+        ? {
+            contributions: state.goalContributions.filter((c) => movementIdOf(c) !== editingMovementId),
+            transactions: state.transactions.filter((t) => t.goalMovementId !== editingMovementId),
+          }
+        : { contributions: state.goalContributions, transactions: state.transactions },
+    [editingMovementId, state.goalContributions, state.transactions]
+  )
+
+  useEffect(() => {
+    if (!open) return
+    /* eslint-disable react-hooks/set-state-in-effect */
+    if (editing) {
+      setDirection(editing.direction)
+      setGoalId(editing.goalId)
+      setAccountId(editing.accountId)
+      setAmount(String(editing.amount))
+      setDate(editing.date)
+      setNote(editing.note ?? '')
+    } else {
+      setDirection('in')
+      setGoalId(goalProp?.id ?? '')
+      setAccountId(state.accounts.find((a) => a.currency === goalProp?.currency)?.id ?? '')
+      setAmount('')
+      setDate(todayInputValue())
+      setNote('')
+    }
+    /* eslint-enable react-hooks/set-state-in-effect */
+    // Solo al abrir: los cambios del monedero con la modal abierta no reinician el formulario.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, editingMovementId])
+
+  const goal = state.goals.find((g) => g.id === goalId) ?? goalProp
   const eligibleAccounts = useMemo(
     () => (goal ? state.accounts.filter((a) => a.currency === goal.currency) : []),
     [goal, state.accounts]
+  )
+  const eligibleGoals = useMemo(
+    () =>
+      state.goals.filter(
+        (g) => !g.completedAt && (!editing || g.currency === state.goals.find((x) => x.id === editing.goalId)?.currency)
+      ),
+    [state.goals, editing]
   )
 
   // El **Disponible** de cada cuenta: lo apartado en planes no se puede gastar sin
   // retirarlo antes, así que es contra esta cifra que se valida el débito (ADR 0002).
   const availableByAccount = useMemo(
-    () => new Map(accountFunds.map((f) => [f.accountId, f.available])),
-    [accountFunds]
+    () =>
+      new Map(
+        computeAccountFunds({
+          accounts: state.accounts,
+          transactions: base.transactions,
+          transfers: state.transfers,
+          goalContributions: base.contributions,
+          goals: state.goals,
+        }).map((f) => [f.accountId, f.available])
+      ),
+    [state.accounts, state.transfers, state.goals, base]
   )
-  const goalBalance = useMemo(
-    () => (goal ? (goalBalances.find((b) => b.goalId === goal.id)?.balance ?? 0) : 0),
-    [goal, goalBalances]
-  )
-  const target = parseAmount(goal?.target)
 
-  useEffect(() => {
-    if (open) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      setDirection('in')
-      setAccountId(eligibleAccounts[0]?.id ?? '')
-      setAmount('')
-      setDate(todayInputValue())
-    }
-  }, [open, eligibleAccounts])
+  if (!goal || (editingMovementId && !editing)) return null
 
-  if (!goal) return null
-
+  const goalBalance = base.contributions
+    .filter((c) => c.goalId === goal.id)
+    .reduce((sum, c) => sum + parseSigned(c.amount), 0)
+  const target = parseAmount(goal.target)
   const amountNum = parseAmount(amount)
   const accountAvailable = availableByAccount.get(accountId) ?? 0
   const overAccount = direction === 'in' && amountNum > accountAvailable
-  const withdrawable = computePlanWithdrawable(state.goalContributions, goal.id, accountId)
+  const withdrawable = computePlanWithdrawable(base.contributions, goal.id, accountId)
   const split = direction === 'out' && amountNum > 0 ? splitPlanWithdrawal(withdrawable, amountNum) : null
   const overGoal = direction === 'out' && amountNum > 0 && !split
-  const canSubmit = !!accountId && amountNum > 0 && !overAccount && !overGoal
+  const accountOk = eligibleAccounts.some((a) => a.id === accountId)
+  const canSubmit = accountOk && amountNum > 0 && !!date && !overAccount && !overGoal
 
   const handleSubmit = () => {
     if (!canSubmit) return
-    const ok = moveToGoal({ goalId: goal.id, accountId, amount, direction, note: undefined, date })
-    if (!ok) {
+    const params = { goalId: goal.id, accountId, amount, direction, note, date }
+    if (editing) {
+      const res = updateGoalMovement(editing.id, params)
+      if (!res.ok) {
+        const e = mutationError(res.reason, 'edit')
+        notify.error(e.title, e.description)
+        return
+      }
+      notify.success('Movimiento actualizado')
+      onOpenChange(false)
+      return
+    }
+    if (!moveToGoal(params)) {
       notify.error(
         direction === 'in'
           ? 'El monto supera el Disponible de la cuenta'
@@ -100,7 +174,7 @@ export function GoalContributionDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>{goal.name}</DialogTitle>
+          <DialogTitle>{editing ? 'Editar movimiento del plan' : goal.name}</DialogTitle>
           <DialogDescription>
             Mueve dinero entre tus cuentas en {getCurrency(goal.currency).label} y este plan de ahorro.
           </DialogDescription>
@@ -135,6 +209,39 @@ export function GoalContributionDialog({
                 </button>
               ))}
             </div>
+
+            {editing && (
+              <Field label="Plan de ahorro">
+                <Select value={goalId} onValueChange={(v) => setGoalId(v as string)}>
+                  <SelectTrigger aria-label="Plan de ahorro">
+                    <SelectValue>
+                      {(val) => {
+                        const g = eligibleGoals.find((x) => x.id === val)
+                        if (!g) return <span className="text-muted-foreground">Selecciona un plan</span>
+                        const Icon = getAccountIcon(g.icon)
+                        return (
+                          <span className="flex min-w-0 items-center gap-2">
+                            <Icon className="size-4 shrink-0" style={g.color ? { color: g.color } : undefined} />
+                            <span className="truncate">{g.name}</span>
+                          </span>
+                        )
+                      }}
+                    </SelectValue>
+                  </SelectTrigger>
+                  <SelectContent>
+                    {eligibleGoals.map((g) => {
+                      const Icon = getAccountIcon(g.icon)
+                      return (
+                        <SelectItem key={g.id} value={g.id}>
+                          <Icon className="size-4" style={g.color ? { color: g.color } : undefined} />
+                          {g.name}
+                        </SelectItem>
+                      )
+                    })}
+                  </SelectContent>
+                </Select>
+              </Field>
+            )}
 
             <Field label={direction === 'in' ? 'Desde la cuenta' : 'Hacia la cuenta'}>
               <Select value={accountId} onValueChange={(v) => setAccountId(v as string)}>
@@ -179,6 +286,12 @@ export function GoalContributionDialog({
                 <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
               </Field>
             </div>
+
+            {editing && (
+              <Field label="Nota">
+                <Input value={note} onChange={(e) => setNote(e.target.value)} placeholder="Opcional" />
+              </Field>
+            )}
 
             <div className="rounded-xl border border-border/60 bg-muted/30 p-3 text-sm">
               <div className="flex items-center justify-between">
@@ -234,7 +347,7 @@ export function GoalContributionDialog({
             Cancelar
           </Button>
           <Button onClick={handleSubmit} disabled={!canSubmit}>
-            {direction === 'in' ? 'Aportar' : 'Retirar'}
+            {editing ? 'Guardar cambios' : direction === 'in' ? 'Aportar' : 'Retirar'}
           </Button>
         </DialogFooter>
       </DialogContent>

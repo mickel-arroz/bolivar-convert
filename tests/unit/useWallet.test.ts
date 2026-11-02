@@ -586,6 +586,132 @@ describe('useWallet Hook', () => {
     expect(parseFloat(after?.carryover ?? '0')).toBe(30)
   })
 
+  describe('movimientos y completado de planes de ahorro', () => {
+    const today = '2026-10-15'
+
+    async function setup() {
+      const { result } = renderHook(() => useWallet())
+      await waitFor(() => expect(result.current.isMounted).toBe(true))
+      act(() => result.current.addAccount('Efectivo', 'USD', '500'))
+      act(() => result.current.addAccount('Zelle', 'USD', '300'))
+      act(() => result.current.addGoal('Moto', 'USD'))
+      const [cash, zelle] = result.current.state.accounts.map((a) => a.id)
+      const goalId = result.current.state.goals[0].id
+      const funds = (id: string) => result.current.accountFunds.find((f) => f.accountId === id)!
+      return { result, cash, zelle, goalId, funds }
+    }
+
+    it('eliminar un aporte lo deshace y el dinero vuelve a Disponible', async () => {
+      const { result, cash, goalId, funds } = await setup()
+      act(() => {
+        result.current.moveToGoal({ goalId, accountId: cash, amount: '100', direction: 'in', date: today })
+      })
+      expect(funds(cash).available).toBe(400)
+
+      const movementId = result.current.state.goalContributions[0].movementId!
+      let res: ReturnType<typeof result.current.removeGoalMovement> | undefined
+      act(() => {
+        res = result.current.removeGoalMovement(movementId)
+      })
+
+      expect(res).toEqual({ ok: true })
+      expect(result.current.state.goalContributions).toHaveLength(0)
+      expect(funds(cash).available).toBe(500)
+    })
+
+    it('editar un aporte cambia monto y cuenta conservando el movimiento', async () => {
+      const { result, cash, zelle, goalId, funds } = await setup()
+      act(() => {
+        result.current.moveToGoal({ goalId, accountId: cash, amount: '100', direction: 'in', date: today })
+      })
+      const movementId = result.current.state.goalContributions[0].movementId!
+
+      act(() => {
+        result.current.updateGoalMovement(movementId, {
+          goalId,
+          accountId: zelle,
+          amount: '80',
+          direction: 'in',
+          date: today,
+        })
+      })
+
+      expect(result.current.state.goalContributions).toHaveLength(1)
+      expect(result.current.state.goalContributions[0]).toMatchObject({
+        accountId: zelle,
+        amount: '80',
+        movementId,
+      })
+      expect(funds(cash).available).toBe(500)
+      expect(funds(zelle).available).toBe(220)
+    })
+
+    it('eliminar el ingreso que dejó un retiro sin cuenta deshace todo el retiro', async () => {
+      const { result, cash, goalId } = await setup()
+      sendMonthSurplusToPlan(result, goalId, 30)
+      act(() => {
+        result.current.moveToGoal({ goalId, accountId: cash, amount: '30', direction: 'out', date: today })
+      })
+      const income = result.current.state.transactions.find((t) => t.goalMovementId)!
+      expect(income).toMatchObject({ type: 'income', amount: '30' })
+
+      act(() => {
+        result.current.removeTransaction(income.id)
+      })
+
+      expect(result.current.state.transactions.some((t) => t.goalMovementId)).toBe(false)
+      expect(result.current.goalBalances.find((g) => g.goalId === goalId)?.balance).toBe(30)
+    })
+
+    it('completar gasta lo ahorrado (un gasto por cuenta) y eliminar ese gasto lo devuelve', async () => {
+      const { result, cash, zelle, goalId, funds } = await setup()
+      act(() => {
+        result.current.moveToGoal({ goalId, accountId: cash, amount: '100', direction: 'in', date: today })
+      })
+      act(() => {
+        result.current.moveToGoal({ goalId, accountId: zelle, amount: '50', direction: 'in', date: today })
+      })
+
+      act(() => {
+        result.current.completeGoal(goalId, today)
+      })
+
+      const expenses = result.current.state.transactions.filter((t) => t.completedGoalId === goalId)
+      expect(expenses.map((t) => [t.accountId, t.amount, t.categoryId])).toEqual([
+        [cash, '100', 'cat_goals'],
+        [zelle, '50', 'cat_goals'],
+      ])
+      expect(result.current.state.goals[0].completedAt).toBeDefined()
+      expect(funds(cash)).toMatchObject({ balance: 400, inGoals: 0, available: 400 })
+
+      act(() => {
+        result.current.removeTransaction(expenses[0].id)
+      })
+
+      expect(result.current.state.transactions.some((t) => t.completedGoalId)).toBe(false)
+      expect(result.current.state.goals[0].completedAt).toBeUndefined()
+      expect(funds(cash)).toMatchObject({ balance: 500, inGoals: 100, available: 400 })
+    })
+
+    it('del gasto de un plan completado no se puede cambiar el monto', async () => {
+      const { result, cash, goalId } = await setup()
+      act(() => {
+        result.current.moveToGoal({ goalId, accountId: cash, amount: '100', direction: 'in', date: today })
+      })
+      act(() => {
+        result.current.completeGoal(goalId, today)
+      })
+      const expense = result.current.state.transactions.find((t) => t.completedGoalId)!
+
+      let res: ReturnType<typeof result.current.updateTransaction> | undefined
+      act(() => {
+        res = result.current.updateTransaction(expense.id, { amount: '90' })
+      })
+
+      expect(res).toEqual({ ok: false, reason: 'locked' })
+    })
+  })
+
   it('persiste el estado en la nube y lo rehidrata', async () => {
     const { result, unmount } = renderHook(() => useWallet())
     await waitFor(() => expect(result.current.isMounted).toBe(true))

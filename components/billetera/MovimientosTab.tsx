@@ -29,6 +29,7 @@ export function MovimientosTab({ wallet, dialogs, rates }: MovimientosTabProps) 
     () => new Map(state.categories.map((c) => [c.id, c])),
     [state.categories]
   )
+  const goalById = useMemo(() => new Map(state.goals.map((g) => [g.id, g])), [state.goals])
 
   const { data, error } = useWalletResource<MovementsPage>(
     `/api/wallet/movements?page=${page}`,
@@ -95,6 +96,9 @@ export function MovimientosTab({ wallet, dialogs, rates }: MovimientosTabProps) 
               }}
               onDeleteTx={(id) => setPendingDelete({ kind: 'tx', id })}
               onDeleteTransfer={(id) => setPendingDelete({ kind: 'transfer', id })}
+              goalById={goalById}
+              onEditGoalMovement={dialogs.openEditGoalMovement}
+              onDeleteGoalMovement={(id) => setPendingDelete({ kind: 'goalMovement', id })}
             />
           ))}
 

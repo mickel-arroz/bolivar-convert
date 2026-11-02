@@ -15,13 +15,18 @@ import {
   AlertDialogAction,
 } from '@/components/ui/alert-dialog'
 import { resolveCommission, parseAmount } from '@/lib/wallet/compute'
+import { buildGoalMovements } from '@/lib/wallet/goalMovements'
 import { notify } from '@/lib/notify'
 import { formatMoney, formatDate } from './format'
 import { CarryoverCorrectionsNotice } from './CarryoverCorrectionsNotice'
 import { mutationError } from './mutationMessages'
 
 /** Qué movimiento se va a eliminar. */
-export type DeleteTarget = { kind: 'tx'; id: string } | { kind: 'transfer'; id: string } | null
+export type DeleteTarget =
+  | { kind: 'tx'; id: string }
+  | { kind: 'transfer'; id: string }
+  | { kind: 'goalMovement'; id: string }
+  | null
 
 interface DeleteMovementDialogProps {
   target: DeleteTarget
@@ -36,11 +41,15 @@ interface DeleteMovementDialogProps {
  * si es de un mes ya concluido, pregunta qué hacer con la diferencia del extra arrastrado.
  */
 export function DeleteMovementDialog({ target, onClose, wallet, rates }: DeleteMovementDialogProps) {
-  const { state, previewTransactionChange, removeTransaction, removeTransfer } = wallet
+  const { state, previewTransactionChange, removeTransaction, removeTransfer, removeGoalMovement } = wallet
 
   const tx = target?.kind === 'tx' ? state.transactions.find((t) => t.id === target.id) : undefined
   const transfer =
     target?.kind === 'transfer' ? state.transfers.find((t) => t.id === target.id) : undefined
+  const movement =
+    target?.kind === 'goalMovement'
+      ? buildGoalMovements(state.goals, state.goalContributions).find((m) => m.id === target.id)
+      : undefined
 
   const plan = useMemo(
     () => (tx ? previewTransactionChange(tx.id, null, rates) : null),
@@ -49,7 +58,7 @@ export function DeleteMovementDialog({ target, onClose, wallet, rates }: DeleteM
     [tx, rates, state]
   )
 
-  if (!target || (!tx && !transfer)) return null
+  if (!target || (!tx && !transfer && !movement)) return null
 
   const hasChoice = !!plan && plan.corrections.length > 0
 
@@ -66,6 +75,15 @@ export function DeleteMovementDialog({ target, onClose, wallet, rates }: DeleteM
         'Movimiento eliminado',
         plan?.linkedItem ? `«${plan.linkedItem.title}» volvió a pendiente.` : undefined
       )
+    } else if (movement) {
+      const res = removeGoalMovement(movement.id)
+      if (!res.ok) {
+        const e = mutationError(res.reason, 'deleteTx')
+        notify.error(e.title, e.description)
+        onClose()
+        return
+      }
+      notify.success(movement.direction === 'in' ? 'Aporte eliminado' : 'Retiro eliminado')
     } else if (transfer) {
       const res = removeTransfer(transfer.id)
       if (!res.ok) {
@@ -92,6 +110,18 @@ export function DeleteMovementDialog({ target, onClose, wallet, rates }: DeleteM
     body = account
       ? `«${category?.name ?? 'Sin categoría'}» · ${formatMoney(amount, account.currency)} · ${formatDate(tx.date)}. El saldo de «${account.name}» ${isIncome ? 'baja' : 'sube'} ${formatMoney(effect, account.currency)}.`
       : `«${category?.name ?? 'Sin categoría'}» · ${formatDate(tx.date)}.`
+  } else if (movement) {
+    const account = state.accounts.find((a) => a.id === movement.accountId)
+    const goal = state.goals.find((g) => g.id === movement.goalId)
+    const money = account ? formatMoney(movement.amount, account.currency) : ''
+    const isIn = movement.direction === 'in'
+    title = isIn ? 'Eliminar aporte' : 'Eliminar retiro'
+    body = isIn
+      ? `«${goal?.name ?? 'Plan'}» pierde ${money} y vuelven al Disponible de «${account?.name ?? 'la cuenta'}».`
+      : `${money} vuelven a «${goal?.name ?? 'el plan'}» y salen del Disponible de «${account?.name ?? 'la cuenta'}».`
+    if (!isIn && movement.unattributed > 0 && account) {
+      body += ` También se elimina el ingreso de ${formatMoney(movement.unattributed, account.currency)} en «Otros» que dejó el retiro.`
+    }
   } else {
     const from = state.accounts.find((a) => a.id === transfer!.fromAccountId)
     const to = state.accounts.find((a) => a.id === transfer!.toAccountId)

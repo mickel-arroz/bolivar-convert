@@ -6,11 +6,13 @@ import { Rates, RateId } from '@/constants/rates'
 import { generateId, parseAmount } from '@/hooks/useBillSplitter'
 import {
   DEFAULT_CATEGORIES,
+  GOALS_CATEGORY_ID,
   OTHER_CATEGORY_IDS,
   admitsBudget,
   isSystemCategory,
 } from '@/constants/walletCategories'
 import { buildWalletDelta, isEmptyDelta } from '@/lib/wallet/delta'
+import { movementIdOf } from '@/lib/wallet/goalMovements'
 import { settleCarryover, type MonthCloseAllocation } from '@/lib/wallet/monthClose'
 import {
   DEFAULT_DISPLAY_CURRENCY,
@@ -82,6 +84,10 @@ export interface Transaction {
   note?: string
   date: string
   createdAt: string
+  /** Ingreso que dejó un retiro de un plan (la parte sin cuenta): se deshace con ese retiro. */
+  goalMovementId?: string
+  /** Gasto que dejó completar este plan: eliminarlo devuelve el plan como estaba. */
+  completedGoalId?: string
 }
 
 /** Fuente de tasa de un traspaso entre monedas distintas. */
@@ -175,6 +181,11 @@ export interface Goal {
   icon?: string
   color?: string
   createdAt: string
+  /**
+   * Plan completado: su dinero se gastó (un gasto por cuenta en «Planes de ahorro») y
+   * deja de mostrarse. Sus aportes se conservan para poder deshacerlo.
+   */
+  completedAt?: string
 }
 
 /** Movimiento de dinero hacia/desde un plan de ahorro (misma moneda que el plan). */
@@ -188,6 +199,8 @@ export interface GoalContribution {
   note?: string
   date: string
   createdAt: string
+  /** Agrupa las partes de un mismo aporte o retiro (sin valor = el aporte es su propio movimiento). */
+  movementId?: string
 }
 
 export interface ShoppingList {
@@ -690,6 +703,111 @@ function sumDeficits(a: string | undefined, b: string | undefined): string | und
   return n > 0 ? String(n) : undefined
 }
 
+/** Datos de un aporte o retiro entre una cuenta y un plan de ahorro. */
+export interface GoalMoveParams {
+  goalId: string
+  accountId: string
+  amount: string
+  direction: 'in' | 'out'
+  note?: string
+  date: string
+}
+
+function availableIn(s: WalletState, accountId: string): number {
+  return (
+    computeAccountFunds({
+      accounts: s.accounts,
+      transactions: s.transactions,
+      transfers: s.transfers,
+      goalContributions: s.goalContributions,
+      goals: s.goals,
+    }).find((f) => f.accountId === accountId)?.available ?? 0
+  )
+}
+
+/** Alguna de esas cuentas queda en negativo y además peor que antes. */
+function overdraws(before: WalletState, after: WalletState, accountIds: Iterable<string>): boolean {
+  for (const id of new Set(accountIds)) {
+    const a = availableIn(after, id)
+    if (a < -OVERDRAW_EPS && a < availableIn(before, id) - OVERDRAW_EPS) return true
+  }
+  return false
+}
+
+/** El estado sin un aporte o retiro: sus partes y el ingreso que dejó, si lo hubo. */
+function withoutGoalMovement(s: WalletState, movementId: string): WalletState {
+  return {
+    ...s,
+    goalContributions: s.goalContributions.filter((c) => movementIdOf(c) !== movementId),
+    transactions: s.transactions.filter((t) => t.goalMovementId !== movementId),
+  }
+}
+
+/** Cuentas que toca un aporte o retiro (la del aporte y la del ingreso que dejó). */
+function goalMovementAccounts(s: WalletState, movementId: string): string[] {
+  return [
+    ...s.goalContributions.filter((c) => movementIdOf(c) === movementId && c.accountId).map((c) => c.accountId!),
+    ...s.transactions.filter((t) => t.goalMovementId === movementId).map((t) => t.accountId),
+  ]
+}
+
+/**
+ * Las partes de un aporte o retiro, validadas contra `s`. Un retiro saca primero lo que
+ * esa cuenta aportó y después lo que llegó sin cuenta; esa segunda parte entra a la
+ * cuenta como ingreso en «Otros», porque nunca estuvo en su Saldo. `null` si no se puede.
+ */
+function planGoalMove(
+  s: WalletState,
+  p: GoalMoveParams,
+  movementId: string
+): { contributions: GoalContribution[]; transactions: Transaction[] } | null {
+  const value = parseAmount(p.amount)
+  if (value <= 0) return null
+  const goal = s.goals.find((g) => g.id === p.goalId)
+  const account = s.accounts.find((a) => a.id === p.accountId)
+  if (!goal || goal.completedAt || !account || goal.currency !== account.currency) return null
+  if (p.direction === 'in' && availableIn(s, account.id) - value < -OVERDRAW_EPS) return null
+  const split =
+    p.direction === 'out'
+      ? splitPlanWithdrawal(computePlanWithdrawable(s.goalContributions, goal.id, account.id), value)
+      : { fromAccount: value, unattributed: 0 }
+  if (!split) return null
+
+  const sign = p.direction === 'in' ? 1 : -1
+  const createdAt = new Date().toISOString()
+  const note = p.note?.trim() || undefined
+  const part = (amount: number, accountId?: string): GoalContribution => ({
+    id: generateId(),
+    goalId: goal.id,
+    accountId,
+    amount: String(sign * amount),
+    note,
+    date: p.date,
+    createdAt,
+    movementId,
+  })
+  const contributions: GoalContribution[] = []
+  if (split.fromAccount > 0) contributions.push(part(split.fromAccount, account.id))
+  if (split.unattributed > 0) contributions.push(part(split.unattributed))
+  const transactions: Transaction[] =
+    split.unattributed > 0
+      ? [
+          {
+            id: generateId(),
+            type: 'income',
+            accountId: account.id,
+            categoryId: OTHER_CATEGORY_IDS.income,
+            amount: String(split.unattributed),
+            note: `Retiro del plan «${goal.name}»`,
+            date: p.date,
+            createdAt,
+            goalMovementId: movementId,
+          },
+        ]
+      : []
+  return { contributions, transactions }
+}
+
 /** Suma las correcciones al arrastre de sus presupuestos (acumula si se repiten). */
 function applyCorrections(budgets: Budget[], corrections: CarryoverCorrection[]): Budget[] {
   if (corrections.length === 0) return budgets
@@ -857,6 +975,7 @@ export function useWallet() {
       transactions: s.transactions,
       transfers: s.transfers,
       goalContributions: s.goalContributions,
+      goals: s.goals,
     }).find((b) => b.accountId === accountId)
     return found?.available ?? 0
   }, [])
@@ -1051,6 +1170,20 @@ export function useWallet() {
         }
       }
 
+      // El ingreso de un retiro se edita desde el retiro; del gasto de un plan completado
+      // solo cambian la fecha y la nota: el resto rompería el deshacer.
+      if (old.goalMovementId) return { ok: false, reason: 'locked' }
+      if (
+        old.completedGoalId &&
+        (next.type !== old.type ||
+          next.accountId !== old.accountId ||
+          next.categoryId !== old.categoryId ||
+          parseAmount(next.amount) !== parseAmount(old.amount) ||
+          !!next.commission !== !!old.commission)
+      ) {
+        return { ok: false, reason: 'locked' }
+      }
+
       // Datos que cuadran: monto positivo, cuenta existente y categoría del mismo tipo.
       const category = s.categories.find((c) => c.id === next.categoryId)
       if (
@@ -1110,6 +1243,28 @@ export function useWallet() {
       const s = stateRef.current
       const tx = s.transactions.find((t) => t.id === id)
       if (!tx) return { ok: false, reason: 'missing' }
+
+      // El ingreso que dejó un retiro se deshace con todo el retiro.
+      if (tx.goalMovementId) {
+        const movementId = tx.goalMovementId
+        if (overdraws(s, withoutGoalMovement(s, movementId), goalMovementAccounts(s, movementId))) {
+          return { ok: false, reason: 'overdraw' }
+        }
+        setState((s2) => withoutGoalMovement(s2, movementId))
+        return { ok: true }
+      }
+
+      // El gasto de un plan completado deshace el completado: el plan vuelve con sus
+      // aportes y el dinero queda otra vez apartado en las mismas cuentas.
+      if (tx.completedGoalId) {
+        const goalId = tx.completedGoalId
+        setState((s2) => ({
+          ...s2,
+          transactions: s2.transactions.filter((t) => t.completedGoalId !== goalId),
+          goals: s2.goals.map((g) => (g.id === goalId ? { ...g, completedAt: undefined } : g)),
+        }))
+        return { ok: true }
+      }
 
       const nextState: WalletState = {
         ...s,
@@ -1446,7 +1601,7 @@ export function useWallet() {
             }
           } else if (dest.kind === 'goal') {
             const goal = s.goals.find((g) => g.id === dest.goalId)
-            if (!goal || goal.currency !== source.currency || a.amount <= 0) continue
+            if (!goal || goal.completedAt || goal.currency !== source.currency || a.amount <= 0) continue
             goalContributions.push({
               id: generateId(),
               goalId: goal.id,
@@ -1648,71 +1803,104 @@ export function useWallet() {
    * cuenta; esa segunda parte entra a la cuenta como ingreso en «Otros», porque nunca
    * estuvo en su Saldo. Lo que aportó otra cuenta no se puede retirar hacia esta.
    */
-  const moveToGoal = useCallback(
-    (params: {
-      goalId: string
-      accountId: string
-      amount: string
-      direction: 'in' | 'out'
-      note?: string
-      date: string
-    }): boolean => {
-      const { goalId, accountId, amount, direction, note, date } = params
-      const value = parseAmount(amount)
-      if (value <= 0) return false
-      const s0 = stateRef.current
-      const g0 = s0.goals.find((g) => g.id === goalId)
-      const a0 = s0.accounts.find((a) => a.id === accountId)
-      if (!g0 || !a0 || g0.currency !== a0.currency) return false
-      if (direction === 'in' && accountAvailableOf(accountId, s0) - value < -OVERDRAW_EPS) return false
-      const split =
-        direction === 'out'
-          ? splitPlanWithdrawal(computePlanWithdrawable(s0.goalContributions, goalId, accountId), value)
-          : { fromAccount: value, unattributed: 0 }
-      if (!split) return false
-      setState((s) => {
-        const goal = s.goals.find((g) => g.id === goalId)
-        const account = s.accounts.find((a) => a.id === accountId)
-        if (!goal || !account || goal.currency !== account.currency) return s
-        const sign = direction === 'in' ? 1 : -1
-        const createdAt = new Date().toISOString()
-        const contribution = (amount: number, from?: string): GoalContribution => ({
-          id: generateId(),
-          goalId,
-          accountId: from,
-          amount: String(sign * amount),
-          note: note?.trim() || undefined,
-          date,
-          createdAt,
-        })
-        const contributions: GoalContribution[] = []
-        if (split.fromAccount > 0) contributions.push(contribution(split.fromAccount, accountId))
-        if (split.unattributed > 0) contributions.push(contribution(split.unattributed))
-        const income: Transaction[] =
-          split.unattributed > 0
-            ? [
-                {
-                  id: generateId(),
-                  type: 'income',
-                  accountId,
-                  categoryId: OTHER_CATEGORY_IDS.income,
-                  amount: String(split.unattributed),
-                  note: `Retiro del plan «${goal.name}»`,
-                  date,
-                  createdAt,
-                },
-              ]
-            : []
+  const moveToGoal = useCallback((params: GoalMoveParams): boolean => {
+    const plan = planGoalMove(stateRef.current, params, generateId())
+    if (!plan) return false
+    setState((s) => ({
+      ...s,
+      goalContributions: [...s.goalContributions, ...plan.contributions],
+      transactions: [...s.transactions, ...plan.transactions],
+    }))
+    return true
+  }, [])
+
+  /**
+   * Cambia un aporte o retiro (cuenta, plan, monto, fecha o nota): se valida como si el
+   * original no existiera y se reemplaza por el nuevo, que conserva su identificador.
+   */
+  const updateGoalMovement = useCallback(
+    (movementId: string, params: GoalMoveParams): MutationResult => {
+      const s = stateRef.current
+      if (!s.goalContributions.some((c) => movementIdOf(c) === movementId)) {
+        return { ok: false, reason: 'missing' }
+      }
+      const base = withoutGoalMovement(s, movementId)
+      const plan = planGoalMove(base, params, movementId)
+      if (!plan) return { ok: false, reason: 'overdraw' }
+      const next = {
+        ...base,
+        goalContributions: [...base.goalContributions, ...plan.contributions],
+        transactions: [...base.transactions, ...plan.transactions],
+      }
+      if (overdraws(s, next, [...goalMovementAccounts(s, movementId), params.accountId])) {
+        return { ok: false, reason: 'overdraw' }
+      }
+      setState((s2) => {
+        const b = withoutGoalMovement(s2, movementId)
         return {
-          ...s,
-          goalContributions: [...s.goalContributions, ...contributions],
-          transactions: [...s.transactions, ...income],
+          ...b,
+          goalContributions: [...b.goalContributions, ...plan.contributions],
+          transactions: [...b.transactions, ...plan.transactions],
         }
       })
-      return true
+      return { ok: true }
     },
-    [accountAvailableOf]
+    []
   )
+
+  /**
+   * Deshace un aporte o retiro: sus partes y el ingreso que dejó. Se rechaza si deja una
+   * cuenta en negativo (p. ej. el dinero de un retiro ya se gastó).
+   */
+  const removeGoalMovement = useCallback((movementId: string): MutationResult => {
+    const s = stateRef.current
+    if (!s.goalContributions.some((c) => movementIdOf(c) === movementId)) {
+      return { ok: false, reason: 'missing' }
+    }
+    if (overdraws(s, withoutGoalMovement(s, movementId), goalMovementAccounts(s, movementId))) {
+      return { ok: false, reason: 'overdraw' }
+    }
+    setState((s2) => withoutGoalMovement(s2, movementId))
+    return { ok: true }
+  }, [])
+
+  /**
+   * Completa un plan: lo ahorrado se gasta. Deja un gasto en «Planes de ahorro» por cada
+   * cuenta que aportó y el plan deja de mostrarse; lo que llegó sin cuenta no sale de
+   * ninguna, así que solo desaparece. Eliminar cualquiera de esos gastos lo deshace.
+   */
+  const completeGoal = useCallback((goalId: string, date: string): boolean => {
+    const s0 = stateRef.current
+    const goal = s0.goals.find((g) => g.id === goalId)
+    if (!goal || goal.completedAt) return false
+    setState((s) => {
+      const byAccount = new Map<string, number>()
+      for (const c of s.goalContributions) {
+        if (c.goalId !== goalId || !c.accountId) continue
+        byAccount.set(c.accountId, (byAccount.get(c.accountId) ?? 0) + parseSigned(c.amount))
+      }
+      const createdAt = new Date().toISOString()
+      const expenses: Transaction[] = [...byAccount]
+        .filter(([, amount]) => amount > OVERDRAW_EPS)
+        .map(([accountId, amount]) => ({
+          id: generateId(),
+          type: 'expense',
+          accountId,
+          categoryId: GOALS_CATEGORY_ID,
+          amount: String(Math.round(amount * 100) / 100),
+          note: `Plan «${goal.name}» completado`,
+          date,
+          createdAt,
+          completedGoalId: goalId,
+        }))
+      return {
+        ...s,
+        goals: s.goals.map((g) => (g.id === goalId ? { ...g, completedAt: createdAt } : g)),
+        transactions: [...s.transactions, ...expenses],
+      }
+    })
+    return true
+  }, [])
 
   /* ── Listas de compras ── */
   const addShoppingList = useCallback((name: string, icon?: string, color?: string) => {
@@ -2031,8 +2219,9 @@ export function useWallet() {
         transactions: state.transactions,
         transfers: state.transfers,
         goalContributions: state.goalContributions,
+        goals: state.goals,
       }),
-    [state.accounts, state.transactions, state.transfers, state.goalContributions]
+    [state.accounts, state.transactions, state.transfers, state.goalContributions, state.goals]
   )
 
   const goalBalances = useMemo<GoalBalance[]>(() => {
@@ -2162,6 +2351,9 @@ export function useWallet() {
     updateGoal,
     removeGoal,
     moveToGoal,
+    updateGoalMovement,
+    removeGoalMovement,
+    completeGoal,
     // Listas de compras
     addShoppingList,
     updateShoppingList,

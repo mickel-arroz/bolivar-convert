@@ -38,6 +38,7 @@ import {
   type AccountsSummary,
   type MovementsPage,
 } from '@/lib/wallet/compute'
+import { buildGoalMovements } from '@/lib/wallet/goalMovements'
 
 /* ───────────────────────── Mapeo dominio ↔ fila ───────────────────────── */
 
@@ -107,6 +108,8 @@ function transactionToRow(t: Transaction, userId: string) {
     note: nn(t.note),
     date: t.date,
     created_at: t.createdAt,
+    goal_movement_id: nn(t.goalMovementId),
+    completed_goal_id: nn(t.completedGoalId),
   }
 }
 function rowToTransaction(r: Record<string, unknown>): Transaction {
@@ -121,6 +124,8 @@ function rowToTransaction(r: Record<string, unknown>): Transaction {
     note: un(r.note as string | null),
     date: r.date as string,
     createdAt: r.created_at as string,
+    goalMovementId: un(r.goal_movement_id as string | null),
+    completedGoalId: un(r.completed_goal_id as string | null),
   }
 }
 
@@ -254,6 +259,7 @@ function goalToRow(g: Goal, userId: string) {
     icon: nn(g.icon),
     color: nn(g.color),
     created_at: g.createdAt,
+    completed_at: nn(g.completedAt),
   }
 }
 function rowToGoal(r: Record<string, unknown>): Goal {
@@ -266,6 +272,7 @@ function rowToGoal(r: Record<string, unknown>): Goal {
     icon: un(r.icon as string | null),
     color: un(r.color as string | null),
     createdAt: r.created_at as string,
+    completedAt: un(r.completed_at as string | null),
   }
 }
 
@@ -279,6 +286,7 @@ function contributionToRow(c: GoalContribution, userId: string) {
     note: nn(c.note),
     date: c.date,
     created_at: c.createdAt,
+    movement_id: nn(c.movementId),
   }
 }
 function rowToContribution(r: Record<string, unknown>): GoalContribution {
@@ -290,6 +298,7 @@ function rowToContribution(r: Record<string, unknown>): GoalContribution {
     note: un(r.note as string | null),
     date: r.date as string,
     createdAt: r.created_at as string,
+    movementId: un(r.movement_id as string | null),
   }
 }
 
@@ -727,21 +736,23 @@ export async function loadAccountsSummary(
   supabase: SupabaseClient,
   userId: string
 ): Promise<AccountsSummary> {
-  const [accountsRes, txRes, trRes, gcRes] = await Promise.all([
+  const [accountsRes, txRes, trRes, gcRes, goalsRes] = await Promise.all([
     supabase.from('accounts').select('*').eq('user_id', userId),
     supabase.from('transactions').select('*').eq('user_id', userId),
     supabase.from('transfers').select('*').eq('user_id', userId),
     supabase.from('goal_contributions').select('*').eq('user_id', userId),
+    supabase.from('goals').select('*').eq('user_id', userId),
   ])
-  const failed = [accountsRes, txRes, trRes, gcRes].find((r) => r.error)
+  const failed = [accountsRes, txRes, trRes, gcRes, goalsRes].find((r) => r.error)
   if (failed?.error) throw failed.error
 
   const accounts = ((accountsRes.data as Record<string, unknown>[]) ?? []).map(rowToAccount)
   const transactions = ((txRes.data as Record<string, unknown>[]) ?? []).map(rowToTransaction)
   const transfers = ((trRes.data as Record<string, unknown>[]) ?? []).map(rowToTransfer)
   const goalContributions = ((gcRes.data as Record<string, unknown>[]) ?? []).map(rowToContribution)
+  const goals = ((goalsRes.data as Record<string, unknown>[]) ?? []).map(rowToGoal)
 
-  const funds = computeAccountFunds({ accounts, transactions, transfers, goalContributions })
+  const funds = computeAccountFunds({ accounts, transactions, transfers, goalContributions, goals })
   return {
     accounts,
     funds,
@@ -760,18 +771,22 @@ export async function loadMovements(
   userId: string,
   opts: { page?: number; pageSize?: number; limit?: number }
 ): Promise<MovementsPage> {
-  const [txRes, trRes, btRes] = await Promise.all([
+  const [txRes, trRes, btRes, goalsRes, gcRes] = await Promise.all([
     supabase.from('transactions').select('*').eq('user_id', userId),
     supabase.from('transfers').select('*').eq('user_id', userId),
     supabase.from('budget_transfers').select('*').eq('user_id', userId),
+    supabase.from('goals').select('*').eq('user_id', userId),
+    supabase.from('goal_contributions').select('*').eq('user_id', userId),
   ])
-  const failed = [txRes, trRes, btRes].find((r) => r.error)
+  const failed = [txRes, trRes, btRes, goalsRes, gcRes].find((r) => r.error)
   if (failed?.error) throw failed.error
 
   const transactions = ((txRes.data as Record<string, unknown>[]) ?? []).map(rowToTransaction)
   const transfers = ((trRes.data as Record<string, unknown>[]) ?? []).map(rowToTransfer)
   const budgetTransfers = ((btRes.data as Record<string, unknown>[]) ?? []).map(rowToBudgetTransfer)
-  const feed = buildFeed(transactions, transfers, budgetTransfers)
+  const goals = ((goalsRes.data as Record<string, unknown>[]) ?? []).map(rowToGoal)
+  const contributions = ((gcRes.data as Record<string, unknown>[]) ?? []).map(rowToContribution)
+  const feed = buildFeed(transactions, transfers, budgetTransfers, buildGoalMovements(goals, contributions))
   const total = feed.length
 
   if (opts.limit !== undefined) {

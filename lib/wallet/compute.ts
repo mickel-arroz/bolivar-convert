@@ -7,6 +7,7 @@
  */
 import type { CurrencyId } from '@/constants/currencies'
 import type { Rates, RateId } from '@/constants/rates'
+import type { GoalMovement } from './goalMovements'
 import type {
   Account,
   Transaction,
@@ -165,6 +166,7 @@ export type FeedItem =
   | { kind: 'tx'; id: string; date: string; tx: Transaction }
   | { kind: 'transfer'; id: string; date: string; transfer: Transfer }
   | { kind: 'budgetTransfer'; id: string; date: string; budgetTransfer: BudgetTransfer }
+  | { kind: 'goalMovement'; id: string; date: string; movement: GoalMovement }
 
 /** Resumen de cuentas del tab Resumen: cuentas + sus tres cifras + totales por moneda. */
 export interface AccountsSummary {
@@ -188,10 +190,21 @@ export interface MovementsPage {
 export function buildFeed(
   transactions: Transaction[],
   transfers: Transfer[],
-  budgetTransfers: BudgetTransfer[] = []
+  budgetTransfers: BudgetTransfer[] = [],
+  goalMovements: GoalMovement[] = []
 ): FeedItem[] {
+  // El ingreso que dejó un retiro ya va dentro de ese retiro.
+  const shownMovements = new Set(goalMovements.map((m) => m.id))
   const items: FeedItem[] = [
-    ...transactions.map((tx) => ({ kind: 'tx' as const, id: tx.id, date: tx.date, tx })),
+    ...transactions
+      .filter((tx) => !tx.goalMovementId || !shownMovements.has(tx.goalMovementId))
+      .map((tx) => ({ kind: 'tx' as const, id: tx.id, date: tx.date, tx })),
+    ...goalMovements.map((movement) => ({
+      kind: 'goalMovement' as const,
+      id: movement.id,
+      date: movement.date,
+      movement,
+    })),
     ...transfers.map((transfer) => ({
       kind: 'transfer' as const,
       id: transfer.id,
@@ -211,7 +224,9 @@ export function buildFeed(
       ? item.tx.createdAt
       : item.kind === 'transfer'
         ? item.transfer.createdAt
-        : item.budgetTransfer.createdAt
+        : item.kind === 'goalMovement'
+          ? item.movement.createdAt
+          : item.budgetTransfer.createdAt
   return items.sort(
     (a, b) => time(b.date) - time(a.date) || time(createdAt(b)) - time(createdAt(a))
   )
@@ -229,6 +244,8 @@ export interface BalanceInput {
 /** Lo que además hace falta para repartir el saldo entre Disponible y En planes. */
 export interface FundsInput extends BalanceInput {
   goalContributions: GoalContribution[]
+  /** Para descartar los aportes de un plan completado: ese dinero ya se gastó. */
+  goals?: readonly { id: string; completedAt?: string }[]
 }
 
 /**
@@ -270,10 +287,15 @@ function computeAccountBalances({
  * (los que vienen de mandar el sobrante de un mes a un plan) no se atribuyen a
  * ninguna: la suma de En planes puede quedar por debajo de lo ahorrado en todos los planes.
  */
-export function computeAccountFunds({ goalContributions, ...balanceInput }: FundsInput): AccountFunds[] {
+export function computeAccountFunds({
+  goalContributions,
+  goals = [],
+  ...balanceInput
+}: FundsInput): AccountFunds[] {
+  const completed = new Set(goals.filter((g) => g.completedAt).map((g) => g.id))
   const inGoalsByAccount = new Map<string, number>()
   for (const gc of goalContributions) {
-    if (!gc.accountId) continue
+    if (!gc.accountId || completed.has(gc.goalId)) continue
     inGoalsByAccount.set(gc.accountId, (inGoalsByAccount.get(gc.accountId) ?? 0) + parseSigned(gc.amount))
   }
   return computeAccountBalances(balanceInput).map((b) => {

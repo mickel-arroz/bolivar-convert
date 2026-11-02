@@ -68,6 +68,7 @@ function renderTab() {
       transfers: [transfer],
       categories: [{ id: 'c1', name: 'Comida', kind: 'expense', icon: 'food' }],
       goalContributions: [],
+      goals: [],
       shoppingItems: [],
       displayCurrency: 'VES',
       netWorthCurrencyOverride: null,

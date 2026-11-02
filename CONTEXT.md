@@ -32,6 +32,10 @@ _Avoid_: meta de ahorro, objetivo, ahorro, hucha
 La cifra opcional que el usuario quiere alcanzar en un Plan de ahorro. Alcanzarla no cierra el plan: puede seguir recibiendo aportes.
 _Avoid_: objetivo, tope, límite
 
+**Plan completado**:
+Un Plan de ahorro con Meta alcanzada que el usuario decide gastar. Deja un gasto en «Planes de ahorro» por cada cuenta que aportó y deja de mostrarse; lo que llegó sin cuenta desaparece. Eliminar cualquiera de esos gastos lo devuelve tal como estaba. Nunca ocurre solo.
+_Avoid_: plan cerrado, plan terminado, meta cumplida
+
 **Saldo de la cuenta**:
 Todo el dinero que hay en una cuenta, planes incluidos: lo que diría el banco. Es la cifra que el usuario escribe al cuadrar una cuenta, y equivale a Disponible más En planes.
 _Avoid_: saldo total, balance real

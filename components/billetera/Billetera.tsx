@@ -16,6 +16,7 @@ import { EstadisticasTab } from './EstadisticasTab'
 import { PresupuestoTab } from './PresupuestoTab'
 import { AccountFormDialog } from './AccountFormDialog'
 import { TransactionFormDialog } from './TransactionFormDialog'
+import { GoalContributionDialog } from './GoalContributionDialog'
 import { TransferFormDialog } from './TransferFormDialog'
 import { CategoryManagerDialog } from './CategoryManagerDialog'
 import { BudgetFormDialog } from './BudgetFormDialog'
@@ -64,6 +65,7 @@ export function Billetera() {
   }>({ open: false, editing: null, type: 'expense' })
   const [transferOpen, setTransferOpen] = useState(false)
   const [categoriesOpen, setCategoriesOpen] = useState(false)
+  const [goalMovementId, setGoalMovementId] = useState<string | null>(null)
   const [budgetDialog, setBudgetDialog] = useState<{ open: boolean; presetCategoryId: string | null }>({
     open: false,
     presetCategoryId: null,
@@ -78,6 +80,7 @@ export function Billetera() {
       openTransfer: () => setTransferOpen(true),
       openCategories: () => setCategoriesOpen(true),
       openBudget: (categoryId) => setBudgetDialog({ open: true, presetCategoryId: categoryId ?? null }),
+      openEditGoalMovement: (movementId) => setGoalMovementId(movementId),
     }),
     []
   )
@@ -162,6 +165,12 @@ export function Billetera() {
         rates={rates}
       />
       <CategoryManagerDialog open={categoriesOpen} onOpenChange={setCategoriesOpen} wallet={wallet} />
+      <GoalContributionDialog
+        open={!!goalMovementId}
+        onOpenChange={(open) => !open && setGoalMovementId(null)}
+        wallet={wallet}
+        editingMovementId={goalMovementId}
+      />
       <BudgetFormDialog
         open={budgetDialog.open}
         onOpenChange={(open) => setBudgetDialog((d) => ({ ...d, open }))}

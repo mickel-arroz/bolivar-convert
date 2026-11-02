@@ -1,7 +1,9 @@
 'use client'
 
-import { Account, Category } from '@/hooks/useWallet'
-import { CATEGORY_ICON_MAP, ACCOUNT_ICON_MAP } from '@/constants/walletCategories'
+import { createElement } from 'react'
+import { Account, Category, Goal } from '@/hooks/useWallet'
+import { CATEGORY_ICON_MAP, ACCOUNT_ICON_MAP, getAccountIcon } from '@/constants/walletCategories'
+import { DEFAULT_ACCOUNT_COLOR } from '@/constants/walletColors'
 import {
   TransferIcon,
   TemplateIcon,
@@ -20,18 +22,24 @@ interface MovementRowProps {
   item: FeedItem
   accountById: Map<string, Account>
   categoryById: Map<string, Category>
+  goalById?: Map<string, Goal>
   onEditTx?: (id: string) => void
   onDeleteTx?: (id: string) => void
   onDeleteTransfer?: (id: string) => void
+  onEditGoalMovement?: (id: string) => void
+  onDeleteGoalMovement?: (id: string) => void
 }
 
 export function MovementRow({
   item,
   accountById,
   categoryById,
+  goalById,
   onEditTx,
   onDeleteTx,
   onDeleteTransfer,
+  onEditGoalMovement,
+  onDeleteGoalMovement,
 }: MovementRowProps) {
   if (item.kind === 'budgetTransfer') {
     const bt = item.budgetTransfer
@@ -48,7 +56,10 @@ export function MovementRow({
           <TemplateIcon className="size-4" />
         </div>
         <div className="min-w-0 flex-1">
-          <p className="truncate text-sm font-bold">Traspaso de presupuesto</p>
+          <p className="truncate text-sm font-bold">
+            Traspaso a{' '}
+            <span style={to?.color ? { color: to.color } : undefined}>{to?.name ?? 'presupuesto'}</span>
+          </p>
           <p className="flex items-center gap-1 truncate text-xs text-muted-foreground">
             <FromIcon className="size-3 shrink-0" />
             {from?.name ?? '—'}
@@ -68,7 +79,7 @@ export function MovementRow({
             {net > 0 ? '+' : ''}
             {formatMoney(net, bt.currency)}
           </p>
-          {extra !== 0 && (
+          {extra !== 0 && spent > 0 && (
             <p className="text-[11px] text-muted-foreground tabular-nums">
               Extra {extra > 0 ? '+' : ''}
               {formatMoney(extra, bt.currency)}
@@ -134,6 +145,68 @@ export function MovementRow({
             >
               <TrashIcon className="size-4" />
             </Button>
+          </div>
+        )}
+      </div>
+    )
+  }
+
+  if (item.kind === 'goalMovement') {
+    const m = item.movement
+    const goal = goalById?.get(m.goalId)
+    const account = accountById.get(m.accountId)
+    const accent = goal?.color ?? DEFAULT_ACCOUNT_COLOR
+    const AccIcon = ACCOUNT_ICON_MAP[account?.icon ?? 'wallet'] ?? WalletIcon
+    const isIn = m.direction === 'in'
+    return (
+      <div className="flex items-center gap-3 rounded-xl border border-border/50 bg-card px-3 py-2.5">
+        <div
+          className="flex size-9 shrink-0 items-center justify-center rounded-full"
+          style={{ backgroundColor: `color-mix(in oklch, ${accent} 18%, transparent)`, color: accent }}
+        >
+          {createElement(getAccountIcon(goal?.icon), { className: 'size-4' })}
+        </div>
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-sm font-bold">
+            {isIn ? 'Aporte a' : 'Retiro de'}{' '}
+            <span style={{ color: accent }}>{goal?.name ?? 'Plan de ahorro'}</span>
+          </p>
+          <p className="flex items-center gap-1 truncate text-xs text-muted-foreground">
+            <AccIcon className="size-3 shrink-0" />
+            {account?.name ?? '—'}
+            <span className="truncate">
+              {m.note ? ` · ${m.note}` : ''} · {formatDate(m.date)}
+            </span>
+          </p>
+        </div>
+        <div className="text-right">
+          <p className="text-sm font-black tabular-nums">
+            {account ? formatMoney(m.amount, account.currency) : m.amount}
+          </p>
+          <p className="text-[11px] text-muted-foreground">{isIn ? 'Apartado' : 'Disponible'}</p>
+        </div>
+        {(onEditGoalMovement || onDeleteGoalMovement) && (
+          <div className="flex items-center">
+            {onEditGoalMovement && (
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                onClick={() => onEditGoalMovement(m.id)}
+                aria-label="Editar movimiento del plan"
+              >
+                <PencilIcon className="size-4" />
+              </Button>
+            )}
+            {onDeleteGoalMovement && (
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                onClick={() => onDeleteGoalMovement(m.id)}
+                aria-label="Eliminar movimiento del plan"
+              >
+                <TrashIcon className="size-4" />
+              </Button>
+            )}
           </div>
         )}
       </div>

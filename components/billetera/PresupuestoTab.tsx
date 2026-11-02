@@ -49,6 +49,7 @@ import { ConcludeMonthDialog } from './ConcludeMonthDialog'
 import { BudgetTemplatesDialog } from './BudgetTemplatesDialog'
 import { GoalFormDialog } from './GoalFormDialog'
 import { GoalDeleteDialog } from './GoalDeleteDialog'
+import { GoalCompleteDialog } from './GoalCompleteDialog'
 import { GoalContributionDialog } from './GoalContributionDialog'
 import { ShoppingSummaryButton } from './ShoppingSummaryButton'
 import { ShoppingListFormDialog } from './ShoppingListFormDialog'
@@ -76,6 +77,7 @@ export function PresupuestoTab({ wallet, stats, dialogs, rates }: PresupuestoTab
   })
   const [contributionGoal, setContributionGoal] = useState<Goal | null>(null)
   const [pendingDeleteGoal, setPendingDeleteGoal] = useState<Goal | null>(null)
+  const [completingGoal, setCompletingGoal] = useState<Goal | null>(null)
 
   // Listas de compras
   const [listForm, setListForm] = useState<{ open: boolean; editing: ShoppingList | null }>({
@@ -96,6 +98,8 @@ export function PresupuestoTab({ wallet, stats, dialogs, rates }: PresupuestoTab
     () => new Map(goalBalances.map((b) => [b.goalId, b.balance])),
     [goalBalances]
   )
+  // Un plan completado solo queda como el gasto que dejó en Movimientos.
+  const activeGoals = useMemo(() => state.goals.filter((g) => !g.completedAt), [state.goals])
 
   // Productos agrupados por lista (para contadores en las tarjetas).
   const itemsByList = useMemo(() => {
@@ -388,7 +392,7 @@ export function PresupuestoTab({ wallet, stats, dialogs, rates }: PresupuestoTab
           </Button>
         </div>
 
-        {state.goals.length === 0 ? (
+        {activeGoals.length === 0 ? (
           <Card>
             <CardContent className="flex flex-col items-center gap-3 py-10 text-center">
               <TargetIcon className="size-10 text-muted-foreground/40" />
@@ -400,7 +404,7 @@ export function PresupuestoTab({ wallet, stats, dialogs, rates }: PresupuestoTab
           </Card>
         ) : (
           <div className="grid gap-3 sm:grid-cols-2">
-            {state.goals.map((goal) => {
+            {activeGoals.map((goal) => {
               const saved = goalBalanceById.get(goal.id) ?? 0
               const target = parseAmount(goal.target)
               const pct = target > 0 ? Math.min(100, (saved / target) * 100) : 0
@@ -489,14 +493,21 @@ export function PresupuestoTab({ wallet, stats, dialogs, rates }: PresupuestoTab
                       </p>
                     )}
 
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="mt-1 self-start"
-                      onClick={() => setContributionGoal(goal)}
-                    >
-                      <TransferIcon className="size-4" /> Mover dinero
-                    </Button>
+                    <div className="mt-1 flex items-center justify-between gap-2">
+                      <Button variant="outline" size="sm" onClick={() => setContributionGoal(goal)}>
+                        <TransferIcon className="size-4" /> Mover dinero
+                      </Button>
+                      {reached && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="border-green-600/60 text-green-600 hover:bg-green-500/10 hover:text-green-600 dark:border-green-400/60 dark:text-green-400 dark:hover:text-green-400"
+                          onClick={() => setCompletingGoal(goal)}
+                        >
+                          <CheckIcon className="size-4" /> Completar
+                        </Button>
+                      )}
+                    </div>
                   </CardContent>
                 </Card>
               )
@@ -656,6 +667,12 @@ export function PresupuestoTab({ wallet, stats, dialogs, rates }: PresupuestoTab
         onOpenChange={(o) => !o && setContributionGoal(null)}
         wallet={wallet}
         goal={contributionGoal}
+      />
+
+      <GoalCompleteDialog
+        goal={completingGoal}
+        onOpenChange={(o) => !o && setCompletingGoal(null)}
+        wallet={wallet}
       />
 
       <GoalDeleteDialog

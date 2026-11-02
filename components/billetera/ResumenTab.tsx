@@ -109,6 +109,7 @@ export function ResumenTab({ wallet, rates, dialogs }: ResumenTabProps) {
     () => new Map(state.categories.map((c) => [c.id, c])),
     [state.categories]
   )
+  const goalById = useMemo(() => new Map(state.goals.map((g) => [g.id, g])), [state.goals])
 
   // El Patrimonio neto incluye el dinero apartado en planes: ahorrar no empobrece
   // (ADR 0002). `inGoals` es la parte de esa cifra que no está Disponible.
@@ -283,6 +284,9 @@ export function ResumenTab({ wallet, rates, dialogs }: ResumenTabProps) {
                   }}
                   onDeleteTx={(id) => setPendingMovementDelete({ kind: 'tx', id })}
                   onDeleteTransfer={(id) => setPendingMovementDelete({ kind: 'transfer', id })}
+              goalById={goalById}
+              onEditGoalMovement={dialogs.openEditGoalMovement}
+              onDeleteGoalMovement={(id) => setPendingMovementDelete({ kind: 'goalMovement', id })}
                 />
               ))}
             </div>

@@ -217,12 +217,16 @@ export const OTHER_CATEGORY_IDS: Readonly<Record<TransactionType, string>> = {
   income: 'cat_other_inc',
 }
 
+/** Gasto que deja completar un plan de ahorro (`completeGoal`). */
+export const GOALS_CATEGORY_ID = 'cat_goals'
+
 /**
  * Categorías que el usuario no ve en sus listados. Solo aparecen donde ya hay datos
  * que las usan (movimientos, historial). «Compras» es el destino por defecto de una
- * compra sin categoría (`confirmPurchase`), así que tiene que existir siempre.
+ * compra sin categoría (`confirmPurchase`) y «Planes de ahorro» el de un plan
+ * completado, así que tienen que existir siempre.
  */
-const HIDDEN_CATEGORY_IDS: readonly string[] = ['cat_shopping']
+const HIDDEN_CATEGORY_IDS: readonly string[] = ['cat_shopping', GOALS_CATEGORY_ID]
 
 /**
  * Categorías del sistema: no se editan ni se borran, y se vuelven a sembrar aunque
@@ -265,9 +269,9 @@ export function isDuplicateCategoryName(
   )
 }
 
-/** El «Otros» de gasto no admite presupuesto. */
+/** El «Otros» de gasto y «Planes de ahorro» no admiten presupuesto. */
 export const admitsBudget = (categoryId: string): boolean =>
-  categoryId !== OTHER_CATEGORY_IDS.expense
+  categoryId !== OTHER_CATEGORY_IDS.expense && categoryId !== GOALS_CATEGORY_ID
 
 /** Categorías de gasto que admiten presupuesto. */
 export function budgetableCategories<T extends { id: string; kind: TransactionType }>(
@@ -301,6 +305,7 @@ export const DEFAULT_CATEGORIES: Category[] = [
   { id: 'cat_shopping', name: 'Compras', kind: 'expense', icon: 'shopping', color: 'var(--chart-4)', isDefault: true },
   { id: 'cat_health', name: 'Salud', kind: 'expense', icon: 'health', color: '#ef4444', isDefault: true },
   { id: 'cat_other_exp', name: 'Otros', kind: 'expense', icon: 'other', color: 'var(--muted-foreground)', isDefault: true },
+  { id: GOALS_CATEGORY_ID, name: 'Planes de ahorro', kind: 'expense', icon: 'savings', color: 'var(--wallet-green)', isDefault: true },
   // Ingresos
   { id: 'cat_salary', name: 'Salario', kind: 'income', icon: 'salary', color: 'var(--rate-usd)', isDefault: true },
   { id: 'cat_remittance', name: 'Remesas', kind: 'income', icon: 'remittance', color: 'var(--rate-eur)', isDefault: true },

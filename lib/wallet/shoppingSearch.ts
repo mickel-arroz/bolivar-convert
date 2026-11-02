@@ -3,7 +3,7 @@ interface Searchable {
   description?: string
 }
 
-function normalizeForSearch(s: string): string {
+export function normalizeForSearch(s: string): string {
   return s.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase()
 }
 

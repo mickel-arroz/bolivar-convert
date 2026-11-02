@@ -44,6 +44,7 @@ function AlertDialogContent({
         data-slot="alert-dialog-content"
         className={cn(
           'fixed left-1/2 top-1/2 z-50 w-full max-w-sm -translate-x-1/2 -translate-y-1/2 rounded-2xl border border-border/60 bg-card p-6 shadow-2xl transition-all duration-200 data-ending-style:opacity-0 data-ending-style:scale-95 data-starting-style:opacity-0 data-starting-style:scale-95',
+          'max-lg:flex max-lg:flex-col max-lg:justify-center max-lg:overflow-y-auto max-lg:h-dvh! max-lg:max-h-dvh! max-lg:w-screen! max-lg:max-w-[100vw]! max-lg:rounded-none! max-lg:border-0!',
           className
         )}
         {...props}

@@ -120,7 +120,7 @@ export function Billetera() {
               <ChartPieIcon className="size-4" /> <span className="hidden sm:inline">Estadísticas</span>
             </TabsTab>
             <TabsTab value="presupuesto">
-              <TargetIcon className="size-4" /> <span className="hidden sm:inline">Presupuesto</span>
+              <TargetIcon className="size-4" /> <span className="hidden sm:inline">Presupuestos</span>
             </TabsTab>
           </TabsList>
 

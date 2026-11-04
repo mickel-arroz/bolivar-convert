@@ -192,7 +192,14 @@ export function PresupuestoTab({ wallet, stats, dialogs, rates }: PresupuestoTab
             <p className="text-xs text-muted-foreground">Gasto estimado por categoría este mes.</p>
           )}
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <Button
+            variant="outline"
+            onClick={() => dialogs.openNewTransaction('expense')}
+            disabled={state.accounts.length === 0}
+          >
+            <PlusIcon /> Gasto
+          </Button>
           <Button variant="outline" onClick={() => setTemplatesOpen(true)}>
             <TemplateIcon /> Plantillas
           </Button>

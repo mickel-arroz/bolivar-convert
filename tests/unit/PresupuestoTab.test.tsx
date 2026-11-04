@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen } from '@testing-library/react'
 import { describe, it, expect, vi } from 'vitest'
 import { PresupuestoTab } from '@/components/billetera/PresupuestoTab'
 import { formatMoney as rawFormatMoney } from '@/components/billetera/format'
@@ -50,7 +50,8 @@ const row = (id: string, name: string, limit: number, actual: number): BudgetSta
 function renderTab(
   rows: BudgetStatusRow[],
   budgets: Partial<Budget>[] = [],
-  plans: { goals?: Goal[]; goalBalances?: GoalBalance[] } = {}
+  plans: { goals?: Goal[]; goalBalances?: GoalBalance[] } = {},
+  accounts: { id: string }[] = [{ id: 'acc' }]
 ) {
   const wallet = {
     state: {
@@ -64,6 +65,7 @@ function renderTab(
       goals: plans.goals ?? [],
       concludedMonths: [],
       budgets,
+      accounts,
     },
     removeBudget: vi.fn(),
     goalBalances: plans.goalBalances ?? [],
@@ -71,9 +73,30 @@ function renderTab(
     removeShoppingList: vi.fn(),
   } as unknown as WalletApi
   const stats = { budgetStatus: rows, ratesAvailable: true } as unknown as StatsBundle
-  const dialogs = { openBudget: vi.fn() } as never
-  render(<PresupuestoTab wallet={wallet} stats={stats} dialogs={dialogs} rates={RATES} />)
+  const dialogs = { openBudget: vi.fn(), openNewTransaction: vi.fn() }
+  render(<PresupuestoTab wallet={wallet} stats={stats} dialogs={dialogs as never} rates={RATES} />)
+  return { dialogs }
 }
+
+describe('PresupuestoTab — botón Gasto', () => {
+  it('está junto a «Plantillas» y «Asignar presupuesto» y abre el diálogo en modo gasto', () => {
+    const { dialogs } = renderTab([])
+
+    const gasto = screen.getByRole('button', { name: /^Gasto$/ })
+    const toolbar = screen.getByRole('button', { name: /Plantillas/ }).parentElement as HTMLElement
+    expect(toolbar).toContainElement(gasto)
+    expect(toolbar).toContainElement(screen.getByRole('button', { name: /Asignar presupuesto/ }))
+
+    fireEvent.click(gasto)
+    expect(dialogs.openNewTransaction).toHaveBeenCalledWith('expense')
+  })
+
+  it('sin cuentas está deshabilitado', () => {
+    renderTab([], [], {}, [])
+
+    expect(screen.getByRole('button', { name: /^Gasto$/ })).toBeDisabled()
+  })
+})
 
 describe('PresupuestoTab — resumen de todos los presupuestos', () => {
   it('con un solo presupuesto no aparece', () => {

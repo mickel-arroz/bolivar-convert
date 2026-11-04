@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo } from 'react'
+import { useMemo, type ReactNode } from 'react'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, AreaChart, Area, LineChart, Line } from 'recharts'
 import { StatsBundle, TimeRange, WalletApi } from '@/hooks/useWallet'
 import { useWalletResource } from '@/hooks/useWalletResource'
@@ -18,6 +18,7 @@ import { getCategoryIcon } from '@/constants/walletCategories'
 import { ChartPieIcon } from '@/components/icons'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
+import { StatsChartId, statsChartGrid, visibleStatsCharts } from '@/lib/wallet/statsCharts'
 import { AdviceCard } from './AdviceCard'
 import { CurrencyToggle } from './fields'
 import { formatMoney } from './format'
@@ -65,6 +66,10 @@ function compact(value: number): string {
   return Number(value).toLocaleString('en-US', { notation: 'compact', maximumFractionDigits: 1 })
 }
 
+function fillsRow(index: number, count: number): boolean {
+  return count % 2 === 1 && index === count - 1
+}
+
 export function EstadisticasTab({ wallet }: EstadisticasTabProps) {
   const { state, setTimeRange, setDisplayCurrency, setStatsRateSource } = wallet
   const cur = state.displayCurrency
@@ -89,6 +94,9 @@ export function EstadisticasTab({ wallet }: EstadisticasTabProps) {
   const balance = stats.incomeVsExpense.income - stats.incomeVsExpense.expense
 
   const hasAccounts = state.accounts.length > 0
+  const visible = useMemo(() => visibleStatsCharts(stats, hasAccounts), [stats, hasAccounts])
+  const chartIds = visible.filter((id) => statsChartGrid(id) === 'charts')
+  const categoryIds = visible.filter((id) => statsChartGrid(id) === 'categories')
 
   // Tasa de ahorro por mes: (ingresos − gastos) / ingresos.
   const savingsSeries = useMemo(
@@ -112,39 +120,167 @@ export function EstadisticasTab({ wallet }: EstadisticasTabProps) {
     [stats.budgetStatus]
   )
 
-  const renderCategoryList = (
-    rows: typeof expenseRows,
-    max: number,
-    accent: string,
-    emptyLabel: string
-  ) => {
-    if (rows.length === 0) {
-      return <p className="text-sm text-muted-foreground">{emptyLabel}</p>
-    }
-    return (
-      <div className="flex flex-col gap-3">
-        {rows.map((row) => {
-          const Icon = getCategoryIcon(row.icon)
-          return (
-            <div key={row.categoryId} className="flex flex-col gap-1">
-              <div className="flex items-center justify-between gap-2 text-sm">
-                <span className="flex items-center gap-2 font-medium">
-                  <Icon className="size-4" style={row.color ? { color: row.color } : undefined} />
-                  {row.name}
-                </span>
-                <span className="font-bold tabular-nums">{formatMoney(row.total, cur)}</span>
-              </div>
-              <div className="h-1.5 overflow-hidden rounded-full bg-muted">
-                <div
-                  className={cn('h-full rounded-full', accent)}
-                  style={{ width: `${Math.min(100, (row.total / max) * 100)}%` }}
-                />
-              </div>
+  const renderCategoryList = (rows: typeof expenseRows, max: number, accent: string) => (
+    <div className="flex flex-col gap-3">
+      {rows.map((row) => {
+        const Icon = getCategoryIcon(row.icon)
+        return (
+          <div key={row.categoryId} className="flex flex-col gap-1">
+            <div className="flex items-center justify-between gap-2 text-sm">
+              <span className="flex items-center gap-2 font-medium">
+                <Icon className="size-4" style={row.color ? { color: row.color } : undefined} />
+                {row.name}
+              </span>
+              <span className="font-bold tabular-nums">{formatMoney(row.total, cur)}</span>
             </div>
-          )
-        })}
-      </div>
-    )
+            <div className="h-1.5 overflow-hidden rounded-full bg-muted">
+              <div
+                className={cn('h-full rounded-full', accent)}
+                style={{ width: `${Math.min(100, (row.total / max) * 100)}%` }}
+              />
+            </div>
+          </div>
+        )
+      })}
+    </div>
+  )
+
+  const cardRenderers: Record<StatsChartId, (className?: string) => ReactNode> = {
+    incomeVsExpense: (className) => (
+      <Card key="incomeVsExpense" className={className}>
+        <CardHeader>
+          <CardTitle>Ingresos vs Gastos</CardTitle>
+          <CardDescription>Evolución por mes en {getCurrency(cur).label.toLowerCase()}.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <ChartContainer config={chartConfig} className="min-h-56 w-full">
+            <BarChart data={stats.monthlySeries} margin={{ left: 0, right: 12, top: 10 }}>
+              <CartesianGrid vertical={false} strokeDasharray="3 3" className="stroke-muted/50" />
+              <XAxis dataKey="label" tickLine={false} axisLine={false} tickMargin={10} />
+              <YAxis
+                tickLine={false}
+                axisLine={false}
+                tickMargin={8}
+                width={48}
+                tickFormatter={(v) => compact(v as number)}
+              />
+              <ChartTooltip content={<ChartTooltipContent />} />
+              <Bar dataKey="income" fill="var(--color-income)" radius={[4, 4, 0, 0]} />
+              <Bar dataKey="expense" fill="var(--color-expense)" radius={[4, 4, 0, 0]} />
+            </BarChart>
+          </ChartContainer>
+        </CardContent>
+      </Card>
+    ),
+    netWorth: (className) => (
+      <Card key="netWorth" className={className}>
+        <CardHeader>
+          <CardTitle>Patrimonio neto</CardTitle>
+          <CardDescription>
+            Evolución acumulada de tus cuentas en {getCurrency(cur).label.toLowerCase()}.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <ChartContainer config={netWorthConfig} className="min-h-56 w-full">
+            <AreaChart data={stats.netWorthSeries} margin={{ left: 0, right: 12, top: 10 }}>
+              <CartesianGrid vertical={false} strokeDasharray="3 3" className="stroke-muted/50" />
+              <XAxis dataKey="label" tickLine={false} axisLine={false} tickMargin={10} />
+              <YAxis
+                tickLine={false}
+                axisLine={false}
+                tickMargin={8}
+                width={48}
+                tickFormatter={(v) => compact(v as number)}
+              />
+              <ChartTooltip content={<ChartTooltipContent />} />
+              <Area
+                dataKey="value"
+                type="monotone"
+                stroke="var(--color-value)"
+                fill="var(--color-value)"
+                fillOpacity={0.15}
+                strokeWidth={2}
+              />
+            </AreaChart>
+          </ChartContainer>
+        </CardContent>
+      </Card>
+    ),
+    savingsRate: (className) => (
+      <Card key="savingsRate" className={className}>
+        <CardHeader>
+          <CardTitle>Tasa de ahorro</CardTitle>
+          <CardDescription>Porcentaje de tus ingresos que no gastaste, por mes.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <ChartContainer config={savingsConfig} className="min-h-56 w-full">
+            <LineChart data={savingsSeries} margin={{ left: 0, right: 12, top: 10 }}>
+              <CartesianGrid vertical={false} strokeDasharray="3 3" className="stroke-muted/50" />
+              <XAxis dataKey="label" tickLine={false} axisLine={false} tickMargin={10} />
+              <YAxis
+                tickLine={false}
+                axisLine={false}
+                tickMargin={8}
+                width={48}
+                tickFormatter={(v) => `${v}%`}
+              />
+              <ChartTooltip content={<ChartTooltipContent />} />
+              <Line
+                dataKey="rate"
+                type="monotone"
+                stroke="var(--color-rate)"
+                strokeWidth={2}
+                dot={false}
+              />
+            </LineChart>
+          </ChartContainer>
+        </CardContent>
+      </Card>
+    ),
+    budget: (className) => (
+      <Card key="budget" className={className}>
+        <CardHeader>
+          <CardTitle>Presupuesto vs gastado</CardTitle>
+          <CardDescription>
+            Comparación del mes actual por categoría (montos en la moneda de cada presupuesto).
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <ChartContainer config={budgetConfig} className="min-h-56 w-full">
+            <BarChart data={budgetData} margin={{ left: 0, right: 12, top: 10 }}>
+              <CartesianGrid vertical={false} strokeDasharray="3 3" className="stroke-muted/50" />
+              <XAxis dataKey="label" tickLine={false} axisLine={false} tickMargin={10} />
+              <YAxis
+                tickLine={false}
+                axisLine={false}
+                tickMargin={8}
+                width={48}
+                tickFormatter={(v) => compact(v as number)}
+              />
+              <ChartTooltip content={<ChartTooltipContent />} />
+              <Bar dataKey="presupuesto" fill="var(--color-presupuesto)" radius={[4, 4, 0, 0]} />
+              <Bar dataKey="gastado" fill="var(--color-gastado)" radius={[4, 4, 0, 0]} />
+            </BarChart>
+          </ChartContainer>
+        </CardContent>
+      </Card>
+    ),
+    expenseByCategory: (className) => (
+      <Card key="expenseByCategory" className={className}>
+        <CardHeader>
+          <CardTitle>Gastos por categoría</CardTitle>
+        </CardHeader>
+        <CardContent>{renderCategoryList(expenseRows, maxExpense, 'bg-destructive')}</CardContent>
+      </Card>
+    ),
+    incomeByCategory: (className) => (
+      <Card key="incomeByCategory" className={className}>
+        <CardHeader>
+          <CardTitle>Ingresos por categoría</CardTitle>
+        </CardHeader>
+        <CardContent>{renderCategoryList(incomeRows, maxIncome, 'bg-green-500')}</CardContent>
+      </Card>
+    ),
   }
 
   if (!data) {
@@ -249,175 +385,32 @@ export function EstadisticasTab({ wallet }: EstadisticasTabProps) {
         </Card>
       </div>
 
+      {visible.length === 0 && (
+        <Card>
+          <CardContent className="flex flex-col items-center gap-2 py-10 text-center text-muted-foreground">
+            <ChartPieIcon className="size-8 opacity-20" />
+            <p className="text-sm">Registra movimientos para ver tus estadísticas.</p>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Gráficas: 1 columna en móvil, 2 columnas en pantallas grandes */}
-      <div className="grid gap-6 lg:grid-cols-2">
-      {/* Evolución mensual */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Ingresos vs Gastos</CardTitle>
-          <CardDescription>Evolución por mes en {getCurrency(cur).label.toLowerCase()}.</CardDescription>
-        </CardHeader>
-        <CardContent>
-          {stats.monthlySeries.length === 0 ? (
-            <div className="flex h-48 flex-col items-center justify-center gap-2 text-muted-foreground">
-              <ChartPieIcon className="size-8 opacity-20" />
-              <p className="text-sm">No hay datos en este periodo.</p>
-            </div>
-          ) : (
-            <ChartContainer config={chartConfig} className="min-h-56 w-full">
-              <BarChart data={stats.monthlySeries} margin={{ left: 0, right: 12, top: 10 }}>
-                <CartesianGrid vertical={false} strokeDasharray="3 3" className="stroke-muted/50" />
-                <XAxis dataKey="label" tickLine={false} axisLine={false} tickMargin={10} />
-                <YAxis
-                  tickLine={false}
-                  axisLine={false}
-                  tickMargin={8}
-                  width={48}
-                  tickFormatter={(v) => compact(v as number)}
-                />
-                <ChartTooltip content={<ChartTooltipContent />} />
-                <Bar dataKey="income" fill="var(--color-income)" radius={[4, 4, 0, 0]} />
-                <Bar dataKey="expense" fill="var(--color-expense)" radius={[4, 4, 0, 0]} />
-              </BarChart>
-            </ChartContainer>
+      {chartIds.length > 0 && (
+        <div className="grid gap-6 lg:grid-cols-2">
+          {chartIds.map((id, i) =>
+            cardRenderers[id](fillsRow(i, chartIds.length) ? 'lg:col-span-2' : undefined)
           )}
-        </CardContent>
-      </Card>
-
-      {/* Patrimonio neto acumulado */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Patrimonio neto</CardTitle>
-          <CardDescription>
-            Evolución acumulada de tus cuentas en {getCurrency(cur).label.toLowerCase()}.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          {!hasAccounts || stats.netWorthSeries.length === 0 ? (
-            <div className="flex h-48 flex-col items-center justify-center gap-2 text-muted-foreground">
-              <ChartPieIcon className="size-8 opacity-20" />
-              <p className="text-sm">No hay datos en este periodo.</p>
-            </div>
-          ) : (
-            <ChartContainer config={netWorthConfig} className="min-h-56 w-full">
-              <AreaChart data={stats.netWorthSeries} margin={{ left: 0, right: 12, top: 10 }}>
-                <CartesianGrid vertical={false} strokeDasharray="3 3" className="stroke-muted/50" />
-                <XAxis dataKey="label" tickLine={false} axisLine={false} tickMargin={10} />
-                <YAxis
-                  tickLine={false}
-                  axisLine={false}
-                  tickMargin={8}
-                  width={48}
-                  tickFormatter={(v) => compact(v as number)}
-                />
-                <ChartTooltip content={<ChartTooltipContent />} />
-                <Area
-                  dataKey="value"
-                  type="monotone"
-                  stroke="var(--color-value)"
-                  fill="var(--color-value)"
-                  fillOpacity={0.15}
-                  strokeWidth={2}
-                />
-              </AreaChart>
-            </ChartContainer>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* Tasa de ahorro */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Tasa de ahorro</CardTitle>
-          <CardDescription>Porcentaje de tus ingresos que no gastaste, por mes.</CardDescription>
-        </CardHeader>
-        <CardContent>
-          {savingsSeries.length === 0 ? (
-            <div className="flex h-48 flex-col items-center justify-center gap-2 text-muted-foreground">
-              <ChartPieIcon className="size-8 opacity-20" />
-              <p className="text-sm">No hay datos en este periodo.</p>
-            </div>
-          ) : (
-            <ChartContainer config={savingsConfig} className="min-h-56 w-full">
-              <LineChart data={savingsSeries} margin={{ left: 0, right: 12, top: 10 }}>
-                <CartesianGrid vertical={false} strokeDasharray="3 3" className="stroke-muted/50" />
-                <XAxis dataKey="label" tickLine={false} axisLine={false} tickMargin={10} />
-                <YAxis
-                  tickLine={false}
-                  axisLine={false}
-                  tickMargin={8}
-                  width={48}
-                  tickFormatter={(v) => `${v}%`}
-                />
-                <ChartTooltip content={<ChartTooltipContent />} />
-                <Line
-                  dataKey="rate"
-                  type="monotone"
-                  stroke="var(--color-rate)"
-                  strokeWidth={2}
-                  dot={false}
-                />
-              </LineChart>
-            </ChartContainer>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* Presupuesto vs gastado */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Presupuesto vs gastado</CardTitle>
-          <CardDescription>
-            Comparación del mes actual por categoría (montos en la moneda de cada presupuesto).
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          {budgetData.length === 0 ? (
-            <div className="flex h-48 flex-col items-center justify-center gap-2 text-muted-foreground">
-              <ChartPieIcon className="size-8 opacity-20" />
-              <p className="text-sm">No has asignado presupuestos este mes.</p>
-            </div>
-          ) : (
-            <ChartContainer config={budgetConfig} className="min-h-56 w-full">
-              <BarChart data={budgetData} margin={{ left: 0, right: 12, top: 10 }}>
-                <CartesianGrid vertical={false} strokeDasharray="3 3" className="stroke-muted/50" />
-                <XAxis dataKey="label" tickLine={false} axisLine={false} tickMargin={10} />
-                <YAxis
-                  tickLine={false}
-                  axisLine={false}
-                  tickMargin={8}
-                  width={48}
-                  tickFormatter={(v) => compact(v as number)}
-                />
-                <ChartTooltip content={<ChartTooltipContent />} />
-                <Bar dataKey="presupuesto" fill="var(--color-presupuesto)" radius={[4, 4, 0, 0]} />
-                <Bar dataKey="gastado" fill="var(--color-gastado)" radius={[4, 4, 0, 0]} />
-              </BarChart>
-            </ChartContainer>
-          )}
-        </CardContent>
-      </Card>
-      </div>
+        </div>
+      )}
 
       {/* Resumen por categoría */}
-      <div className="grid gap-4 md:grid-cols-2">
-        <Card>
-          <CardHeader>
-            <CardTitle>Gastos por categoría</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {renderCategoryList(expenseRows, maxExpense, 'bg-destructive', 'Sin gastos en este periodo.')}
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader>
-            <CardTitle>Ingresos por categoría</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {renderCategoryList(incomeRows, maxIncome, 'bg-green-500', 'Sin ingresos en este periodo.')}
-          </CardContent>
-        </Card>
-      </div>
+      {categoryIds.length > 0 && (
+        <div className="grid gap-4 md:grid-cols-2">
+          {categoryIds.map((id, i) =>
+            cardRenderers[id](fillsRow(i, categoryIds.length) ? 'md:col-span-2' : undefined)
+          )}
+        </div>
+      )}
 
       <p className="text-[11px] text-muted-foreground">
         Las estadísticas convierten todas las monedas a {getCurrency(cur).label.toLowerCase()} usando la

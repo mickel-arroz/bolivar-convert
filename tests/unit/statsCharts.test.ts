@@ -1,8 +1,9 @@
 import { describe, it, expect } from 'vitest'
 import { visibleStatsCharts } from '@/lib/wallet/statsCharts'
-import type { BudgetStatusRow, CategorySummaryRow, MonthlyPoint, StatsBundle } from '@/hooks/useWallet'
+import type { BudgetStatusRow, CategorySummaryRow, MonthlyPoint } from '@/hooks/useWallet'
+import type { SavingsPlanStat, ShoppingListStat, StatsView } from '@/lib/wallet/statsPlansLists'
 
-const EMPTY: StatsBundle = {
+const EMPTY: StatsView = {
   incomeVsExpense: { income: 0, expense: 0 },
   categorySummary: [],
   monthlySeries: [],
@@ -11,6 +12,8 @@ const EMPTY: StatsBundle = {
   budgetStatus: [],
   budgetUsage: { currency: 'VES', spent: 0, total: 0, ratio: 0, onTrack: 0, over: 0 },
   ratesAvailable: true,
+  savingsPlans: [],
+  shoppingLists: { rows: [], remaining: 0 },
 }
 
 const month = (income: number, expense: number): MonthlyPoint =>
@@ -66,5 +69,15 @@ describe('visibleStatsCharts', () => {
     expect(visibleStatsCharts({ ...EMPTY, categorySummary: [category('income')] }, false)).toEqual([
       'incomeByCategory',
     ])
+  })
+
+  it('Planes de ahorro se muestra con al menos un plan activo', () => {
+    const stats = { ...EMPTY, savingsPlans: [{} as SavingsPlanStat] }
+    expect(visibleStatsCharts(stats, false)).toEqual(['savingsPlans'])
+  })
+
+  it('Listas de compras se muestra solo con algo por pagar', () => {
+    const stats = { ...EMPTY, shoppingLists: { rows: [{} as ShoppingListStat], remaining: 12 } }
+    expect(visibleStatsCharts(stats, false)).toEqual(['shoppingLists'])
   })
 })

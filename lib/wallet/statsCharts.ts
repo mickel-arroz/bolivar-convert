@@ -1,4 +1,4 @@
-import type { StatsBundle } from '@/hooks/useWallet'
+import type { StatsView } from './statsPlansLists'
 
 export type StatsChartId =
   | 'incomeVsExpense'
@@ -7,16 +7,18 @@ export type StatsChartId =
   | 'budget'
   | 'expenseByCategory'
   | 'incomeByCategory'
+  | 'savingsPlans'
+  | 'shoppingLists'
 
-const hasMovements = (s: StatsBundle) => s.monthlySeries.some((p) => p.income > 0 || p.expense > 0)
+const hasMovements = (s: StatsView) => s.monthlySeries.some((p) => p.income > 0 || p.expense > 0)
 
-/** Las gráficas van en una cuadrícula y las listas por categoría en otra. */
+/** Las gráficas van en una cuadrícula y las listas de barras horizontales en otra. */
 export type StatsChartGrid = 'charts' | 'categories'
 
 interface StatsChartDef {
   grid: StatsChartGrid
   /** Sin datos en el rango, la card se oculta. */
-  hasData: (stats: StatsBundle, hasAccounts: boolean) => boolean
+  hasData: (stats: StatsView, hasAccounts: boolean) => boolean
 }
 
 /** Una entrada por card de Estadísticas, en el orden en que se muestran. */
@@ -33,10 +35,12 @@ const STATS_CHARTS: Record<StatsChartId, StatsChartDef> = {
     grid: 'categories',
     hasData: (s) => s.categorySummary.some((r) => r.kind === 'income'),
   },
+  savingsPlans: { grid: 'categories', hasData: (s) => s.savingsPlans.length > 0 },
+  shoppingLists: { grid: 'categories', hasData: (s) => s.shoppingLists.rows.length > 0 },
 }
 
 /** Las cards con datos, en el orden en que se muestran. */
-export function visibleStatsCharts(stats: StatsBundle, hasAccounts: boolean): StatsChartId[] {
+export function visibleStatsCharts(stats: StatsView, hasAccounts: boolean): StatsChartId[] {
   return (Object.keys(STATS_CHARTS) as StatsChartId[]).filter((id) =>
     STATS_CHARTS[id].hasData(stats, hasAccounts)
   )

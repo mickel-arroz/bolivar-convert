@@ -1,9 +1,10 @@
 import { render, screen } from '@testing-library/react'
 import { describe, it, expect, vi } from 'vitest'
 import { EstadisticasTab } from '@/components/billetera/EstadisticasTab'
-import type { CategorySummaryRow, StatsBundle, WalletApi } from '@/hooks/useWallet'
+import type { CategorySummaryRow, WalletApi } from '@/hooks/useWallet'
+import type { StatsView } from '@/lib/wallet/statsPlansLists'
 
-let stats: StatsBundle | undefined
+let stats: StatsView | undefined
 let adviceLoaded = true
 vi.mock('@/hooks/useWalletResource', () => ({ useWalletResource: () => ({ data: stats }) }))
 vi.mock('@/hooks/useAdvice', () => ({
@@ -20,7 +21,7 @@ vi.mock('@/components/ui/chart', () => ({
   ChartTooltipContent: () => null,
 }))
 
-const EMPTY: StatsBundle = {
+const EMPTY: StatsView = {
   incomeVsExpense: { income: 0, expense: 0 },
   categorySummary: [],
   monthlySeries: [],
@@ -29,6 +30,8 @@ const EMPTY: StatsBundle = {
   budgetStatus: [],
   budgetUsage: { currency: 'VES', spent: 0, total: 0, ratio: 0, onTrack: 0, over: 0 },
   ratesAvailable: true,
+  savingsPlans: [],
+  shoppingLists: { rows: [], remaining: 0 },
 }
 
 const expenseRow: CategorySummaryRow = {
@@ -39,7 +42,7 @@ const expenseRow: CategorySummaryRow = {
   total: 30,
 }
 
-function renderTab(data: StatsBundle, accounts: { id: string }[] = []) {
+function renderTab(data: StatsView | undefined, accounts: { id: string }[] = []) {
   stats = data
   const wallet = {
     state: { displayCurrency: 'USD', statsRateSource: 'bcvUsd', timeRange: '1m', accounts },
@@ -58,6 +61,8 @@ const TITLES = [
   'Presupuesto vs gastado',
   'Gastos por categoría',
   'Ingresos por categoría',
+  'Planes de ahorro',
+  'Listas de compras',
 ]
 const card = (title: string) => screen.getByText(title).closest('[data-slot="card"]') as HTMLElement
 
@@ -108,11 +113,61 @@ describe('EstadisticasTab — gráficas sin datos', () => {
   })
 })
 
+describe('EstadisticasTab — Planes de ahorro y Listas de compras', () => {
+  it('muestra lo ahorrado frente a la Meta, o solo lo ahorrado si el plan no tiene', () => {
+    renderTab({
+      ...EMPTY,
+      savingsPlans: [
+        { goalId: 'viaje', name: 'Viaje', currency: 'USD', saved: 150, target: 500 },
+        { goalId: 'colchon', name: 'Colchón', currency: 'VES', saved: 30, target: null },
+      ],
+    })
+
+    const plans = card('Planes de ahorro')
+    expect(plans).toHaveTextContent('Viaje')
+    expect(plans).toHaveTextContent('$ 150.00 de $ 500.00')
+    expect(plans).toHaveTextContent('30%')
+    expect(plans).toHaveTextContent('Colchón')
+    expect(plans).toHaveTextContent('Bs. 30,00')
+    expect(plans).not.toHaveTextContent('Bs. 30,00 de')
+    expect(screen.queryByText(/Registra movimientos/)).not.toBeInTheDocument()
+  })
+
+  it('muestra el Restante por pagar de cada lista y el total en la moneda de visualización', () => {
+    renderTab({
+      ...EMPTY,
+      shoppingLists: {
+        rows: [
+          { listId: 'mercado', name: 'Mercado', remaining: 20 },
+          { listId: 'casa', name: 'Casa', remaining: 6.25 },
+        ],
+        remaining: 26.25,
+      },
+    })
+
+    const lists = card('Listas de compras')
+    expect(lists).toHaveTextContent('Mercado')
+    expect(lists).toHaveTextContent('$ 20.00')
+    expect(lists).toHaveTextContent('Casa')
+    expect(lists).toHaveTextContent('$ 6.25')
+    expect(lists).toHaveTextContent('Restante total por pagar')
+    expect(lists).toHaveTextContent('$ 26.25')
+  })
+
+  it('sin planes ni nada por pagar no muestra ninguna de las dos', () => {
+    renderTab(EMPTY)
+
+    expect(screen.queryByText('Planes de ahorro')).not.toBeInTheDocument()
+    expect(screen.queryByText('Listas de compras')).not.toBeInTheDocument()
+    expect(screen.getByText(/Registra movimientos/)).toBeInTheDocument()
+  })
+})
+
 describe('EstadisticasTab — Consejo mientras cargan las estadísticas', () => {
   it('muestra la card del Consejo con su skeleton junto al resto del skeleton', () => {
     adviceLoaded = false
     try {
-      renderTab(undefined as unknown as StatsBundle)
+      renderTab(undefined)
     } finally {
       adviceLoaded = true
     }

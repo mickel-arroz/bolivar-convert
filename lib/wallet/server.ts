@@ -27,18 +27,20 @@ import type { CurrencyId } from '@/constants/currencies'
 import type { Rates, RateId } from '@/constants/rates'
 import type { WalletDelta } from '@/lib/wallet/delta'
 import { DEFAULT_DISPLAY_CURRENCY, isCurrencyId } from '@/lib/wallet/displayCurrency'
-import type { StatsBundle, TimeRange } from '@/hooks/useWallet'
+import type { TimeRange } from '@/hooks/useWallet'
 import {
   buildFeed,
   computeAccountFunds,
   computeInGoalsByCurrency,
   computeTotalsByCurrency,
+  bsPerUnit,
   computeStats,
   DEFAULT_BUDGET_TEMPLATE_ID,
   type AccountsSummary,
   type MovementsPage,
 } from '@/lib/wallet/compute'
 import { buildGoalMovements } from '@/lib/wallet/goalMovements'
+import { computePlansAndListsStats, type StatsView } from '@/lib/wallet/statsPlansLists'
 
 /* ───────────────────────── Mapeo dominio ↔ fila ───────────────────────── */
 
@@ -799,15 +801,28 @@ export async function loadMovements(
 /**
  * Estadísticas computadas en el servidor para un rango de antigüedad. Toma la
  * moneda de visualización y la fuente de tasa de las preferencias del usuario y
- * las tasas actuales (pasadas por el handler).
+ * las tasas actuales (pasadas por el handler). Los planes de ahorro y las listas
+ * de compras van aparte del rango: son lo que hay hoy.
  */
 export async function loadStats(
   supabase: SupabaseClient,
   userId: string,
   range: TimeRange,
   rates: Rates
-): Promise<StatsBundle> {
-  const [profileRes, accountsRes, txRes, trRes, catRes, budgetRes, btRes] = await Promise.all([
+): Promise<StatsView> {
+  const [
+    profileRes,
+    accountsRes,
+    txRes,
+    trRes,
+    catRes,
+    budgetRes,
+    btRes,
+    goalsRes,
+    gcRes,
+    listsRes,
+    itemsRes,
+  ] = await Promise.all([
     supabase.from('profiles').select('*').eq('id', userId).maybeSingle(),
     supabase.from('accounts').select('*').eq('user_id', userId),
     supabase.from('transactions').select('*').eq('user_id', userId),
@@ -815,10 +830,24 @@ export async function loadStats(
     supabase.from('categories').select('*').eq('user_id', userId),
     supabase.from('budgets').select('*').eq('user_id', userId),
     supabase.from('budget_transfers').select('*').eq('user_id', userId),
+    supabase.from('goals').select('*').eq('user_id', userId),
+    supabase.from('goal_contributions').select('*').eq('user_id', userId),
+    supabase.from('shopping_lists').select('*').eq('user_id', userId),
+    supabase.from('shopping_list_items').select('*').eq('user_id', userId),
   ])
-  const failed = [profileRes, accountsRes, txRes, trRes, catRes, budgetRes, btRes].find(
-    (r) => r.error
-  )
+  const failed = [
+    profileRes,
+    accountsRes,
+    txRes,
+    trRes,
+    catRes,
+    budgetRes,
+    btRes,
+    goalsRes,
+    gcRes,
+    listsRes,
+    itemsRes,
+  ].find((r) => r.error)
   if (failed?.error) throw failed.error
 
   const accounts = ((accountsRes.data as Record<string, unknown>[]) ?? []).map(rowToAccount)
@@ -835,10 +864,25 @@ export async function loadStats(
     (p?.active_budget_template_id as string | null) ?? DEFAULT_BUDGET_TEMPLATE_ID
   const budgets = allBudgets.filter((b) => b.templateId === activeTemplateId)
 
-  return computeStats(
+  const stats = computeStats(
     { accounts, transactions, transfers, categories, budgets, budgetTransfers },
     rates,
     { displayCurrency, statsRateSource, timeRange: range }
   )
+  const plansAndLists = computePlansAndListsStats(
+    {
+      goals: ((goalsRes.data as Record<string, unknown>[]) ?? []).map(rowToGoal),
+      goalContributions: ((gcRes.data as Record<string, unknown>[]) ?? []).map(rowToContribution),
+      shoppingLists: ((listsRes.data as Record<string, unknown>[]) ?? []).map(rowToShoppingList),
+      shoppingItems: ((itemsRes.data as Record<string, unknown>[]) ?? []).map(rowToShoppingItem),
+    },
+    {
+      VES: 1,
+      USD: bsPerUnit('USD', rates, statsRateSource),
+      EUR: bsPerUnit('EUR', rates, statsRateSource),
+    },
+    displayCurrency
+  )
+  return { ...stats, ...plansAndLists }
 }
 

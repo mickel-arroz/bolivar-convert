@@ -2,7 +2,7 @@
 
 import { useMemo, type ReactNode } from 'react'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, AreaChart, Area, LineChart, Line } from 'recharts'
-import { StatsBundle, TimeRange, WalletApi } from '@/hooks/useWallet'
+import { TimeRange, WalletApi } from '@/hooks/useWallet'
 import { useWalletResource } from '@/hooks/useWalletResource'
 import { useAdvice } from '@/hooks/useAdvice'
 import { EstadisticasSkeleton } from './skeletons'
@@ -19,16 +19,18 @@ import { ChartPieIcon } from '@/components/icons'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { StatsChartId, statsChartGrid, visibleStatsCharts } from '@/lib/wallet/statsCharts'
+import type { StatsView } from '@/lib/wallet/statsPlansLists'
 import { AdviceCard } from './AdviceCard'
 import { BudgetUsageCard } from './BudgetUsageCard'
 import { CurrencyToggle } from './fields'
 import { formatMoney } from './format'
+import { SavingsPlansStatsCard, ShoppingListsStatsCard } from './PlansAndListsStatsCards'
 
 interface EstadisticasTabProps {
   wallet: WalletApi
 }
 
-const EMPTY_STATS: StatsBundle = {
+const EMPTY_STATS: StatsView = {
   incomeVsExpense: { income: 0, expense: 0 },
   categorySummary: [],
   monthlySeries: [],
@@ -37,6 +39,8 @@ const EMPTY_STATS: StatsBundle = {
   budgetStatus: [],
   budgetUsage: { currency: 'VES', spent: 0, total: 0, ratio: 0, onTrack: 0, over: 0 },
   ratesAvailable: true,
+  savingsPlans: [],
+  shoppingLists: { rows: [], remaining: 0 },
 }
 
 const RANGES: { id: TimeRange; label: string }[] = [
@@ -72,7 +76,7 @@ export function EstadisticasTab({ wallet }: EstadisticasTabProps) {
   const cur = state.displayCurrency
   const { advice, loaded: adviceLoaded } = useAdvice()
 
-  const { data } = useWalletResource<StatsBundle>(
+  const { data } = useWalletResource<StatsView>(
     `/api/wallet/stats?range=${state.timeRange}`,
     wallet.syncedVersion
   )
@@ -245,6 +249,17 @@ export function EstadisticasTab({ wallet }: EstadisticasTabProps) {
         </CardHeader>
         <CardContent>{renderCategoryList(incomeRows, maxIncome, 'bg-green-500')}</CardContent>
       </Card>
+    ),
+    savingsPlans: (className) => (
+      <SavingsPlansStatsCard key="savingsPlans" plans={stats.savingsPlans} className={className} />
+    ),
+    shoppingLists: (className) => (
+      <ShoppingListsStatsCard
+        key="shoppingLists"
+        lists={stats.shoppingLists}
+        currency={cur}
+        className={className}
+      />
     ),
   }
 

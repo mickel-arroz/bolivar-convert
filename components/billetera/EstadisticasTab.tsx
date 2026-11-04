@@ -14,13 +14,13 @@ import {
   ChartTooltip,
   ChartTooltipContent,
 } from '@/components/ui/chart'
-import { getCategoryIcon } from '@/constants/walletCategories'
 import { ChartPieIcon } from '@/components/icons'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { StatsChartId, statsChartGrid, visibleStatsCharts } from '@/lib/wallet/statsCharts'
 import type { StatsView } from '@/lib/wallet/statsPlansLists'
 import { AdviceCard } from './AdviceCard'
+import { CategoryStatsCard } from './CategoryStatsCard'
 import { BudgetUsageCard } from './BudgetUsageCard'
 import { CurrencyToggle } from './fields'
 import { formatMoney } from './format'
@@ -90,8 +90,6 @@ export function EstadisticasTab({ wallet }: EstadisticasTabProps) {
     () => stats.categorySummary.filter((r) => r.kind === 'income'),
     [stats.categorySummary]
   )
-  const maxExpense = Math.max(1, ...expenseRows.map((r) => r.total))
-  const maxIncome = Math.max(1, ...incomeRows.map((r) => r.total))
   const balance = stats.incomeVsExpense.income - stats.incomeVsExpense.expense
 
   const hasAccounts = state.accounts.length > 0
@@ -107,31 +105,6 @@ export function EstadisticasTab({ wallet }: EstadisticasTabProps) {
         rate: p.income > 0 ? Math.round(((p.income - p.expense) / p.income) * 100) : 0,
       })),
     [stats.monthlySeries]
-  )
-
-  const renderCategoryList = (rows: typeof expenseRows, max: number, accent: string) => (
-    <div className="flex flex-col gap-3">
-      {rows.map((row) => {
-        const Icon = getCategoryIcon(row.icon)
-        return (
-          <div key={row.categoryId} className="flex flex-col gap-1">
-            <div className="flex items-center justify-between gap-2 text-sm">
-              <span className="flex items-center gap-2 font-medium">
-                <Icon className="size-4" style={row.color ? { color: row.color } : undefined} />
-                {row.name}
-              </span>
-              <span className="font-bold tabular-nums">{formatMoney(row.total, cur)}</span>
-            </div>
-            <div className="h-1.5 overflow-hidden rounded-full bg-muted">
-              <div
-                className={cn('h-full rounded-full', accent)}
-                style={{ width: `${Math.min(100, (row.total / max) * 100)}%` }}
-              />
-            </div>
-          </div>
-        )
-      })}
-    </div>
   )
 
   const cardRenderers: Record<StatsChartId, (className?: string) => ReactNode> = {
@@ -235,20 +208,24 @@ export function EstadisticasTab({ wallet }: EstadisticasTabProps) {
       />
     ),
     expenseByCategory: (className) => (
-      <Card key="expenseByCategory" className={className}>
-        <CardHeader>
-          <CardTitle>Gastos por categoría</CardTitle>
-        </CardHeader>
-        <CardContent>{renderCategoryList(expenseRows, maxExpense, 'bg-destructive')}</CardContent>
-      </Card>
+      <CategoryStatsCard
+        key="expenseByCategory"
+        title="Gastos por categoría"
+        totalLabel="Total de gastos"
+        rows={expenseRows}
+        currency={cur}
+        className={className}
+      />
     ),
     incomeByCategory: (className) => (
-      <Card key="incomeByCategory" className={className}>
-        <CardHeader>
-          <CardTitle>Ingresos por categoría</CardTitle>
-        </CardHeader>
-        <CardContent>{renderCategoryList(incomeRows, maxIncome, 'bg-green-500')}</CardContent>
-      </Card>
+      <CategoryStatsCard
+        key="incomeByCategory"
+        title="Ingresos por categoría"
+        totalLabel="Total de ingresos"
+        rows={incomeRows}
+        currency={cur}
+        className={className}
+      />
     ),
     savingsPlans: (className) => (
       <SavingsPlansStatsCard

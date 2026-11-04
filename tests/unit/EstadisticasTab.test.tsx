@@ -231,3 +231,82 @@ describe('EstadisticasTab — Consejo mientras cargan las estadísticas', () => 
     expect(screen.getByTestId('advice')).toHaveAttribute('data-loading', 'true')
   })
 })
+
+describe('EstadisticasTab — Gastos e Ingresos por categoría', () => {
+  const categoryRow = (
+    id: string,
+    kind: 'income' | 'expense',
+    total: number
+  ): CategorySummaryRow => ({
+    categoryId: id,
+    name: id,
+    icon: 'other',
+    kind,
+    total,
+  })
+
+  it('resume el total y detalla cada categoría con su peso', () => {
+    renderTab({
+      ...EMPTY,
+      categorySummary: [
+        categoryRow('Comida', 'expense', 75),
+        categoryRow('Transporte', 'expense', 25),
+        categoryRow('Sueldo', 'income', 500),
+      ],
+    })
+
+    const gastos = card('Gastos por categoría')
+    expect(gastos).toHaveTextContent('$ 100.00')
+    expect(gastos).toHaveTextContent('2 categorías')
+    const [comida, transporte] = within(gastos).getAllByTestId('stats-category-row')
+    expect(comida).toHaveTextContent('Comida')
+    expect(comida).toHaveTextContent('$ 75.00')
+    expect(comida).toHaveTextContent('75%')
+    expect(transporte).toHaveTextContent('25%')
+
+    const ingresos = card('Ingresos por categoría')
+    expect(ingresos).toHaveTextContent('$ 500.00')
+    expect(ingresos).toHaveTextContent('1 categoría')
+    expect(within(ingresos).getAllByTestId('stats-category-row')).toHaveLength(1)
+  })
+
+  it('con muchas categorías la lista hace scroll en vez de alargar la card', () => {
+    renderTab({
+      ...EMPTY,
+      categorySummary: Array.from({ length: 25 }, (_, i) => categoryRow(`C${i}`, 'expense', i + 1)),
+    })
+
+    const scroller = within(card('Gastos por categoría')).getByTestId('stats-scroll')
+    expect(scroller).toHaveClass('overflow-y-auto')
+    expect(scroller.className).toMatch(/max-h-/)
+  })
+})
+
+describe('EstadisticasTab — porcentaje al pasar sobre las barras', () => {
+  it('cada tramo dice a qué elemento pertenece y qué porcentaje es', () => {
+    renderTab({
+      ...EMPTY,
+      categorySummary: [
+        { categoryId: 'c', name: 'Comida', icon: 'other', kind: 'expense', total: 75 },
+        { categoryId: 't', name: 'Transporte', icon: 'other', kind: 'expense', total: 25 },
+      ],
+      savingsPlans: {
+        rows: [{ goalId: 'v', name: 'Viaje', currency: 'USD', saved: 150, target: 500 }],
+        progress: null,
+      },
+      shoppingLists: {
+        rows: [
+          { listId: 'm', name: 'Mercado', pending: 2, remaining: 60 },
+          { listId: 'k', name: 'Casa', pending: 1, remaining: 40 },
+        ],
+        remaining: 100,
+      },
+    })
+
+    expect(screen.getByLabelText('Comida · 75%')).toBeInTheDocument()
+    expect(screen.getByLabelText('Transporte · 25%')).toBeInTheDocument()
+    expect(screen.getByLabelText('Mercado · 60%')).toBeInTheDocument()
+    expect(screen.getByLabelText('Casa · 40%')).toBeInTheDocument()
+    expect(screen.getByLabelText('Viaje · 30% de la Meta')).toBeInTheDocument()
+  })
+})

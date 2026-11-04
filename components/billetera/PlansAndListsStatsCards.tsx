@@ -1,13 +1,20 @@
-import { createElement, type ReactNode } from 'react'
 import type { CurrencyId } from '@/constants/currencies'
 import { getAccountIcon } from '@/constants/walletCategories'
-import { DEFAULT_ACCOUNT_COLOR, WALLET_COLORS, isDefaultColor } from '@/constants/walletColors'
+import { DEFAULT_ACCOUNT_COLOR } from '@/constants/walletColors'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { CheckIcon } from '@/components/icons'
 import type { SavingsPlanStat, StatsView } from '@/lib/wallet/statsPlansLists'
 import { formatMoney } from './format'
+import {
+  BarWithTip,
+  ItemIcon,
+  ScrollList,
+  ShareRow,
+  ShareSummary,
+  colorOrPalette,
+  percent,
+} from './StatsListParts'
 
-const percent = (ratio: number) => `${Math.round(ratio * 100)}%`
 const clamp01 = (value: number) => Math.min(1, Math.max(0, value))
 
 function ProgressRing({ ratio, color }: { ratio: number; color: string }) {
@@ -24,36 +31,13 @@ function ProgressRing({ ratio, color }: { ratio: number; color: string }) {
   )
 }
 
-function ItemIcon({ icon, color }: { icon?: string; color: string }) {
-  return (
-    <div
-      className="flex size-8 shrink-0 items-center justify-center rounded-full"
-      style={{ backgroundColor: `color-mix(in oklch, ${color} 18%, transparent)`, color }}
-    >
-      {createElement(getAccountIcon(icon), { className: 'size-4' })}
-    </div>
-  )
-}
-
-/** La lista de una card: altura acotada y scroll propio, para que la card no crezca. */
-function ScrollList({ children }: { children: ReactNode }) {
-  return (
-    <div
-      data-testid="stats-scroll"
-      className="-mr-2 flex max-h-72 flex-col divide-y overflow-y-auto pr-2"
-    >
-      {children}
-    </div>
-  )
-}
-
 function PlanRow({ plan }: { plan: SavingsPlanStat }) {
   const color = plan.color ?? DEFAULT_ACCOUNT_COLOR
   const ratio = plan.target === null ? null : plan.saved / plan.target
   const reached = ratio !== null && ratio >= 1
   return (
     <div data-testid="stats-plan-row" className="flex items-center gap-3 py-2.5">
-      <ItemIcon icon={plan.icon} color={color} />
+      <ItemIcon icon={getAccountIcon(plan.icon)} color={color} />
       <div className="flex min-w-0 flex-1 flex-col gap-1">
         <div className="flex items-center justify-between gap-2">
           <span className="truncate text-sm font-semibold">{plan.name}</span>
@@ -74,12 +58,15 @@ function PlanRow({ plan }: { plan: SavingsPlanStat }) {
           <span className="text-xs text-muted-foreground">Sin Meta</span>
         ) : (
           <>
-            <div className="h-1.5 overflow-hidden rounded-full bg-muted">
+            <BarWithTip
+              label={`${plan.name} · ${percent(ratio)} de la Meta`}
+              className="h-1.5 overflow-hidden rounded-full bg-muted"
+            >
               <div
                 className="h-full rounded-full"
                 style={{ width: `${clamp01(ratio) * 100}%`, backgroundColor: color }}
               />
-            </div>
+            </BarWithTip>
             <span className="text-xs text-muted-foreground tabular-nums">
               {formatMoney(plan.saved, plan.currency)} de{' '}
               {formatMoney(plan.target ?? 0, plan.currency)}
@@ -150,11 +137,18 @@ export function ShoppingListsStatsCard({
   const products = lists.rows.reduce((sum, row) => sum + row.pending, 0)
   const rows = lists.rows.map((row, i) => ({
     ...row,
-    color:
-      row.color && !isDefaultColor(row.color) ? row.color : WALLET_COLORS[i % WALLET_COLORS.length],
+    color: colorOrPalette(row.color, i),
     share: total && row.remaining !== null ? row.remaining / total : null,
   }))
   const money = (value: number | null) => (value === null ? '—' : formatMoney(value, currency))
+  const parts = rows.every((row) => row.share !== null)
+    ? rows.map((row) => ({
+        id: row.listId,
+        name: row.name,
+        share: row.share ?? 0,
+        color: row.color,
+      }))
+    : undefined
 
   return (
     <Card className={className}>
@@ -163,48 +157,24 @@ export function ShoppingListsStatsCard({
         <CardDescription>Lo que te falta por pagar en cada lista.</CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-4">
-        <div className="flex flex-col gap-2">
-          <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
-            Restante total por pagar
-          </span>
-          <span className="text-2xl font-black tabular-nums">{money(total)}</span>
-          <span className="text-xs text-muted-foreground">
-            {products} {products === 1 ? 'producto' : 'productos'} en {rows.length}{' '}
-            {rows.length === 1 ? 'lista' : 'listas'}
-          </span>
-          {rows.every((row) => row.share !== null) && (
-            <div className="flex h-2.5 gap-0.5 overflow-hidden rounded-full bg-muted">
-              {rows.map((row) => (
-                <div
-                  key={row.listId}
-                  className="h-full"
-                  style={{ width: `${(row.share ?? 0) * 100}%`, backgroundColor: row.color }}
-                />
-              ))}
-            </div>
-          )}
-        </div>
+        <ShareSummary
+          label="Restante total por pagar"
+          amount={money(total)}
+          detail={`${products} ${products === 1 ? 'producto' : 'productos'} en ${rows.length} ${rows.length === 1 ? 'lista' : 'listas'}`}
+          parts={parts}
+        />
         <ScrollList>
           {rows.map((row) => (
-            <div
+            <ShareRow
               key={row.listId}
-              data-testid="stats-list-row"
-              className="flex items-center gap-3 py-2.5"
-            >
-              <ItemIcon icon={row.icon} color={row.color} />
-              <div className="flex min-w-0 flex-1 flex-col">
-                <span className="truncate text-sm font-semibold">{row.name}</span>
-                <span className="text-xs text-muted-foreground">{row.pending} por comprar</span>
-              </div>
-              <div className="flex shrink-0 flex-col items-end">
-                <span className="text-sm font-bold tabular-nums">{money(row.remaining)}</span>
-                {row.share !== null && (
-                  <span className="text-xs text-muted-foreground tabular-nums">
-                    {percent(row.share)}
-                  </span>
-                )}
-              </div>
-            </div>
+              testId="stats-list-row"
+              icon={getAccountIcon(row.icon)}
+              color={row.color}
+              name={row.name}
+              detail={`${row.pending} por comprar`}
+              amount={money(row.remaining)}
+              share={row.share}
+            />
           ))}
         </ScrollList>
       </CardContent>

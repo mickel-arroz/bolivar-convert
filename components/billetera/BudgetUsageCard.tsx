@@ -9,6 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { ChartConfig, ChartContainer } from '@/components/ui/chart'
 import { cn } from '@/lib/utils'
 import { formatMoney } from './format'
+import { BarWithTip } from './StatsListParts'
 
 const TOP = 3
 
@@ -100,12 +101,19 @@ export function BudgetUsageCard({ rows, usage, className }: BudgetUsageCardProps
                     </span>
                   )}
                 </div>
-                <div className="h-1.5 overflow-hidden rounded-full bg-muted">
+                <BarWithTip
+                  label={
+                    Number.isFinite(ratio)
+                      ? `${row.categoryName} · ${percent(ratio)} del presupuesto`
+                      : `${row.categoryName} · gasto sin presupuesto disponible`
+                  }
+                  className="h-1.5 overflow-hidden rounded-full bg-muted"
+                >
                   <div
                     className={cn('h-full rounded-full', isOver ? 'bg-destructive' : 'bg-green-500')}
                     style={{ width: `${Math.min(ratio, 1) * 100}%` }}
                   />
-                </div>
+                </BarWithTip>
                 <span className="text-xs text-muted-foreground tabular-nums">
                   {formatMoney(spent, cur)} / {formatMoney(Math.max(row.effectiveLimit, 0), cur)}
                 </span>

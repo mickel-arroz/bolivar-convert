@@ -128,6 +128,32 @@ _Avoid_: restante global, pendiente total
 Los dos conteos de productos de una lista: cuántos ya se pagaron y cuántos no.
 _Avoid_: completados, pendientes, hechos
 
+### Estadísticas
+
+**Periodo**:
+El tramo de tiempo que el usuario elige en Estadísticas: el último mes, los últimos 6 meses, el último año o todo. Toda card de Estadísticas lo respeta; las cifras que son estado de hoy (lo ahorrado frente a la Meta, el Restante por pagar) lo acompañan sin depender de él.
+_Avoid_: rango, filtro, intervalo, fechas
+
+**Agrupación**:
+Cada cuánto junta una gráfica de Estadísticas sus cifras: por semana en el último mes, por mes en los demás Periodos, y por trimestre en «todo» cuando hay más de dos años de historia.
+_Avoid_: granularidad, resolución, cubeta, corte
+
+**Tasa de ahorro**:
+La parte de los ingresos que no se gastó: ingresos menos gastos, sobre ingresos. Sin ingresos no hay Tasa de ahorro (no es 0%), y nunca se calcula por semana: necesita al menos un mes para comparar lo que entra con lo que sale.
+_Avoid_: porcentaje de ahorro, ahorro %, margen
+
+**Aportado en el periodo**:
+Lo que entró a un Plan de ahorro menos lo que se retiró, con fecha dentro del Periodo. Distinto de lo ahorrado, que es todo lo que el plan tiene hoy.
+_Avoid_: ahorrado en el periodo, depositado, abonado
+
+**Comprado en el periodo**:
+El precio de los productos que se marcaron Comprados con fecha de compra dentro del Periodo, convertido a la moneda de visualización. Distinto del Restante por pagar, que es lo pendiente hoy.
+_Avoid_: gastado en la lista, pagado en el periodo
+
+**Presupuesto vs gastado del periodo**:
+Lo presupuestado y lo gastado en cada categoría sumando los meses del Periodo; en el último mes es solo el mes actual. Lo que un mes le arrastra al siguiente cuenta una sola vez (ver ADR 0006).
+_Avoid_: uso del presupuesto, consumo, ejecución
+
 ### Consejos
 
 **Consejo**:

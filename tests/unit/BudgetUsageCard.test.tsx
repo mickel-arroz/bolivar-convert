@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, within } from '@testing-library/react'
+import { render, screen, within } from '@testing-library/react'
 import { describe, it, expect, vi } from 'vitest'
 import { BudgetUsageCard } from '@/components/billetera/BudgetUsageCard'
 import { formatMoney as rawFormatMoney } from '@/components/billetera/format'
@@ -65,18 +65,15 @@ describe('BudgetUsageCard', () => {
     expect(bars()[1].querySelector('.bg-destructive')).toBeNull()
   })
 
-  it('con 5 o menos no ofrece «Ver todos»', () => {
-    render(<BudgetUsageCard rows={[1, 2, 3, 4, 5].map((i) => row(`P${i}`, 100, i))} usage={USAGE} />)
-
-    expect(bars()).toHaveLength(5)
-    expect(screen.queryByRole('button', { name: /Ver todos/ })).not.toBeInTheDocument()
-  })
-
-  it('con más de 5 muestra el top 5 y «Ver todos (N)» despliega el resto', () => {
+  it('muestra como máximo los 3 más consumidos, sin opción de ver el resto', () => {
     render(<BudgetUsageCard rows={[1, 2, 3, 4, 5, 6, 7].map((i) => row(`P${i}`, 100, i))} usage={USAGE} />)
 
-    expect(bars()).toHaveLength(5)
-    fireEvent.click(screen.getByRole('button', { name: 'Ver todos (7)' }))
-    expect(bars()).toHaveLength(7)
+    expect(bars()).toHaveLength(3)
+    expect(screen.getAllByTestId('budget-usage-name').map((n) => n.textContent)).toEqual([
+      'P7',
+      'P6',
+      'P5',
+    ])
+    expect(screen.queryByRole('button', { name: /Ver todos/ })).not.toBeInTheDocument()
   })
 })

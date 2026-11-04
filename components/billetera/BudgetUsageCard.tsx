@@ -1,17 +1,16 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useMemo } from 'react'
 import { PieChart, Pie, Cell } from 'recharts'
 import { BudgetStatusRow } from '@/hooks/useWallet'
 import { BudgetUsage, rankBudgetsByUsage } from '@/lib/wallet/compute'
 import { getCategoryIcon } from '@/constants/walletCategories'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { ChartConfig, ChartContainer } from '@/components/ui/chart'
-import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { formatMoney } from './format'
 
-const TOP = 5
+const TOP = 3
 
 const ringConfig: ChartConfig = {
   used: { label: 'Usado', color: 'var(--rate-eur)' },
@@ -26,9 +25,8 @@ interface BudgetUsageCardProps {
 }
 
 export function BudgetUsageCard({ rows, usage, className }: BudgetUsageCardProps) {
-  const [showAll, setShowAll] = useState(false)
   const ranked = useMemo(() => rankBudgetsByUsage(rows), [rows])
-  const shown = showAll ? ranked : ranked.slice(0, TOP)
+  const shown = ranked.slice(0, TOP)
   const used = Math.min(usage.ratio, 1)
 
   return (
@@ -114,16 +112,6 @@ export function BudgetUsageCard({ rows, usage, className }: BudgetUsageCardProps
               </div>
             )
           })}
-          {ranked.length > TOP && (
-            <Button
-              variant="ghost"
-              size="sm"
-              className="self-start"
-              onClick={() => setShowAll((v) => !v)}
-            >
-              {showAll ? 'Ver menos' : `Ver todos (${ranked.length})`}
-            </Button>
-          )}
         </div>
       </CardContent>
     </Card>

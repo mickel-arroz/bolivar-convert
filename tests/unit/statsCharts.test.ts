@@ -1,20 +1,13 @@
 import { describe, it, expect } from 'vitest'
 import { visibleStatsCharts } from '@/lib/wallet/statsCharts'
 import type { BudgetStatusRow, CategorySummaryRow, MonthlyPoint } from '@/hooks/useWallet'
-import type { SavingsPlanStat, ShoppingListStat, StatsView } from '@/lib/wallet/statsPlansLists'
+import {
+  EMPTY_STATS_VIEW,
+  type SavingsPlanStat,
+  type ShoppingListStat,
+} from '@/lib/wallet/statsPlansLists'
 
-const EMPTY: StatsView = {
-  incomeVsExpense: { income: 0, expense: 0 },
-  categorySummary: [],
-  monthlySeries: [],
-  netWorth: 0,
-  netWorthSeries: [],
-  budgetStatus: [],
-  budgetUsage: { currency: 'VES', spent: 0, total: 0, ratio: 0, onTrack: 0, over: 0 },
-  ratesAvailable: true,
-  savingsPlans: { rows: [], progress: null },
-  shoppingLists: { rows: [], remaining: 0 },
-}
+const EMPTY = EMPTY_STATS_VIEW
 
 const month = (income: number, expense: number): MonthlyPoint =>
   ({ month: '2026-10', label: 'oct', income, expense })

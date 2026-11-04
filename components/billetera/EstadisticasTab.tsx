@@ -18,7 +18,8 @@ import { ChartPieIcon } from '@/components/icons'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { StatsChartId, statsChartGrid, visibleStatsCharts } from '@/lib/wallet/statsCharts'
-import type { StatsView } from '@/lib/wallet/statsPlansLists'
+import { EMPTY_STATS_VIEW, type StatsView } from '@/lib/wallet/statsPlansLists'
+import type { Granularity } from '@/lib/wallet/periods'
 import { AdviceCard } from './AdviceCard'
 import { CategoryStatsCard } from './CategoryStatsCard'
 import { BudgetUsageCard } from './BudgetUsageCard'
@@ -30,18 +31,16 @@ interface EstadisticasTabProps {
   wallet: WalletApi
 }
 
-const EMPTY_STATS: StatsView = {
-  incomeVsExpense: { income: 0, expense: 0 },
-  categorySummary: [],
-  monthlySeries: [],
-  netWorth: 0,
-  netWorthSeries: [],
-  budgetStatus: [],
-  budgetUsage: { currency: 'VES', spent: 0, total: 0, ratio: 0, onTrack: 0, over: 0 },
-  ratesAvailable: true,
-  savingsPlans: { rows: [], progress: null },
-  shoppingLists: { rows: [], remaining: 0 },
+const EMPTY_STATS = EMPTY_STATS_VIEW
+
+const BY_PERIOD: Record<Granularity, string> = {
+  week: 'por semana',
+  month: 'por mes',
+  quarter: 'por trimestre',
 }
+
+/** Con tan pocos puntos, una línea sin marcas apenas se ve (con uno, nada). */
+const FEW_POINTS = 2
 
 const RANGES: { id: TimeRange; label: string }[] = [
   { id: '1m', label: '1M' },
@@ -91,13 +90,14 @@ export function EstadisticasTab({ wallet }: EstadisticasTabProps) {
     [stats.categorySummary]
   )
   const balance = stats.incomeVsExpense.income - stats.incomeVsExpense.expense
+  const fewPoints = stats.monthlySeries.length <= FEW_POINTS
 
   const hasAccounts = state.accounts.length > 0
   const visible = useMemo(() => visibleStatsCharts(stats, hasAccounts), [stats, hasAccounts])
   const chartIds = visible.filter((id) => statsChartGrid(id) === 'charts')
   const categoryIds = visible.filter((id) => statsChartGrid(id) === 'categories')
 
-  // Tasa de ahorro por mes: (ingresos − gastos) / ingresos.
+  // Tasa de ahorro por periodo: (ingresos − gastos) / ingresos.
   const savingsSeries = useMemo(
     () =>
       stats.monthlySeries.map((p) => ({
@@ -112,7 +112,9 @@ export function EstadisticasTab({ wallet }: EstadisticasTabProps) {
       <Card key="incomeVsExpense" className={className}>
         <CardHeader>
           <CardTitle>Ingresos vs Gastos</CardTitle>
-          <CardDescription>Evolución por mes en {getCurrency(cur).label.toLowerCase()}.</CardDescription>
+          <CardDescription>
+            Evolución {BY_PERIOD[stats.seriesGranularity]} en {getCurrency(cur).label.toLowerCase()}.
+          </CardDescription>
         </CardHeader>
         <CardContent>
           <ChartContainer config={chartConfig} className="min-h-56 w-full">
@@ -139,7 +141,8 @@ export function EstadisticasTab({ wallet }: EstadisticasTabProps) {
         <CardHeader>
           <CardTitle>Patrimonio neto</CardTitle>
           <CardDescription>
-            Evolución acumulada de tus cuentas en {getCurrency(cur).label.toLowerCase()}.
+            Evolución acumulada de tus cuentas {BY_PERIOD[stats.seriesGranularity]}, en{' '}
+            {getCurrency(cur).label.toLowerCase()}.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -162,6 +165,7 @@ export function EstadisticasTab({ wallet }: EstadisticasTabProps) {
                 fill="var(--color-value)"
                 fillOpacity={0.15}
                 strokeWidth={2}
+                dot={fewPoints}
               />
             </AreaChart>
           </ChartContainer>
@@ -172,7 +176,9 @@ export function EstadisticasTab({ wallet }: EstadisticasTabProps) {
       <Card key="savingsRate" className={className}>
         <CardHeader>
           <CardTitle>Tasa de ahorro</CardTitle>
-          <CardDescription>Porcentaje de tus ingresos que no gastaste, por mes.</CardDescription>
+          <CardDescription>
+            Porcentaje de tus ingresos que no gastaste, {BY_PERIOD[stats.seriesGranularity]}.
+          </CardDescription>
         </CardHeader>
         <CardContent>
           <ChartContainer config={savingsConfig} className="min-h-56 w-full">
@@ -192,7 +198,7 @@ export function EstadisticasTab({ wallet }: EstadisticasTabProps) {
                 type="monotone"
                 stroke="var(--color-rate)"
                 strokeWidth={2}
-                dot={false}
+                dot={fewPoints}
               />
             </LineChart>
           </ChartContainer>

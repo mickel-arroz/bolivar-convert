@@ -148,3 +148,18 @@ export function computePlansAndListsStats(
     shoppingLists: { rows, remaining },
   }
 }
+
+/** Unas estadísticas sin ningún dato: el punto de partida mientras cargan y en los tests. */
+export const EMPTY_STATS_VIEW: StatsView = {
+  incomeVsExpense: { income: 0, expense: 0 },
+  categorySummary: [],
+  monthlySeries: [],
+  netWorth: 0,
+  netWorthSeries: [],
+  budgetStatus: [],
+  budgetUsage: { currency: 'VES', spent: 0, total: 0, ratio: 0, onTrack: 0, over: 0 },
+  ratesAvailable: true,
+  seriesGranularity: 'month',
+  savingsPlans: { rows: [], progress: null },
+  shoppingLists: { rows: [], remaining: 0 },
+}

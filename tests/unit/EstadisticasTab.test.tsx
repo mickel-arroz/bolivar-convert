@@ -2,7 +2,7 @@ import { render, screen, within } from '@testing-library/react'
 import { describe, it, expect, vi } from 'vitest'
 import { EstadisticasTab } from '@/components/billetera/EstadisticasTab'
 import type { CategorySummaryRow, WalletApi } from '@/hooks/useWallet'
-import type { StatsView } from '@/lib/wallet/statsPlansLists'
+import { EMPTY_STATS_VIEW, type StatsView } from '@/lib/wallet/statsPlansLists'
 
 let stats: StatsView | undefined
 let adviceLoaded = true
@@ -21,18 +21,7 @@ vi.mock('@/components/ui/chart', () => ({
   ChartTooltipContent: () => null,
 }))
 
-const EMPTY: StatsView = {
-  incomeVsExpense: { income: 0, expense: 0 },
-  categorySummary: [],
-  monthlySeries: [],
-  netWorth: 0,
-  netWorthSeries: [],
-  budgetStatus: [],
-  budgetUsage: { currency: 'VES', spent: 0, total: 0, ratio: 0, onTrack: 0, over: 0 },
-  ratesAvailable: true,
-  savingsPlans: { rows: [], progress: null },
-  shoppingLists: { rows: [], remaining: 0 },
-}
+const EMPTY = EMPTY_STATS_VIEW
 
 const expenseRow: CategorySummaryRow = {
   categoryId: 'food',

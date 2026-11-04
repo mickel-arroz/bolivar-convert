@@ -37,6 +37,7 @@ import {
   DEFAULT_BUDGET_TEMPLATE_ID,
   type BudgetUsage,
 } from '@/lib/wallet/compute'
+import type { Granularity } from '@/lib/wallet/periods'
 
 // Reexport de helpers compartidos para consumidores que los importan desde este módulo.
 export { monthKey, formatMonthLabel } from '@/lib/wallet/compute'
@@ -375,12 +376,14 @@ export interface NetWorthPoint {
 export interface StatsBundle {
   incomeVsExpense: { income: number; expense: number }
   categorySummary: CategorySummaryRow[]
+  /** Ingresos y gastos por periodo del rango (semana, mes o trimestre según `seriesGranularity`). */
   monthlySeries: MonthlyPoint[]
   netWorth: number
-  /** Patrimonio neto acumulado por mes (según el rango seleccionado). */
+  /** Patrimonio neto acumulado al cierre de cada periodo del rango. */
   netWorthSeries: NetWorthPoint[]
   budgetStatus: BudgetStatusRow[]
   budgetUsage: BudgetUsage
+  seriesGranularity: Granularity
   /** false si falta alguna tasa necesaria para normalizar (ej. '---'). */
   ratesAvailable: boolean
 }

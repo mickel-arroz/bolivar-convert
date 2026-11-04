@@ -8,6 +8,7 @@
 import type { CurrencyId } from '@/constants/currencies'
 import type { Rates, RateId } from '@/constants/rates'
 import type { GoalMovement } from './goalMovements'
+import { enumeratePeriods, periodKey, periodLabel, seriesGranularity } from './periods'
 import type {
   Account,
   Transaction,
@@ -625,6 +626,15 @@ export function computeStats(input: StatsInput, rates: Rates, prefs: StatsPrefs)
   const categoryById = new Map(input.categories.map((c) => [c.id, c]))
   const txs = filterByRange(input.transactions, timeRange)
 
+  const now = new Date()
+  const allDates = [
+    ...input.transactions.map((t) => t.date),
+    ...input.transfers.map((t) => t.date),
+  ]
+  const firstDate = allDates.length > 0 ? allDates.reduce((a, b) => (a < b ? a : b)) : null
+  const granularity = seriesGranularity(timeRange, firstDate, now)
+  const keyOf = (date: string | Date) => periodKey(date, granularity)
+
   const norm = (amount: number, fromCur: CurrencyId, toCur: CurrencyId) =>
     normalize(amount, fromCur, toCur, rates, statsRateSource)
 
@@ -647,7 +657,7 @@ export function computeStats(input: StatsInput, rates: Rates, prefs: StatsPrefs)
     const value = norm(parseAmount(tx.amount), acct.currency, displayCurrency)
     incomeVsExpense[tx.type] += value
     byCat.set(tx.categoryId, (byCat.get(tx.categoryId) ?? 0) + value)
-    const mk = monthKey(tx.date)
+    const mk = keyOf(tx.date)
     const bucket = byMonth.get(mk) ?? { income: 0, expense: 0 }
     bucket[tx.type] += value
     byMonth.set(mk, bucket)
@@ -661,7 +671,7 @@ export function computeStats(input: StatsInput, rates: Rates, prefs: StatsPrefs)
     const fromAcct = accountById.get(tr.fromAccountId)
     if (!fromAcct) continue
     const commission = resolveCommission(parseAmount(tr.fromAmount), tr.commission, tr.commissionType)
-    addExpenseCommission(norm(commission, fromAcct.currency, displayCurrency), monthKey(tr.date))
+    addExpenseCommission(norm(commission, fromAcct.currency, displayCurrency), keyOf(tr.date))
   }
 
   const categorySummary: CategorySummaryRow[] = [...byCat.entries()]
@@ -688,9 +698,16 @@ export function computeStats(input: StatsInput, rates: Rates, prefs: StatsPrefs)
     })
     .sort((a, b) => b.total - a.total)
 
-  const monthlySeries: MonthlyPoint[] = [...byMonth.entries()]
-    .sort((a, b) => (a[0] < b[0] ? -1 : 1))
-    .map(([month, v]) => ({ month, label: formatMonthLabel(month), ...v }))
+  const startKey =
+    timeRange === 'all' ? keyOf(firstDate ?? now) : keyOf(rangeStart(timeRange, now))
+  const endKey = [...byMonth.keys(), keyOf(now)].reduce((a, b) => (a > b ? a : b))
+  const periods = enumeratePeriods(startKey, endKey, granularity)
+
+  const monthlySeries: MonthlyPoint[] = periods.map((key) => ({
+    month: key,
+    label: periodLabel(key, granularity),
+    ...(byMonth.get(key) ?? { income: 0, expense: 0 }),
+  }))
 
   // Patrimonio neto actual (todas las cuentas, normalizado).
   let netWorth = 0
@@ -712,31 +729,20 @@ export function computeStats(input: StatsInput, rates: Rates, prefs: StatsPrefs)
     netWorth += norm(balance, account.currency, displayCurrency)
   }
 
-  // Serie de patrimonio neto acumulado por mes.
-  const now = new Date()
+  // Patrimonio neto acumulado al cierre de cada periodo de la serie.
   const currentMonthKey = monthKey(now)
-  const allDates = [
-    ...input.transactions.map((t) => t.date),
-    ...input.transfers.map((t) => t.date),
-  ]
-  const startMonthKey =
-    timeRange === 'all'
-      ? allDates.length > 0
-        ? monthKey(allDates.reduce((a, b) => (a < b ? a : b)))
-        : currentMonthKey
-      : monthKey(rangeStart(timeRange, now))
-  const netWorthSeries: NetWorthPoint[] = enumerateMonths(startMonthKey, currentMonthKey).map((m) => {
+  const netWorthSeries: NetWorthPoint[] = periods.map((m) => {
     let total = 0
     for (const account of input.accounts) {
       let bal = parseAmount(account.openingBalance)
       for (const tx of input.transactions) {
-        if (tx.accountId !== account.id || monthKey(tx.date) > m) continue
+        if (tx.accountId !== account.id || keyOf(tx.date) > m) continue
         const amt = parseAmount(tx.amount)
         bal += tx.type === 'income' ? amt : -amt
         bal -= resolveCommission(amt, tx.commission, tx.commissionType)
       }
       for (const tr of input.transfers) {
-        if (monthKey(tr.date) > m) continue
+        if (keyOf(tr.date) > m) continue
         if (tr.fromAccountId === account.id) {
           bal -= parseAmount(tr.fromAmount)
           bal -= resolveCommission(parseAmount(tr.fromAmount), tr.commission, tr.commissionType)
@@ -745,7 +751,7 @@ export function computeStats(input: StatsInput, rates: Rates, prefs: StatsPrefs)
       }
       total += norm(bal, account.currency, displayCurrency)
     }
-    return { month: m, label: formatMonthLabel(m), value: total }
+    return { month: m, label: periodLabel(m, granularity), value: total }
   })
 
   const budgetStatus = budgetStatusForMonth(input, rates, statsRateSource, currentMonthKey)
@@ -763,6 +769,7 @@ export function computeStats(input: StatsInput, rates: Rates, prefs: StatsPrefs)
     netWorthSeries,
     budgetStatus,
     budgetUsage: budgetUsage(budgetStatus, displayCurrency, rates, statsRateSource),
+    seriesGranularity: granularity,
     ratesAvailable,
   }
 }

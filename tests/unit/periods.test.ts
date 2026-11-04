@@ -1,19 +1,19 @@
 import { describe, it, expect } from 'vitest'
-import { enumeratePeriods, periodKey, periodLabel, seriesGranularity } from '@/lib/wallet/periods'
+import { enumeratePeriods, periodKey, periodLabel, seriesGrouping } from '@/lib/wallet/periods'
 
 const NOW = new Date(2026, 10, 4)
 
-describe('seriesGranularity', () => {
+describe('grouping', () => {
   it('1M va por semanas; 6M y 1A por meses', () => {
-    expect(seriesGranularity('1m', null, NOW)).toBe('week')
-    expect(seriesGranularity('6m', null, NOW)).toBe('month')
-    expect(seriesGranularity('1y', null, NOW)).toBe('month')
+    expect(seriesGrouping('1m', null, NOW)).toBe('week')
+    expect(seriesGrouping('6m', null, NOW)).toBe('month')
+    expect(seriesGrouping('1y', null, NOW)).toBe('month')
   })
 
   it('Todo va por meses hasta 2 años de historia y por trimestres si es más largo', () => {
-    expect(seriesGranularity('all', null, NOW)).toBe('month')
-    expect(seriesGranularity('all', '2025-01-15', NOW)).toBe('month')
-    expect(seriesGranularity('all', '2024-10-31', NOW)).toBe('quarter')
+    expect(seriesGrouping('all', null, NOW)).toBe('month')
+    expect(seriesGrouping('all', '2025-01-15', NOW)).toBe('month')
+    expect(seriesGrouping('all', '2024-10-31', NOW)).toBe('quarter')
   })
 })
 

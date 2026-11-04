@@ -5,7 +5,8 @@ import { DEFAULT_ACCOUNT_COLOR } from '@/constants/walletColors'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { CheckIcon } from '@/components/icons'
 import { cn } from '@/lib/utils'
-import type { SavingsPlanStat, StatsView } from '@/lib/wallet/statsPlansLists'
+import type { SavingsPlanStat } from '@/lib/wallet/statsPlansLists'
+import type { StatsView } from '@/lib/wallet/statsView'
 import { formatMoney } from './format'
 import {
   BarWithTip,

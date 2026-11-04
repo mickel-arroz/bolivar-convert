@@ -27,7 +27,6 @@ import type { CurrencyId } from '@/constants/currencies'
 import type { Rates, RateId } from '@/constants/rates'
 import type { WalletDelta } from '@/lib/wallet/delta'
 import { DEFAULT_DISPLAY_CURRENCY, isCurrencyId } from '@/lib/wallet/displayCurrency'
-import type { TimeRange } from '@/hooks/useWallet'
 import {
   buildFeed,
   computeAccountFunds,
@@ -40,7 +39,9 @@ import {
   type MovementsPage,
 } from '@/lib/wallet/compute'
 import { buildGoalMovements } from '@/lib/wallet/goalMovements'
-import { computePlansAndListsStats, type StatsView } from '@/lib/wallet/statsPlansLists'
+import { computePlansAndListsStats } from '@/lib/wallet/statsPlansLists'
+import type { StatsView } from '@/lib/wallet/statsView'
+import type { StatsParams } from '@/lib/wallet/statsQuery'
 
 /* ───────────────────────── Mapeo dominio ↔ fila ───────────────────────── */
 
@@ -799,16 +800,15 @@ export async function loadMovements(
 }
 
 /**
- * Estadísticas computadas en el servidor para un rango de antigüedad. Toma la
- * moneda de visualización y la fuente de tasa de las preferencias del usuario y
- * las tasas actuales (pasadas por el handler). Los planes de ahorro y las listas
- * de compras van aparte del rango: son lo que hay hoy.
+ * Estadísticas computadas en el servidor para un Periodo. La moneda de visualización y
+ * la fuente de tasa son las que llegan en la consulta o, si no, las del perfil; la
+ * respuesta dice con cuáles se calculó, para que el cliente reconozca datos viejos.
  */
 export async function loadStats(
   supabase: SupabaseClient,
   userId: string,
-  range: TimeRange,
-  rates: Rates
+  rates: Rates,
+  query: Pick<StatsParams, 'timeRange'> & Partial<StatsParams>
 ): Promise<StatsView> {
   const [
     profileRes,
@@ -858,8 +858,11 @@ export async function loadStats(
   const budgetTransfers = ((btRes.data as Record<string, unknown>[]) ?? []).map(rowToBudgetTransfer)
 
   const p = profileRes.data as Record<string, unknown> | null
-  const displayCurrency = (p?.display_currency as CurrencyId) ?? DEFAULT_DISPLAY_CURRENCY
-  const statsRateSource = (p?.stats_rate_source as RateId) ?? 'bcvUsd'
+  const range = query.timeRange
+  const displayCurrency =
+    query.displayCurrency ?? (p?.display_currency as CurrencyId) ?? DEFAULT_DISPLAY_CURRENCY
+  const statsRateSource =
+    query.statsRateSource ?? (p?.stats_rate_source as RateId) ?? 'bcvUsd'
   const activeTemplateId =
     (p?.active_budget_template_id as string | null) ?? DEFAULT_BUDGET_TEMPLATE_ID
   const budgets = allBudgets.filter((b) => b.templateId === activeTemplateId)
@@ -884,6 +887,10 @@ export async function loadStats(
     displayCurrency,
     range
   )
-  return { ...stats, ...plansAndLists }
+  return {
+    ...stats,
+    ...plansAndLists,
+    params: { timeRange: range, displayCurrency, statsRateSource },
+  }
 }
 

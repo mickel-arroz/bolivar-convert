@@ -21,14 +21,14 @@ export interface SavingsRateView {
 }
 
 export function savingsRateView(
-  stats: Pick<StatsBundle, 'incomeVsExpense' | 'monthlySeries' | 'seriesGranularity'>
+  stats: Pick<StatsBundle, 'incomeVsExpense' | 'periodSeries' | 'grouping'>
 ): SavingsRateView {
   const { income, expense } = stats.incomeVsExpense
   const overall = income > 0 ? (income - expense) / income : null
 
-  if (stats.seriesGranularity === 'week') return { overall, series: [], showLine: false }
+  if (stats.grouping === 'week') return { overall, series: [], showLine: false }
 
-  const series = stats.monthlySeries.map((p): SavingsRatePoint => {
+  const series = stats.periodSeries.map((p): SavingsRatePoint => {
     const rate = p.income > 0 ? Math.round(((p.income - p.expense) / p.income) * 100) : null
     return {
       label: p.label,

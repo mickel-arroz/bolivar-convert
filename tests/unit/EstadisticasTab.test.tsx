@@ -2,11 +2,17 @@ import { render, screen, within } from '@testing-library/react'
 import { describe, it, expect, vi } from 'vitest'
 import { EstadisticasTab } from '@/components/billetera/EstadisticasTab'
 import type { BudgetStatusRow, CategorySummaryRow, TimeRange, WalletApi } from '@/hooks/useWallet'
-import { EMPTY_STATS_VIEW, type StatsView } from '@/lib/wallet/statsPlansLists'
+import { EMPTY_STATS_VIEW, type StatsView } from '@/lib/wallet/statsView'
 
 let stats: StatsView | undefined
 let adviceLoaded = true
-vi.mock('@/hooks/useWalletResource', () => ({ useWalletResource: () => ({ data: stats }) }))
+let requestedUrl = ''
+vi.mock('@/hooks/useWalletResource', () => ({
+  useWalletResource: (url: string) => {
+    requestedUrl = url
+    return { data: stats }
+  },
+}))
 vi.mock('@/hooks/useAdvice', () => ({
   useAdvice: () => ({ advice: { stats: '' }, loaded: adviceLoaded }),
 }))
@@ -34,9 +40,14 @@ const expenseRow: CategorySummaryRow = {
 function renderTab(
   data: StatsView | undefined,
   accounts: { id: string }[] = [],
-  timeRange: TimeRange = '1m'
+  timeRange: TimeRange = '1m',
+  /** Sin `fresh`, los datos se dejan tal cual: pueden ser de otra selección. */
+  fresh = true
 ) {
-  stats = data
+  stats =
+    data && fresh
+      ? { ...data, params: { timeRange, displayCurrency: 'USD', statsRateSource: 'bcvUsd' } }
+      : data
   const wallet = {
     state: { displayCurrency: 'USD', statsRateSource: 'bcvUsd', timeRange, accounts },
     setTimeRange: vi.fn(),
@@ -75,7 +86,7 @@ describe('EstadisticasTab — gráficas sin datos', () => {
     renderTab({
       ...EMPTY,
       incomeVsExpense: { income: 0, expense: 30 },
-      monthlySeries: [{ month: '2026-10', label: 'oct', income: 0, expense: 30 }],
+      periodSeries: [{ period: '2026-10', label: 'oct', income: 0, expense: 30 }],
       categorySummary: [expenseRow],
     })
 
@@ -92,8 +103,8 @@ describe('EstadisticasTab — gráficas sin datos', () => {
     renderTab(
       {
         ...EMPTY,
-        monthlySeries: [{ month: '2026-10', label: 'oct', income: 100, expense: 30 }],
-        netWorthSeries: [{ month: '2026-10', label: 'oct', value: 70 }],
+        periodSeries: [{ period: '2026-10', label: 'oct', income: 100, expense: 30 }],
+        netWorthSeries: [{ period: '2026-10', label: 'oct', value: 70 }],
         categorySummary: [expenseRow],
       },
       [{ id: 'acc' }]
@@ -424,7 +435,7 @@ describe('EstadisticasTab — Planes y Listas según el rango', () => {
 
 describe('EstadisticasTab — Tasa de ahorro', () => {
   const month = (m: string, income: number, expense: number) => ({
-    month: m,
+    period: m,
     label: m,
     income,
     expense,
@@ -435,8 +446,8 @@ describe('EstadisticasTab — Tasa de ahorro', () => {
       {
         ...EMPTY,
         incomeVsExpense: { income: 1000, expense: 770 },
-        seriesGranularity: 'week',
-        monthlySeries: [month('2026-10-26', 1000, 300), month('2026-11-02', 0, 470)],
+        grouping: 'week',
+        periodSeries: [month('2026-10-26', 1000, 300), month('2026-11-02', 0, 470)],
       },
       [],
       '1m'
@@ -454,7 +465,7 @@ describe('EstadisticasTab — Tasa de ahorro', () => {
       {
         ...EMPTY,
         incomeVsExpense: { income: 300, expense: 150 },
-        monthlySeries: [month('2026-10', 100, 50), month('2026-11', 200, 100)],
+        periodSeries: [month('2026-10', 100, 50), month('2026-11', 200, 100)],
       },
       [],
       '6m'
@@ -470,7 +481,7 @@ describe('EstadisticasTab — Tasa de ahorro', () => {
       {
         ...EMPTY,
         incomeVsExpense: { income: 100, expense: 115 },
-        monthlySeries: [month('2026-11', 100, 115)],
+        periodSeries: [month('2026-11', 100, 115)],
       },
       [],
       '1y'
@@ -479,5 +490,40 @@ describe('EstadisticasTab — Tasa de ahorro', () => {
     expect(card('Tasa de ahorro')).toHaveTextContent(
       'Gastaste un 15% más de lo que ingresaste en el último año'
     )
+  })
+})
+
+describe('EstadisticasTab — datos de otra selección', () => {
+  it('pide las estadísticas con el Periodo, la moneda y la fuente elegidos', () => {
+    renderTab(EMPTY, [], '6m')
+    expect(requestedUrl).toBe('/api/wallet/stats?range=6m&currency=USD&source=bcvUsd')
+  })
+
+  it.each([
+    ['otra moneda', { displayCurrency: 'VES' }],
+    ['otra fuente', { statsRateSource: 'binanceUsdAvg' }],
+    ['otro Periodo', { timeRange: '6m' }],
+  ] as const)('con datos de %s muestra todo en skeleton hasta que llegan los nuevos', (_, diff) => {
+    renderTab(
+      {
+        ...EMPTY,
+        incomeVsExpense: { income: 100, expense: 30 },
+        params: { timeRange: '1m', displayCurrency: 'USD', statsRateSource: 'bcvUsd', ...diff },
+      },
+      [],
+      '1m',
+      false
+    )
+
+    expect(screen.getByTestId('stats-skeleton')).toBeInTheDocument()
+    expect(screen.queryByText('Balance')).not.toBeInTheDocument()
+    expect(screen.getByTestId('advice')).toBeInTheDocument()
+  })
+
+  it('con datos de lo elegido no hay skeleton', () => {
+    renderTab({ ...EMPTY, incomeVsExpense: { income: 100, expense: 30 } })
+
+    expect(screen.queryByTestId('stats-skeleton')).not.toBeInTheDocument()
+    expect(screen.getByText('Balance')).toBeInTheDocument()
   })
 })

@@ -8,7 +8,7 @@
 import type { CurrencyId } from '@/constants/currencies'
 import type { Rates, RateId } from '@/constants/rates'
 import type { GoalMovement } from './goalMovements'
-import { enumeratePeriods, periodKey, periodLabel, seriesGranularity } from './periods'
+import { enumeratePeriods, periodKey, periodLabel, seriesGrouping } from './periods'
 import type {
   Account,
   Transaction,
@@ -23,7 +23,7 @@ import type {
   AccountFunds,
   StatsBundle,
   CategorySummaryRow,
-  MonthlyPoint,
+  PeriodPoint,
   NetWorthPoint,
   BudgetStatusRow,
 } from '@/hooks/useWallet'
@@ -688,8 +688,8 @@ export function computeStats(input: StatsInput, rates: Rates, prefs: StatsPrefs)
     ...input.transfers.map((t) => t.date),
   ]
   const firstDate = allDates.length > 0 ? allDates.reduce((a, b) => (a < b ? a : b)) : null
-  const granularity = seriesGranularity(timeRange, firstDate, now)
-  const keyOf = (date: string | Date) => periodKey(date, granularity)
+  const grouping = seriesGrouping(timeRange, firstDate, now)
+  const keyOf = (date: string | Date) => periodKey(date, grouping)
 
   const norm = (amount: number, fromCur: CurrencyId, toCur: CurrencyId) =>
     normalize(amount, fromCur, toCur, rates, statsRateSource)
@@ -757,11 +757,11 @@ export function computeStats(input: StatsInput, rates: Rates, prefs: StatsPrefs)
   const startKey =
     timeRange === 'all' ? keyOf(firstDate ?? now) : keyOf(rangeStart(timeRange, now))
   const endKey = [...byMonth.keys(), keyOf(now)].reduce((a, b) => (a > b ? a : b))
-  const periods = enumeratePeriods(startKey, endKey, granularity)
+  const periods = enumeratePeriods(startKey, endKey, grouping)
 
-  const monthlySeries: MonthlyPoint[] = periods.map((key) => ({
-    month: key,
-    label: periodLabel(key, granularity),
+  const periodSeries: PeriodPoint[] = periods.map((key) => ({
+    period: key,
+    label: periodLabel(key, grouping),
     ...(byMonth.get(key) ?? { income: 0, expense: 0 }),
   }))
 
@@ -807,7 +807,7 @@ export function computeStats(input: StatsInput, rates: Rates, prefs: StatsPrefs)
       }
       total += norm(bal, account.currency, displayCurrency)
     }
-    return { month: m, label: periodLabel(m, granularity), value: total }
+    return { period: m, label: periodLabel(m, grouping), value: total }
   })
 
   const budgetStatus = budgetStatusForMonth(input, rates, statsRateSource, currentMonthKey)
@@ -826,13 +826,13 @@ export function computeStats(input: StatsInput, rates: Rates, prefs: StatsPrefs)
   return {
     incomeVsExpense,
     categorySummary,
-    monthlySeries,
+    periodSeries,
     netWorth,
     netWorthSeries,
     budgetStatus,
     budgetRange,
     budgetUsage: budgetUsage(budgetRange, displayCurrency, rates, statsRateSource),
-    seriesGranularity: granularity,
+    grouping,
     ratesAvailable,
   }
 }

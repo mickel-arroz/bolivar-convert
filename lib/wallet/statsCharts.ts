@@ -1,4 +1,4 @@
-import type { StatsView } from './statsPlansLists'
+import type { StatsView } from './statsView'
 
 export type StatsChartId =
   | 'incomeVsExpense'
@@ -10,7 +10,7 @@ export type StatsChartId =
   | 'savingsPlans'
   | 'shoppingLists'
 
-const hasMovements = (s: StatsView) => s.monthlySeries.some((p) => p.income > 0 || p.expense > 0)
+const hasMovements = (s: StatsView) => s.periodSeries.some((p) => p.income > 0 || p.expense > 0)
 
 /** Las gráficas van en una cuadrícula y las listas de barras horizontales en otra. */
 export type StatsChartGrid = 'charts' | 'categories'
@@ -25,7 +25,7 @@ interface StatsChartDef {
 const STATS_CHARTS: Record<StatsChartId, StatsChartDef> = {
   incomeVsExpense: { grid: 'charts', hasData: hasMovements },
   netWorth: { grid: 'charts', hasData: (s, hasAccounts) => hasAccounts && hasMovements(s) },
-  savingsRate: { grid: 'charts', hasData: (s) => s.monthlySeries.some((p) => p.income > 0) },
+  savingsRate: { grid: 'charts', hasData: (s) => s.periodSeries.some((p) => p.income > 0) },
   budget: { grid: 'charts', hasData: (s) => s.budgetRange.length > 0 },
   expenseByCategory: {
     grid: 'categories',

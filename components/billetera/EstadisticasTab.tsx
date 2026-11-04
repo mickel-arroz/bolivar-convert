@@ -18,8 +18,9 @@ import { ChartPieIcon } from '@/components/icons'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { StatsChartId, statsChartGrid, visibleStatsCharts } from '@/lib/wallet/statsCharts'
-import { EMPTY_STATS_VIEW, type StatsView } from '@/lib/wallet/statsPlansLists'
-import type { Granularity } from '@/lib/wallet/periods'
+import { EMPTY_STATS_VIEW, type StatsView } from '@/lib/wallet/statsView'
+import { isStatsFor, statsUrl } from '@/lib/wallet/statsQuery'
+import type { Grouping } from '@/lib/wallet/periods'
 import { savingsRateView } from '@/lib/wallet/savingsRate'
 import { AdviceCard } from './AdviceCard'
 import { CategoryStatsCard } from './CategoryStatsCard'
@@ -35,7 +36,7 @@ interface EstadisticasTabProps {
 
 const EMPTY_STATS = EMPTY_STATS_VIEW
 
-const BY_PERIOD: Record<Granularity, string> = {
+const BY_PERIOD: Record<Grouping, string> = {
   week: 'por semana',
   month: 'por mes',
   quarter: 'por trimestre',
@@ -73,10 +74,12 @@ export function EstadisticasTab({ wallet }: EstadisticasTabProps) {
   const cur = state.displayCurrency
   const { advice, loaded: adviceLoaded } = useAdvice()
 
-  const { data } = useWalletResource<StatsView>(
-    `/api/wallet/stats?range=${state.timeRange}`,
-    wallet.syncedVersion
-  )
+  const selection = {
+    timeRange: state.timeRange,
+    displayCurrency: cur,
+    statsRateSource: state.statsRateSource,
+  }
+  const { data } = useWalletResource<StatsView>(statsUrl(selection), wallet.syncedVersion)
   const stats = data ?? EMPTY_STATS
 
   const expenseRows = useMemo(
@@ -88,7 +91,7 @@ export function EstadisticasTab({ wallet }: EstadisticasTabProps) {
     [stats.categorySummary]
   )
   const balance = stats.incomeVsExpense.income - stats.incomeVsExpense.expense
-  const fewPoints = stats.monthlySeries.length <= FEW_POINTS
+  const fewPoints = stats.periodSeries.length <= FEW_POINTS
 
   const hasAccounts = state.accounts.length > 0
   const visible = useMemo(() => visibleStatsCharts(stats, hasAccounts), [stats, hasAccounts])
@@ -103,12 +106,12 @@ export function EstadisticasTab({ wallet }: EstadisticasTabProps) {
         <CardHeader>
           <CardTitle>Ingresos vs Gastos</CardTitle>
           <CardDescription>
-            Evolución {BY_PERIOD[stats.seriesGranularity]} en {getCurrency(cur).label.toLowerCase()}.
+            Evolución {BY_PERIOD[stats.grouping]} en {getCurrency(cur).label.toLowerCase()}.
           </CardDescription>
         </CardHeader>
         <CardContent>
           <ChartContainer config={chartConfig} className="min-h-56 w-full">
-            <BarChart data={stats.monthlySeries} margin={{ left: 0, right: 12, top: 10 }}>
+            <BarChart data={stats.periodSeries} margin={{ left: 0, right: 12, top: 10 }}>
               <CartesianGrid vertical={false} strokeDasharray="3 3" className="stroke-muted/50" />
               <XAxis dataKey="label" tickLine={false} axisLine={false} tickMargin={10} />
               <YAxis
@@ -131,7 +134,7 @@ export function EstadisticasTab({ wallet }: EstadisticasTabProps) {
         <CardHeader>
           <CardTitle>Patrimonio neto</CardTitle>
           <CardDescription>
-            Evolución acumulada de tus cuentas {BY_PERIOD[stats.seriesGranularity]}, en{' '}
+            Evolución acumulada de tus cuentas {BY_PERIOD[stats.grouping]}, en{' '}
             {getCurrency(cur).label.toLowerCase()}.
           </CardDescription>
         </CardHeader>
@@ -168,7 +171,7 @@ export function EstadisticasTab({ wallet }: EstadisticasTabProps) {
         view={savingsRate}
         income={stats.incomeVsExpense.income}
         expense={stats.incomeVsExpense.expense}
-        byPeriod={BY_PERIOD[stats.seriesGranularity]}
+        byPeriod={BY_PERIOD[stats.grouping]}
         currency={cur}
         timeRange={state.timeRange}
         className={className}
@@ -227,7 +230,7 @@ export function EstadisticasTab({ wallet }: EstadisticasTabProps) {
     <AdviceCard title="En qué se te fue el dinero" text={advice.stats} loading={!adviceLoaded} />
   )
 
-  if (!data) {
+  if (!data || !isStatsFor(data, selection)) {
     return (
       <div className="flex flex-col gap-6">
         {adviceCard}

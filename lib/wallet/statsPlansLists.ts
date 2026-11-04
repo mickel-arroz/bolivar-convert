@@ -4,7 +4,6 @@ import type {
   GoalContribution,
   ShoppingList,
   ShoppingListItem,
-  StatsBundle,
   TimeRange,
 } from '@/hooks/useWallet'
 import { parseAmount, parseSigned, rangeStart } from './compute'
@@ -69,8 +68,6 @@ export interface PlansAndListsStats {
   }
 }
 
-/** Lo que devuelve /api/wallet/stats: el bundle del rango más planes y listas. */
-export type StatsView = StatsBundle & PlansAndListsStats
 
 export interface PlansAndListsInput {
   goals: Goal[]
@@ -199,20 +196,4 @@ export function computePlansAndListsStats(
       purchased: computeShoppingTotals(bought, resolvedRates, displayCurrency).total,
     },
   }
-}
-
-/** Unas estadísticas sin ningún dato: el punto de partida mientras cargan y en los tests. */
-export const EMPTY_STATS_VIEW: StatsView = {
-  incomeVsExpense: { income: 0, expense: 0 },
-  categorySummary: [],
-  monthlySeries: [],
-  netWorth: 0,
-  netWorthSeries: [],
-  budgetStatus: [],
-  budgetRange: [],
-  budgetUsage: { currency: 'VES', spent: 0, total: 0, ratio: 0, onTrack: 0, over: 0 },
-  ratesAvailable: true,
-  seriesGranularity: 'month',
-  savingsPlans: { rows: [], progress: null, contributed: 0 },
-  shoppingLists: { rows: [], remaining: 0, purchased: 0 },
 }

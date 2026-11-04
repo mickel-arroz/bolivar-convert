@@ -32,6 +32,10 @@ _Avoid_: meta de ahorro, objetivo, ahorro, hucha
 La cifra opcional que el usuario quiere alcanzar en un Plan de ahorro. Alcanzarla no cierra el plan: puede seguir recibiendo aportes.
 _Avoid_: objetivo, tope, límite
 
+**Meta alcanzada**:
+El estado de un Plan de ahorro con Meta cuyo dinero ahorrado llega a ella o la supera. Es reversible: un retiro que lo deja por debajo lo devuelve a en curso. Los planes con Meta alcanzada se muestran después de los demás. Un plan sin Meta nunca la alcanza.
+_Avoid_: meta cumplida, plan lleno, objetivo logrado
+
 **Plan completado**:
 Un Plan de ahorro con Meta alcanzada que el usuario decide gastar. Deja un gasto en «Planes de ahorro» por cada cuenta que aportó y deja de mostrarse; lo que llegó sin cuenta desaparece. Eliminar cualquiera de esos gastos lo devuelve tal como estaba. Nunca ocurre solo.
 _Avoid_: plan cerrado, plan terminado, meta cumplida
@@ -127,7 +131,7 @@ _Avoid_: completados, pendientes, hechos
 ### Consejos
 
 **Consejo**:
-Un párrafo corto generado a partir de los datos agregados del usuario, que se muestra arriba de una pestaña. Hay dos: el de Estadísticas mira hacia atrás (resume ingresos, gastos totales y patrimonio y recomienda a dónde asignar el dinero, sin enumerar gastos menores) y el de Presupuesto hacia adelante. Se refresca al entrar si el guardado pasó de 7 días, y lo nuevo se ve en la visita siguiente. El prompt le pone un límite de largo, pero el consejo nunca se recorta: una respuesta que pasa del triple de ese límite se descarta y se prueba el siguiente modelo. Mientras se lee lo guardado, su tarjeta muestra un skeleton.
+Un párrafo corto generado a partir de los datos agregados del usuario, que se muestra arriba de una pestaña. Hay dos: el de Estadísticas mira hacia atrás (resume ingresos, gastos totales y patrimonio, comenta el avance de sus planes de ahorro y lo que le falta por pagar en sus listas de compras, y recomienda a dónde asignar el dinero, sin enumerar gastos menores) y el de Presupuestos hacia adelante. Hay a lo sumo uno nuevo por día del usuario, y solo si entra a alguna de esas dos pestañas; lo nuevo reemplaza en pantalla al anterior apenas llega. El prompt le pone un límite de largo, pero el consejo nunca se recorta: una respuesta que pasa del triple de ese límite se descarta y se prueba el siguiente modelo. Mientras se lee lo guardado, su tarjeta muestra un skeleton.
 _Avoid_: recomendación, insight, tip, análisis
 
 **Cifras del consejo**:

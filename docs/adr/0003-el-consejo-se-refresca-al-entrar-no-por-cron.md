@@ -1,6 +1,6 @@
 # 3. El consejo se refresca al entrar a la vista, no por cron
 
-- **Estado**: aceptado
+- **Estado**: reemplazado por [0005](0005-un-consejo-por-dia-del-usuario.md)
 - **Fecha**: 2026-09-21
 
 ## Contexto

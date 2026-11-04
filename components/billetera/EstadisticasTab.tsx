@@ -1,7 +1,7 @@
 'use client'
 
 import { useMemo, type ReactNode } from 'react'
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, AreaChart, Area, LineChart, Line } from 'recharts'
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, AreaChart, Area } from 'recharts'
 import { TimeRange, WalletApi } from '@/hooks/useWallet'
 import { useWalletResource } from '@/hooks/useWalletResource'
 import { useAdvice } from '@/hooks/useAdvice'
@@ -20,8 +20,10 @@ import { cn } from '@/lib/utils'
 import { StatsChartId, statsChartGrid, visibleStatsCharts } from '@/lib/wallet/statsCharts'
 import { EMPTY_STATS_VIEW, type StatsView } from '@/lib/wallet/statsPlansLists'
 import type { Granularity } from '@/lib/wallet/periods'
+import { savingsRateView } from '@/lib/wallet/savingsRate'
 import { AdviceCard } from './AdviceCard'
 import { CategoryStatsCard } from './CategoryStatsCard'
+import { SavingsRateCard } from './SavingsRateCard'
 import { BudgetUsageCard } from './BudgetUsageCard'
 import { CurrencyToggle } from './fields'
 import { formatMoney } from './format'
@@ -56,10 +58,6 @@ const chartConfig: ChartConfig = {
 
 const netWorthConfig: ChartConfig = {
   value: { label: 'Patrimonio', color: 'var(--rate-usd)' },
-}
-
-const savingsConfig: ChartConfig = {
-  rate: { label: 'Ahorro %', color: 'var(--rate-binance)' },
 }
 
 function compact(value: number): string {
@@ -97,15 +95,7 @@ export function EstadisticasTab({ wallet }: EstadisticasTabProps) {
   const chartIds = visible.filter((id) => statsChartGrid(id) === 'charts')
   const categoryIds = visible.filter((id) => statsChartGrid(id) === 'categories')
 
-  // Tasa de ahorro por periodo: (ingresos − gastos) / ingresos.
-  const savingsSeries = useMemo(
-    () =>
-      stats.monthlySeries.map((p) => ({
-        label: p.label,
-        rate: p.income > 0 ? Math.round(((p.income - p.expense) / p.income) * 100) : 0,
-      })),
-    [stats.monthlySeries]
-  )
+  const savingsRate = useMemo(() => savingsRateView(stats), [stats])
 
   const cardRenderers: Record<StatsChartId, (className?: string) => ReactNode> = {
     incomeVsExpense: (className) => (
@@ -173,37 +163,16 @@ export function EstadisticasTab({ wallet }: EstadisticasTabProps) {
       </Card>
     ),
     savingsRate: (className) => (
-      <Card key="savingsRate" className={className}>
-        <CardHeader>
-          <CardTitle>Tasa de ahorro</CardTitle>
-          <CardDescription>
-            Porcentaje de tus ingresos que no gastaste, {BY_PERIOD[stats.seriesGranularity]}.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <ChartContainer config={savingsConfig} className="min-h-56 w-full">
-            <LineChart data={savingsSeries} margin={{ left: 0, right: 12, top: 10 }}>
-              <CartesianGrid vertical={false} strokeDasharray="3 3" className="stroke-muted/50" />
-              <XAxis dataKey="label" tickLine={false} axisLine={false} tickMargin={10} />
-              <YAxis
-                tickLine={false}
-                axisLine={false}
-                tickMargin={8}
-                width={48}
-                tickFormatter={(v) => `${v}%`}
-              />
-              <ChartTooltip content={<ChartTooltipContent />} />
-              <Line
-                dataKey="rate"
-                type="monotone"
-                stroke="var(--color-rate)"
-                strokeWidth={2}
-                dot={fewPoints}
-              />
-            </LineChart>
-          </ChartContainer>
-        </CardContent>
-      </Card>
+      <SavingsRateCard
+        key="savingsRate"
+        view={savingsRate}
+        income={stats.incomeVsExpense.income}
+        expense={stats.incomeVsExpense.expense}
+        byPeriod={BY_PERIOD[stats.seriesGranularity]}
+        currency={cur}
+        timeRange={state.timeRange}
+        className={className}
+      />
     ),
     budget: (className) => (
       <BudgetUsageCard

@@ -421,3 +421,63 @@ describe('EstadisticasTab — Planes y Listas según el rango', () => {
     expect(casa).toHaveTextContent('Nada por comprar · $ 5.00 comprado')
   })
 })
+
+describe('EstadisticasTab — Tasa de ahorro', () => {
+  const month = (m: string, income: number, expense: number) => ({
+    month: m,
+    label: m,
+    income,
+    expense,
+  })
+
+  it('en 1M muestra solo la tasa del periodo, sin línea por semanas', () => {
+    renderTab(
+      {
+        ...EMPTY,
+        incomeVsExpense: { income: 1000, expense: 770 },
+        seriesGranularity: 'week',
+        monthlySeries: [month('2026-10-26', 1000, 300), month('2026-11-02', 0, 470)],
+      },
+      [],
+      '1m'
+    )
+
+    const tasa = card('Tasa de ahorro')
+    expect(tasa).toHaveTextContent('23%')
+    expect(tasa).toHaveTextContent('Ahorraste el 23% de tus ingresos en el último mes')
+    expect(tasa).toHaveTextContent('Te quedaron $ 230.00 de $ 1,000.00')
+    expect(within(tasa).queryByTestId('chart')).not.toBeInTheDocument()
+  })
+
+  it('con varios meses suma la línea mes a mes', () => {
+    renderTab(
+      {
+        ...EMPTY,
+        incomeVsExpense: { income: 300, expense: 150 },
+        monthlySeries: [month('2026-10', 100, 50), month('2026-11', 200, 100)],
+      },
+      [],
+      '6m'
+    )
+
+    const tasa = card('Tasa de ahorro')
+    expect(tasa).toHaveTextContent('Ahorraste el 50% de tus ingresos en los últimos 6 meses')
+    expect(within(tasa).getByTestId('chart')).toBeInTheDocument()
+  })
+
+  it('si gastaste más de lo que ingresaste lo dice así', () => {
+    renderTab(
+      {
+        ...EMPTY,
+        incomeVsExpense: { income: 100, expense: 115 },
+        monthlySeries: [month('2026-11', 100, 115)],
+      },
+      [],
+      '1y'
+    )
+
+    expect(card('Tasa de ahorro')).toHaveTextContent(
+      'Gastaste un 15% más de lo que ingresaste en el último año'
+    )
+  })
+})

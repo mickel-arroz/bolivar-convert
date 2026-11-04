@@ -8,7 +8,7 @@ import { getCategoryIcon } from '@/constants/walletCategories'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { ChartConfig, ChartContainer } from '@/components/ui/chart'
 import { cn } from '@/lib/utils'
-import { formatMoney } from './format'
+import { formatMoney, formatPercent } from './format'
 import { BarWithTip } from './StatsListParts'
 
 const TOP = 3
@@ -23,8 +23,6 @@ const RANGE_TEXT: Record<TimeRange, string> = {
 const ringConfig: ChartConfig = {
   used: { label: 'Usado', color: 'var(--rate-eur)' },
 }
-
-const percent = (ratio: number) => `${Math.round(ratio * 100)}%`
 
 interface BudgetUsageCardProps {
   rows: BudgetStatusRow[]
@@ -67,11 +65,11 @@ export function BudgetUsageCard({ rows, usage, timeRange, className }: BudgetUsa
               </PieChart>
             </ChartContainer>
             <span className="absolute inset-0 flex items-center justify-center text-lg font-black tabular-nums">
-              {percent(usage.ratio)}
+              {formatPercent(usage.ratio)}
             </span>
           </div>
           <div className="flex min-w-0 flex-col gap-1">
-            <p className="text-sm font-bold">Usado {percent(usage.ratio)} del presupuesto total</p>
+            <p className="text-sm font-bold">Usado {formatPercent(usage.ratio)} del presupuesto total</p>
             <p className="text-xs text-muted-foreground tabular-nums">
               {formatMoney(usage.spent, usage.currency)} de{' '}
               {formatMoney(usage.total, usage.currency)}
@@ -112,14 +110,14 @@ export function BudgetUsageCard({ rows, usage, timeRange, className }: BudgetUsa
                         isOver && 'text-destructive'
                       )}
                     >
-                      {percent(ratio)}
+                      {formatPercent(ratio)}
                     </span>
                   )}
                 </div>
                 <BarWithTip
                   label={
                     Number.isFinite(ratio)
-                      ? `${row.categoryName} · ${percent(ratio)} del presupuesto`
+                      ? `${row.categoryName} · ${formatPercent(ratio)} del presupuesto`
                       : `${row.categoryName} · gasto sin presupuesto disponible`
                   }
                   className="h-1.5 overflow-hidden rounded-full bg-muted"

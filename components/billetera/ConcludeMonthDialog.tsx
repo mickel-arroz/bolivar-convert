@@ -46,7 +46,7 @@ import {
   type CloseMode,
   type MonthCloseAllocation,
 } from '@/lib/wallet/monthClose'
-import { formatMoney } from './format'
+import { formatMoney, formatPercent } from './format'
 
 interface ConcludeMonthDialogProps {
   open: boolean
@@ -86,8 +86,6 @@ interface DestinationInfo {
   Icon: ReturnType<typeof getCategoryIcon>
   color?: string
 }
-
-const formatPercent = (n: number) => `${round2(n).toLocaleString('es-VE')} %`
 
 const defaultPlan = (categoryId: string): RowPlan => ({
   mode: 'percent',
@@ -364,7 +362,7 @@ export function ConcludeMonthDialog({
               return !claimed || [...claimed].every((c) => c === r.currency)
             }
             const formatGap = (n: number) =>
-              plan.mode === 'percent' ? formatPercent(n) : formatMoney(n, r.currency)
+              plan.mode === 'percent' ? formatPercent(n / 100, 2) : formatMoney(n, r.currency)
             const problem = split
               ? null
               : mixesCurrencies(plan)

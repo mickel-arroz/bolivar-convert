@@ -96,7 +96,7 @@ describe('ConcludeMonthDialog — reparto del cierre', () => {
 
     fireEvent.change(tramo('Comida', 1), { target: { value: '60' } })
 
-    expect(screen.getByText(/Falta asignar 40 %/)).toBeInTheDocument()
+    expect(screen.getByText(/Falta asignar 40%/)).toBeInTheDocument()
     expect(concluir()).toBeDisabled()
   })
 

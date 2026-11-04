@@ -12,8 +12,8 @@ import {
 } from '@/components/ui/chart'
 import { cn } from '@/lib/utils'
 import { SAVINGS_RATE_FLOOR, type SavingsRateView } from '@/lib/wallet/savingsRate'
-import { formatMoney } from './format'
-import { PERIOD_TEXT, percent } from './StatsListParts'
+import { formatMoney, formatPercent } from './format'
+import { PERIOD_TEXT } from './StatsListParts'
 
 const config: ChartConfig = {
   shown: { label: 'Ahorro', color: 'var(--rate-binance)' },
@@ -22,8 +22,8 @@ const config: ChartConfig = {
 function headline(overall: number, range: TimeRange): string {
   const period = PERIOD_TEXT[range]
   return overall >= 0
-    ? `Ahorraste el ${percent(overall)} de tus ingresos ${period}`
-    : `Gastaste un ${percent(-overall)} más de lo que ingresaste ${period}`
+    ? `Ahorraste el ${formatPercent(overall)} de tus ingresos ${period}`
+    : `Gastaste un ${formatPercent(-overall)} más de lo que ingresaste ${period}`
 }
 
 export function SavingsRateCard({
@@ -64,7 +64,7 @@ export function SavingsRateCard({
                 overall < 0 ? 'text-destructive' : 'text-green-600 dark:text-green-400'
               )}
             >
-              {percent(overall)}
+              {formatPercent(overall)}
             </span>
             <div className="flex min-w-0 flex-col gap-0.5">
               <p className="text-sm font-semibold">{headline(overall, timeRange)}</p>

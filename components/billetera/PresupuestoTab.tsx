@@ -45,7 +45,7 @@ import { isGoalReached, sortGoalsForDisplay } from '@/lib/wallet/goalOrder'
 import { WalletDialogs } from './dialogs'
 import { BudgetsSummaryCard } from './BudgetsSummaryCard'
 import { AdviceCard } from './AdviceCard'
-import { formatMoney } from './format'
+import { formatMoney, formatPercent } from './format'
 import { ConcludeMonthDialog } from './ConcludeMonthDialog'
 import { BudgetTemplatesDialog } from './BudgetTemplatesDialog'
 import { GoalFormDialog } from './GoalFormDialog'
@@ -356,7 +356,7 @@ export function PresupuestoTab({ wallet, stats, dialogs, rates }: PresupuestoTab
                   {nearLimit && (
                     <p className="flex items-center gap-1.5 text-xs font-medium text-amber-600 dark:text-amber-500">
                       <AlertIcon className="size-3.5" />
-                      Cerca del límite ({Math.round(row.ratio * 100)}%)
+                      Cerca del límite ({formatPercent(row.ratio)})
                     </p>
                   )}
                 </CardContent>

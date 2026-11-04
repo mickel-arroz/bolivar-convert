@@ -2,9 +2,11 @@ import type { CSSProperties, ComponentProps, ComponentType, ReactNode } from 're
 import { WALLET_COLORS, isDefaultColor } from '@/constants/walletColors'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
+import { formatPercent } from './format'
 import type { TimeRange } from '@/hooks/useWallet'
 
-export const percent = (ratio: number) => `${Math.round(ratio * 100)}%`
+/** Alias de `formatPercent` para quien todavía lo importa desde aquí. */
+export const percent = formatPercent
 
 /** Cómo se nombra cada rango de Estadísticas al final de una frase. */
 export const PERIOD_TEXT: Record<TimeRange, string> = {
@@ -61,7 +63,7 @@ function SharesBar({ parts }: { parts: SharePart[] }) {
       {parts.map((part) => (
         <BarWithTip
           key={part.id}
-          label={`${part.name} · ${percent(part.share)}`}
+          label={`${part.name} · ${formatPercent(part.share)}`}
           className="h-full"
           style={{ width: `${part.share * 100}%`, backgroundColor: part.color }}
         />
@@ -126,7 +128,7 @@ export function ShareRow({
       <div className="flex shrink-0 flex-col items-end">
         <span className="text-sm font-bold tabular-nums">{amount}</span>
         {share !== null && (
-          <span className="text-xs text-muted-foreground tabular-nums">{percent(share)}</span>
+          <span className="text-xs text-muted-foreground tabular-nums">{formatPercent(share)}</span>
         )}
       </div>
     </div>

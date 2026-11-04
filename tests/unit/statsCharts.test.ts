@@ -12,7 +12,7 @@ const EMPTY: StatsView = {
   budgetStatus: [],
   budgetUsage: { currency: 'VES', spent: 0, total: 0, ratio: 0, onTrack: 0, over: 0 },
   ratesAvailable: true,
-  savingsPlans: [],
+  savingsPlans: { rows: [], progress: null },
   shoppingLists: { rows: [], remaining: 0 },
 }
 
@@ -72,7 +72,7 @@ describe('visibleStatsCharts', () => {
   })
 
   it('Planes de ahorro se muestra con al menos un plan activo', () => {
-    const stats = { ...EMPTY, savingsPlans: [{} as SavingsPlanStat] }
+    const stats = { ...EMPTY, savingsPlans: { rows: [{} as SavingsPlanStat], progress: null } }
     expect(visibleStatsCharts(stats, false)).toEqual(['savingsPlans'])
   })
 

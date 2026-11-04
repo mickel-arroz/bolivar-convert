@@ -35,7 +35,7 @@ const STATS_CHARTS: Record<StatsChartId, StatsChartDef> = {
     grid: 'categories',
     hasData: (s) => s.categorySummary.some((r) => r.kind === 'income'),
   },
-  savingsPlans: { grid: 'categories', hasData: (s) => s.savingsPlans.length > 0 },
+  savingsPlans: { grid: 'categories', hasData: (s) => s.savingsPlans.rows.length > 0 },
   shoppingLists: { grid: 'categories', hasData: (s) => s.shoppingLists.rows.length > 0 },
 }
 

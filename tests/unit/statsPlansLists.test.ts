@@ -65,7 +65,7 @@ describe('computePlansAndListsStats — Planes de ahorro', () => {
       RATES,
       'USD'
     )
-    expect(savingsPlans).toEqual([
+    expect(savingsPlans.rows).toEqual([
       expect.objectContaining({ goalId: 'colchon', saved: 30, target: null }),
       expect.objectContaining({ goalId: 'viaje', saved: 150, target: 500, currency: 'USD' }),
     ])
@@ -80,7 +80,7 @@ describe('computePlansAndListsStats — Planes de ahorro', () => {
       RATES,
       'USD'
     )
-    expect(savingsPlans).toEqual([])
+    expect(savingsPlans.rows).toEqual([])
   })
 
   it('los planes con Meta alcanzada van después de los demás', () => {
@@ -93,7 +93,53 @@ describe('computePlansAndListsStats — Planes de ahorro', () => {
       RATES,
       'USD'
     )
-    expect(savingsPlans.map((p) => p.goalId)).toEqual(['encurso', 'lleno'])
+    expect(savingsPlans.rows.map((p) => p.goalId)).toEqual(['encurso', 'lleno'])
+  })
+
+  it('el progreso hacia las Metas suma los planes con Meta en la moneda de visualización', () => {
+    const { savingsPlans } = computePlansAndListsStats(
+      {
+        ...EMPTY_INPUT,
+        goals: [
+          goal('viaje', { target: '100' }),
+          goal('carro', { target: '5000', currency: 'VES' }),
+          goal('sinmeta'),
+        ],
+        goalContributions: [
+          contribution('viaje', '50'),
+          contribution('carro', '2000'),
+          contribution('sinmeta', '999'),
+        ],
+      },
+      RATES,
+      'USD'
+    )
+    expect(savingsPlans.progress).toEqual({ saved: 100, target: 225, reached: 0, withTarget: 2 })
+  })
+
+  it('lo ahorrado de más en un plan no tapa lo que le falta a otro', () => {
+    const { savingsPlans } = computePlansAndListsStats(
+      {
+        ...EMPTY_INPUT,
+        goals: [goal('lleno', { target: '100' }), goal('vacio', { target: '100' })],
+        goalContributions: [contribution('lleno', '300')],
+      },
+      RATES,
+      'USD'
+    )
+    expect(savingsPlans.progress).toEqual({ saved: 100, target: 200, reached: 1, withTarget: 2 })
+  })
+
+  it('sin planes con Meta, o sin tasa, no hay progreso', () => {
+    const sinMeta = computePlansAndListsStats({ ...EMPTY_INPUT, goals: [goal('a')] }, RATES, 'USD')
+    expect(sinMeta.savingsPlans.progress).toBeNull()
+
+    const sinTasa = computePlansAndListsStats(
+      { ...EMPTY_INPUT, goals: [goal('a', { target: '10', currency: 'EUR' })] },
+      { VES: 1, USD: 40, EUR: 0 },
+      'USD'
+    )
+    expect(sinTasa.savingsPlans.progress).toBeNull()
   })
 })
 
@@ -114,8 +160,8 @@ describe('computePlansAndListsStats — Listas de compras', () => {
       'USD'
     )
     expect(shoppingLists.rows).toEqual([
-      expect.objectContaining({ listId: 'mercado', remaining: 20 }),
-      expect.objectContaining({ listId: 'casa', remaining: 6.25 }),
+      expect.objectContaining({ listId: 'mercado', remaining: 20, pending: 2 }),
+      expect.objectContaining({ listId: 'casa', remaining: 6.25, pending: 1 }),
     ])
     expect(shoppingLists.remaining).toBe(26.25)
   })

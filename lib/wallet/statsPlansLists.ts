@@ -7,7 +7,7 @@ import type {
   StatsBundle,
 } from '@/hooks/useWallet'
 import { parseAmount, parseSigned } from './compute'
-import { sortGoalsForDisplay } from './goalOrder'
+import { isGoalReached, sortGoalsForDisplay } from './goalOrder'
 import { computeShoppingTotals, type ResolvedRates } from './shoppingTotals'
 
 /** Un Plan de ahorro activo: lo ahorrado frente a su Meta, en la moneda del plan. */
@@ -22,18 +22,37 @@ export interface SavingsPlanStat {
   target: number | null
 }
 
+/**
+ * Cuánto se lleva de todas las Metas juntas, en la moneda de visualización. Cada plan
+ * aporta como mucho su Meta: lo ahorrado de más en uno no tapa lo que le falta a otro.
+ */
+export interface SavingsProgress {
+  saved: number
+  target: number
+  /** Planes con Meta alcanzada. */
+  reached: number
+  /** Planes con Meta. */
+  withTarget: number
+}
+
 /** Una lista con algo por pagar y su Restante por pagar en la moneda de visualización. */
 export interface ShoppingListStat {
   listId: string
   name: string
   icon?: string
   color?: string
+  /** Productos por comprar. */
+  pending: number
   /** `null` si falta una tasa para convertir. */
   remaining: number | null
 }
 
 export interface PlansAndListsStats {
-  savingsPlans: SavingsPlanStat[]
+  savingsPlans: {
+    rows: SavingsPlanStat[]
+    /** `null` si ningún plan tiene Meta o falta una tasa. */
+    progress: SavingsProgress | null
+  }
   shoppingLists: {
     rows: ShoppingListStat[]
     /** **Restante total por pagar**. `null` si falta una tasa. */
@@ -51,6 +70,28 @@ export interface PlansAndListsInput {
   shoppingItems: ShoppingListItem[]
 }
 
+function savingsProgress(
+  plans: SavingsPlanStat[],
+  resolvedRates: ResolvedRates,
+  displayCurrency: CurrencyId
+): SavingsProgress | null {
+  const withTarget = plans.filter((p) => p.target !== null)
+  const rateTo = resolvedRates[displayCurrency] ?? 0
+  if (withTarget.length === 0 || rateTo <= 0) return null
+  if (withTarget.some((p) => (resolvedRates[p.currency] ?? 0) <= 0)) return null
+
+  const progress: SavingsProgress = { saved: 0, target: 0, reached: 0, withTarget: 0 }
+  for (const p of withTarget) {
+    const target = p.target ?? 0
+    const factor = resolvedRates[p.currency] / rateTo
+    progress.saved += Math.min(Math.max(p.saved, 0), target) * factor
+    progress.target += target * factor
+    progress.withTarget++
+    if (isGoalReached(p.saved, target)) progress.reached++
+  }
+  return progress
+}
+
 export function computePlansAndListsStats(
   input: PlansAndListsInput,
   resolvedRates: ResolvedRates,
@@ -61,7 +102,7 @@ export function computePlansAndListsStats(
     savedByGoal.set(gc.goalId, (savedByGoal.get(gc.goalId) ?? 0) + parseSigned(gc.amount))
   }
   const activeGoals = input.goals.filter((g) => !g.completedAt)
-  const savingsPlans = sortGoalsForDisplay(activeGoals, savedByGoal).map((g): SavingsPlanStat => {
+  const plans = sortGoalsForDisplay(activeGoals, savedByGoal).map((g): SavingsPlanStat => {
     const target = parseAmount(g.target)
     return {
       goalId: g.id,
@@ -96,10 +137,14 @@ export function computePlansAndListsStats(
       name: list.name,
       icon: list.icon,
       color: list.color,
+      pending: items.length,
       remaining,
     })
   }
   const { remaining } = computeShoppingTotals(pending, resolvedRates, displayCurrency)
 
-  return { savingsPlans, shoppingLists: { rows, remaining } }
+  return {
+    savingsPlans: { rows: plans, progress: savingsProgress(plans, resolvedRates, displayCurrency) },
+    shoppingLists: { rows, remaining },
+  }
 }

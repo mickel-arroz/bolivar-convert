@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react'
+import { render, screen, within } from '@testing-library/react'
 import { describe, it, expect, vi } from 'vitest'
 import { EstadisticasTab } from '@/components/billetera/EstadisticasTab'
 import type { CategorySummaryRow, WalletApi } from '@/hooks/useWallet'
@@ -30,7 +30,7 @@ const EMPTY: StatsView = {
   budgetStatus: [],
   budgetUsage: { currency: 'VES', spent: 0, total: 0, ratio: 0, onTrack: 0, over: 0 },
   ratesAvailable: true,
-  savingsPlans: [],
+  savingsPlans: { rows: [], progress: null },
   shoppingLists: { rows: [], remaining: 0 },
 }
 
@@ -114,44 +114,100 @@ describe('EstadisticasTab — gráficas sin datos', () => {
 })
 
 describe('EstadisticasTab — Planes de ahorro y Listas de compras', () => {
-  it('muestra lo ahorrado frente a la Meta, o solo lo ahorrado si el plan no tiene', () => {
+  it('resume el progreso hacia las Metas y detalla cada plan', () => {
     renderTab({
       ...EMPTY,
-      savingsPlans: [
-        { goalId: 'viaje', name: 'Viaje', currency: 'USD', saved: 150, target: 500 },
-        { goalId: 'colchon', name: 'Colchón', currency: 'VES', saved: 30, target: null },
-      ],
+      savingsPlans: {
+        rows: [
+          { goalId: 'viaje', name: 'Viaje', currency: 'USD', saved: 150, target: 500 },
+          { goalId: 'moto', name: 'Moto', currency: 'USD', saved: 200, target: 200 },
+          { goalId: 'colchon', name: 'Colchón', currency: 'VES', saved: 30, target: null },
+        ],
+        progress: { saved: 350, target: 700, reached: 1, withTarget: 2 },
+      },
     })
 
     const plans = card('Planes de ahorro')
-    expect(plans).toHaveTextContent('Viaje')
-    expect(plans).toHaveTextContent('$ 150.00 de $ 500.00')
-    expect(plans).toHaveTextContent('30%')
-    expect(plans).toHaveTextContent('Colchón')
-    expect(plans).toHaveTextContent('Bs. 30,00')
-    expect(plans).not.toHaveTextContent('Bs. 30,00 de')
+    expect(plans).toHaveTextContent('50%')
+    expect(plans).toHaveTextContent('$ 350.00 de $ 700.00')
+    expect(plans).toHaveTextContent('1 de 2 Metas alcanzadas')
+
+    const [viaje, moto, colchon] = within(plans).getAllByTestId('stats-plan-row')
+    expect(viaje).toHaveTextContent('$ 150.00 de $ 500.00')
+    expect(viaje).toHaveTextContent('30%')
+    expect(moto).toHaveTextContent('Meta alcanzada')
+    expect(colchon).toHaveTextContent('Sin Meta')
+    expect(colchon).toHaveTextContent('Bs. 30,00')
     expect(screen.queryByText(/Registra movimientos/)).not.toBeInTheDocument()
   })
 
-  it('muestra el Restante por pagar de cada lista y el total en la moneda de visualización', () => {
+  it('sin planes con Meta no muestra el anillo de progreso', () => {
+    renderTab({
+      ...EMPTY,
+      savingsPlans: {
+        rows: [{ goalId: 'colchon', name: 'Colchón', currency: 'VES', saved: 30, target: null }],
+        progress: null,
+      },
+    })
+
+    expect(card('Planes de ahorro')).not.toHaveTextContent('Metas alcanzadas')
+  })
+
+  it('resume el Restante total por pagar y detalla cada lista con su peso', () => {
     renderTab({
       ...EMPTY,
       shoppingLists: {
         rows: [
-          { listId: 'mercado', name: 'Mercado', remaining: 20 },
-          { listId: 'casa', name: 'Casa', remaining: 6.25 },
+          { listId: 'mercado', name: 'Mercado', pending: 2, remaining: 75 },
+          { listId: 'casa', name: 'Casa', pending: 1, remaining: 25 },
         ],
-        remaining: 26.25,
+        remaining: 100,
       },
     })
 
     const lists = card('Listas de compras')
-    expect(lists).toHaveTextContent('Mercado')
-    expect(lists).toHaveTextContent('$ 20.00')
-    expect(lists).toHaveTextContent('Casa')
-    expect(lists).toHaveTextContent('$ 6.25')
     expect(lists).toHaveTextContent('Restante total por pagar')
-    expect(lists).toHaveTextContent('$ 26.25')
+    expect(lists).toHaveTextContent('$ 100.00')
+    expect(lists).toHaveTextContent('3 productos en 2 listas')
+
+    const [mercado, casa] = within(lists).getAllByTestId('stats-list-row')
+    expect(mercado).toHaveTextContent('Mercado')
+    expect(mercado).toHaveTextContent('2 por comprar')
+    expect(mercado).toHaveTextContent('$ 75.00')
+    expect(mercado).toHaveTextContent('75%')
+    expect(casa).toHaveTextContent('1 por comprar')
+    expect(casa).toHaveTextContent('25%')
+  })
+
+  it('con muchos elementos la lista hace scroll en vez de alargar la card', () => {
+    renderTab({
+      ...EMPTY,
+      savingsPlans: {
+        rows: Array.from({ length: 20 }, (_, i) => ({
+          goalId: `p${i}`,
+          name: `Plan ${i}`,
+          currency: 'USD' as const,
+          saved: i,
+          target: null,
+        })),
+        progress: null,
+      },
+      shoppingLists: {
+        rows: Array.from({ length: 20 }, (_, i) => ({
+          listId: `l${i}`,
+          name: `Lista ${i}`,
+          pending: 1,
+          remaining: i + 1,
+        })),
+        remaining: 210,
+      },
+    })
+
+    for (const title of ['Planes de ahorro', 'Listas de compras']) {
+      const scroller = within(card(title)).getByTestId('stats-scroll')
+      expect(scroller).toHaveClass('overflow-y-auto')
+      expect(scroller.className).toMatch(/max-h-/)
+    }
   })
 
   it('sin planes ni nada por pagar no muestra ninguna de las dos', () => {

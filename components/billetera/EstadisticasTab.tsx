@@ -39,7 +39,7 @@ const EMPTY_STATS: StatsView = {
   budgetStatus: [],
   budgetUsage: { currency: 'VES', spent: 0, total: 0, ratio: 0, onTrack: 0, over: 0 },
   ratesAvailable: true,
-  savingsPlans: [],
+  savingsPlans: { rows: [], progress: null },
   shoppingLists: { rows: [], remaining: 0 },
 }
 
@@ -251,7 +251,12 @@ export function EstadisticasTab({ wallet }: EstadisticasTabProps) {
       </Card>
     ),
     savingsPlans: (className) => (
-      <SavingsPlansStatsCard key="savingsPlans" plans={stats.savingsPlans} className={className} />
+      <SavingsPlansStatsCard
+        key="savingsPlans"
+        plans={stats.savingsPlans}
+        currency={cur}
+        className={className}
+      />
     ),
     shoppingLists: (className) => (
       <ShoppingListsStatsCard

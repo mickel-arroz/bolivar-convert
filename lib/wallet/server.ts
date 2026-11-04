@@ -762,14 +762,13 @@ export async function loadAccountsSummary(
 }
 
 /**
- * Feed de movimientos ordenado por fecha desc. Si `pageSize`/`page` se indican,
- * devuelve una página; si `limit` se indica, devuelve solo los N más recientes.
+ * Una página del feed de movimientos, ordenado por fecha desc.
  * La combinación tx+traspasos se hace en el handler (escala de finanzas personales).
  */
 export async function loadMovements(
   supabase: SupabaseClient,
   userId: string,
-  opts: { page?: number; pageSize?: number; limit?: number }
+  opts: { page: number; pageSize: number }
 ): Promise<MovementsPage> {
   const [txRes, trRes, btRes, goalsRes, gcRes] = await Promise.all([
     supabase.from('transactions').select('*').eq('user_id', userId),
@@ -789,14 +788,9 @@ export async function loadMovements(
   const feed = buildFeed(transactions, transfers, budgetTransfers, buildGoalMovements(goals, contributions))
   const total = feed.length
 
-  if (opts.limit !== undefined) {
-    const items = feed.slice(0, opts.limit)
-    return { items, page: 1, pageSize: opts.limit, total, totalPages: 1 }
-  }
-
-  const pageSize = opts.pageSize ?? 30
+  const { pageSize } = opts
   const totalPages = Math.max(1, Math.ceil(total / pageSize))
-  const page = Math.min(Math.max(1, opts.page ?? 1), totalPages)
+  const page = Math.min(Math.max(1, opts.page), totalPages)
   const start = (page - 1) * pageSize
   const items = feed.slice(start, start + pageSize)
   return { items, page, pageSize, total, totalPages }

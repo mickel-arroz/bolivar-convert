@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { Rates } from '@/constants/rates'
 import { WalletApi } from '@/hooks/useWallet'
 import { useWalletResource } from '@/hooks/useWalletResource'
@@ -13,16 +13,17 @@ import { MovementRow } from './MovementRow'
 import { MovementListSkeleton } from './skeletons'
 import { DeleteMovementDialog, DeleteTarget } from './DeleteMovementDialog'
 
-interface MovimientosTabProps {
+interface MovementsSectionProps {
   wallet: WalletApi
   dialogs: WalletDialogs
   rates: Rates
 }
 
-export function MovimientosTab({ wallet, dialogs, rates }: MovimientosTabProps) {
+export function MovementsSection({ wallet, dialogs, rates }: MovementsSectionProps) {
   const { state } = wallet
   const [page, setPage] = useState(1)
   const [pendingDelete, setPendingDelete] = useState<DeleteTarget>(null)
+  const sectionRef = useRef<HTMLElement>(null)
 
   const accountById = useMemo(() => new Map(state.accounts.map((a) => [a.id, a])), [state.accounts])
   const categoryById = useMemo(
@@ -41,38 +42,53 @@ export function MovimientosTab({ wallet, dialogs, rates }: MovimientosTabProps) 
   const total = data?.total ?? 0
   const currentPage = data?.page ?? page
 
+  const goToPage = (next: number) => {
+    setPage(next)
+    sectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }
+
   return (
-    <div className="flex flex-col gap-5">
-      <div className="flex flex-wrap gap-2">
+    <section ref={sectionRef} className="flex scroll-mt-24 flex-col gap-3">
+      <div className="flex flex-wrap items-center gap-2">
+        <h2 className="mr-auto text-sm font-bold uppercase tracking-wider text-muted-foreground">
+          Movimientos
+        </h2>
         <Button
+          size="sm"
           onClick={() => dialogs.openNewTransaction('expense')}
           disabled={state.accounts.length === 0}
         >
           <PlusIcon /> Gasto
         </Button>
         <Button
+          size="sm"
           variant="outline"
           onClick={() => dialogs.openNewTransaction('income')}
           disabled={state.accounts.length === 0}
         >
           <PlusIcon /> Ingreso
         </Button>
-        <Button variant="outline" onClick={dialogs.openTransfer} disabled={state.accounts.length < 2}>
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={dialogs.openTransfer}
+          disabled={state.accounts.length < 2}
+        >
           <TransferIcon /> Traspaso
         </Button>
-        <Button variant="ghost" onClick={dialogs.openCategories} className="md:ml-auto">
+        <Button size="sm" variant="ghost" onClick={dialogs.openCategories}>
           <LayoutIcon /> Categorías
         </Button>
       </div>
 
-      {!data ? (
-        <MovementListSkeleton rows={8} />
-      ) : error ? (
+      {error && !data ? (
         <Card>
           <CardContent className="py-10 text-center text-sm text-destructive">
             No se pudieron cargar los movimientos. Intenta de nuevo.
           </CardContent>
         </Card>
+      ) : !data ? (
+        <MovementListSkeleton rows={4} />
       ) : total === 0 ? (
         <Card>
           <CardContent className="flex flex-col items-center gap-3 py-10 text-center">
@@ -107,7 +123,7 @@ export function MovimientosTab({ wallet, dialogs, rates }: MovimientosTabProps) 
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => setPage(currentPage - 1)}
+                onClick={() => goToPage(currentPage - 1)}
                 disabled={currentPage <= 1}
               >
                 <ChevronRightIcon className="size-4 rotate-180" /> Recientes
@@ -118,7 +134,7 @@ export function MovimientosTab({ wallet, dialogs, rates }: MovimientosTabProps) 
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => setPage(currentPage + 1)}
+                onClick={() => goToPage(currentPage + 1)}
                 disabled={currentPage >= totalPages}
               >
                 Más antiguos <ChevronRightIcon className="size-4" />
@@ -134,6 +150,6 @@ export function MovimientosTab({ wallet, dialogs, rates }: MovimientosTabProps) 
         wallet={wallet}
         rates={rates}
       />
-    </div>
+    </section>
   )
 }

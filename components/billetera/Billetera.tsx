@@ -6,12 +6,11 @@ import { useRates } from '@/hooks/useRates'
 import { SectionHeader } from '@/components/SectionHeader'
 import { Loader } from '@/components/ui/Loader'
 import { Tabs, TabsList, TabsTab, TabsPanel } from '@/components/ui/tabs'
-import { WalletIcon, ListIcon, ChartPieIcon, TargetIcon, AlertIcon } from '@/components/icons'
+import { WalletIcon, ChartPieIcon, TargetIcon, AlertIcon } from '@/components/icons'
 import { MigrationPrompt } from './MigrationPrompt'
 import { WalletTab } from './types'
 import { WalletDialogs } from './dialogs'
 import { ResumenTab } from './ResumenTab'
-import { MovimientosTab } from './MovimientosTab'
 import { EstadisticasTab } from './EstadisticasTab'
 import { PresupuestoTab } from './PresupuestoTab'
 import { AccountFormDialog } from './AccountFormDialog'
@@ -23,7 +22,7 @@ import { BudgetFormDialog } from './BudgetFormDialog'
 
 const ACTIVE_TAB_KEY = 'billetera_active_tab'
 
-const WALLET_TABS: WalletTab[] = ['resumen', 'movimientos', 'estadisticas', 'presupuesto']
+const WALLET_TABS: WalletTab[] = ['resumen', 'estadisticas', 'presupuesto']
 
 const isWalletTab = (value: string | null): value is WalletTab =>
   value !== null && (WALLET_TABS as string[]).includes(value)
@@ -117,9 +116,6 @@ export function Billetera() {
             <TabsTab value="resumen">
               <WalletIcon className="size-4" /> <span className="hidden sm:inline">Resumen</span>
             </TabsTab>
-            <TabsTab value="movimientos">
-              <ListIcon className="size-4" /> <span className="hidden sm:inline">Movimientos</span>
-            </TabsTab>
             <TabsTab value="estadisticas">
               <ChartPieIcon className="size-4" /> <span className="hidden sm:inline">Estadísticas</span>
             </TabsTab>
@@ -130,9 +126,6 @@ export function Billetera() {
 
           <TabsPanel value="resumen">
             <ResumenTab wallet={wallet} rates={rates} dialogs={dialogs} />
-          </TabsPanel>
-          <TabsPanel value="movimientos">
-            <MovimientosTab wallet={wallet} dialogs={dialogs} rates={rates} />
           </TabsPanel>
           <TabsPanel value="estadisticas">
             <EstadisticasTab wallet={wallet} />

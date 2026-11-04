@@ -5,16 +5,11 @@ import { Account, WalletApi } from '@/hooks/useWallet'
 import { Rates } from '@/constants/rates'
 import { getCurrency, CURRENCIES, type CurrencyId } from '@/constants/currencies'
 import { useWalletResource } from '@/hooks/useWalletResource'
-import {
-  bsPerUnit,
-  normalize,
-  type AccountsSummary,
-  type FeedItem,
-} from '@/lib/wallet/compute'
+import { bsPerUnit, normalize, type AccountsSummary } from '@/lib/wallet/compute'
 import type { AccountFunds } from '@/hooks/useWallet'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { ResumenSkeleton, MovementListSkeleton } from './skeletons'
+import { ResumenSkeleton } from './skeletons'
 import {
   AlertDialog,
   AlertDialogContent,
@@ -32,13 +27,13 @@ import {
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
 } from '@/components/ui/dropdown-menu'
-import { PlusIcon, TransferIcon, WalletIcon, DotsIcon, TargetIcon } from '@/components/icons'
+import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover'
+import { PlusIcon, WalletIcon, DotsIcon, TargetIcon, InfoIcon } from '@/components/icons'
 import { notify } from '@/lib/notify'
 import { WalletDialogs } from './dialogs'
 import { AccountCard } from './AccountCard'
-import { MovementRow } from './MovementRow'
+import { MovementsSection } from './MovementsSection'
 import { ResetWallet } from './ResetWallet'
-import { DeleteMovementDialog, DeleteTarget } from './DeleteMovementDialog'
 import { formatMoney } from './format'
 import { nextOverride, resolveDisplayCurrency } from '@/lib/wallet/displayCurrency'
 
@@ -53,7 +48,6 @@ interface ResumenTabProps {
 export function ResumenTab({ wallet, rates, dialogs }: ResumenTabProps) {
   const { state, removeAccount, setNetWorthCurrency } = wallet
   const [pendingDelete, setPendingDelete] = useState<Account | null>(null)
-  const [pendingMovementDelete, setPendingMovementDelete] = useState<DeleteTarget>(null)
 
   const pendingDeleteHasGoalMoney = useMemo(
     () =>
@@ -88,28 +82,14 @@ export function ResumenTab({ wallet, rates, dialogs }: ResumenTabProps) {
     '/api/wallet/accounts',
     wallet.syncedVersion
   )
-  const { data: recentData } = useWalletResource<{ items: FeedItem[] }>(
-    '/api/wallet/movements/recent',
-    wallet.syncedVersion
-  )
 
   const accounts = accountsData?.accounts ?? []
   const totals = accountsData?.totalsByCurrency ?? { VES: 0, USD: 0, EUR: 0 }
-  const recentFeed = recentData?.items ?? []
 
   const fundsById = useMemo(
     () => new Map<string, AccountFunds>((accountsData?.funds ?? []).map((f) => [f.accountId, f])),
     [accountsData]
   )
-  const accountById = useMemo(
-    () => new Map((accountsData?.accounts ?? []).map((a) => [a.id, a])),
-    [accountsData]
-  )
-  const categoryById = useMemo(
-    () => new Map(state.categories.map((c) => [c.id, c])),
-    [state.categories]
-  )
-  const goalById = useMemo(() => new Map(state.goals.map((g) => [g.id, g])), [state.goals])
 
   // El Patrimonio neto incluye el dinero apartado en planes: ahorrar no empobrece
   // (ADR 0002). `inGoals` es la parte de esa cifra que no está Disponible.
@@ -137,8 +117,20 @@ export function ResumenTab({ wallet, rates, dialogs }: ResumenTabProps) {
       <Card>
         <CardContent className="flex flex-col gap-3">
           <div className="flex items-start justify-between gap-2">
-            <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+            <span className="flex items-center gap-1 text-xs font-bold uppercase tracking-wider text-muted-foreground">
               Patrimonio neto
+              <Popover>
+                <PopoverTrigger
+                  aria-label="Cómo se calcula el patrimonio"
+                  className="inline-flex cursor-pointer rounded-full text-muted-foreground/70 hover:text-foreground"
+                >
+                  <InfoIcon className="size-3.5" />
+                </PopoverTrigger>
+                <PopoverContent align="start" className="text-xs font-medium normal-case tracking-normal">
+                  Suma de todas tus cuentas convertida a{' '}
+                  {getCurrency(netWorthCurrency).label.toLowerCase()} con la tasa actual.
+                </PopoverContent>
+              </Popover>
             </span>
             <DropdownMenu>
               <DropdownMenuTrigger
@@ -193,7 +185,7 @@ export function ResumenTab({ wallet, rates, dialogs }: ResumenTabProps) {
               — <span className="text-sm font-medium">tasa no disponible</span>
             </p>
           )}
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap items-end gap-2">
             {CURRENCIES.map((c) => (
               <span
                 key={c.id}
@@ -202,32 +194,9 @@ export function ResumenTab({ wallet, rates, dialogs }: ResumenTabProps) {
                 {formatMoney(totals[c.id] ?? 0, c.id)}
               </span>
             ))}
-          </div>
-          <div className="flex flex-col gap-3 border-t border-border/50 pt-3 sm:flex-row sm:items-end sm:justify-between">
-            <p className="text-[11px] text-muted-foreground sm:flex-1">
-              Suma de todas tus cuentas convertida a {getCurrency(netWorthCurrency).label.toLowerCase()} con la tasa actual.
-            </p>
-            <div className="flex flex-wrap gap-2 sm:shrink-0 sm:justify-end">
-              <Button size="sm" onClick={dialogs.openNewAccount}>
-                <PlusIcon /> Nueva cuenta
-              </Button>
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => dialogs.openNewTransaction()}
-                disabled={accounts.length === 0}
-              >
-                <PlusIcon /> Nuevo movimiento
-              </Button>
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={dialogs.openTransfer}
-                disabled={accounts.length < 2}
-              >
-                <TransferIcon /> Traspaso
-              </Button>
-            </div>
+            <Button size="sm" className="ml-auto" onClick={dialogs.openNewAccount}>
+              <PlusIcon /> Nueva cuenta
+            </Button>
           </div>
         </CardContent>
       </Card>
@@ -263,45 +232,9 @@ export function ResumenTab({ wallet, rates, dialogs }: ResumenTabProps) {
         </div>
       )}
 
-      {(!recentData || recentFeed.length > 0) && (
-        <div className="flex flex-col gap-2">
-          <h2 className="text-sm font-bold uppercase tracking-wider text-muted-foreground">
-            Movimientos recientes
-          </h2>
-          {!recentData ? (
-            <MovementListSkeleton rows={4} />
-          ) : (
-            <div className="flex flex-col gap-2">
-              {recentFeed.map((item) => (
-                <MovementRow
-                  key={item.id}
-                  item={item}
-                  accountById={accountById}
-                  categoryById={categoryById}
-                  onEditTx={(id) => {
-                    const tx = state.transactions.find((t) => t.id === id)
-                    if (tx) dialogs.openEditTransaction(tx)
-                  }}
-                  onDeleteTx={(id) => setPendingMovementDelete({ kind: 'tx', id })}
-                  onDeleteTransfer={(id) => setPendingMovementDelete({ kind: 'transfer', id })}
-              goalById={goalById}
-              onEditGoalMovement={dialogs.openEditGoalMovement}
-              onDeleteGoalMovement={(id) => setPendingMovementDelete({ kind: 'goalMovement', id })}
-                />
-              ))}
-            </div>
-          )}
-        </div>
-      )}
+      <MovementsSection wallet={wallet} dialogs={dialogs} rates={rates} />
 
       <ResetWallet wallet={wallet} />
-
-      <DeleteMovementDialog
-        target={pendingMovementDelete}
-        onClose={() => setPendingMovementDelete(null)}
-        wallet={wallet}
-        rates={rates}
-      />
 
       <AlertDialog open={!!pendingDelete} onOpenChange={(o) => !o && setPendingDelete(null)}>
         <AlertDialogContent>

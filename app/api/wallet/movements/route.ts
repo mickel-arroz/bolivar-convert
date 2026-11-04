@@ -5,7 +5,7 @@ import { loadMovements } from '@/lib/wallet/server'
 export const dynamic = 'force-dynamic'
 
 // Tamaño de página fijo del lado del servidor: el usuario no puede cambiarlo.
-const PAGE_SIZE = 30
+const PAGE_SIZE = 10
 
 export async function GET(request: NextRequest) {
   const auth = await authenticate()

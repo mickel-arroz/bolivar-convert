@@ -248,17 +248,22 @@ export function EstadisticasTab({ wallet }: EstadisticasTabProps) {
     ),
   }
 
+  const adviceCard = (
+    <AdviceCard title="En qué se te fue el dinero" text={advice.stats} loading={!adviceLoaded} />
+  )
+
   if (!data) {
-    return <EstadisticasSkeleton />
+    return (
+      <div className="flex flex-col gap-6">
+        {adviceCard}
+        <EstadisticasSkeleton />
+      </div>
+    )
   }
 
   return (
     <div className="flex flex-col gap-6">
-      <AdviceCard
-        title="En qué se te fue el dinero"
-        text={advice.stats}
-        loading={!adviceLoaded}
-      />
+      {adviceCard}
 
       {/* Controles */}
       <div className="flex flex-col gap-3">

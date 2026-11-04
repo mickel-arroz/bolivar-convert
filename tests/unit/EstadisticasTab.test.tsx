@@ -3,10 +3,17 @@ import { describe, it, expect, vi } from 'vitest'
 import { EstadisticasTab } from '@/components/billetera/EstadisticasTab'
 import type { CategorySummaryRow, StatsBundle, WalletApi } from '@/hooks/useWallet'
 
-let stats: StatsBundle
+let stats: StatsBundle | undefined
+let adviceLoaded = true
 vi.mock('@/hooks/useWalletResource', () => ({ useWalletResource: () => ({ data: stats }) }))
-vi.mock('@/hooks/useAdvice', () => ({ useAdvice: () => ({ advice: { stats: '' }, loaded: true }) }))
-vi.mock('@/components/billetera/AdviceCard', () => ({ AdviceCard: () => null }))
+vi.mock('@/hooks/useAdvice', () => ({
+  useAdvice: () => ({ advice: { stats: '' }, loaded: adviceLoaded }),
+}))
+vi.mock('@/components/billetera/AdviceCard', () => ({
+  AdviceCard: ({ loading }: { loading?: boolean }) => (
+    <div data-testid="advice" data-loading={String(!!loading)} />
+  ),
+}))
 vi.mock('@/components/ui/chart', () => ({
   ChartContainer: () => <div data-testid="chart" />,
   ChartTooltip: () => null,
@@ -98,5 +105,18 @@ describe('EstadisticasTab — gráficas sin datos', () => {
     expect(card('Patrimonio neto')).not.toHaveClass('lg:col-span-2')
     expect(card('Tasa de ahorro')).toHaveClass('lg:col-span-2')
     expect(card('Gastos por categoría')).toHaveClass('md:col-span-2')
+  })
+})
+
+describe('EstadisticasTab — Consejo mientras cargan las estadísticas', () => {
+  it('muestra la card del Consejo con su skeleton junto al resto del skeleton', () => {
+    adviceLoaded = false
+    try {
+      renderTab(undefined as unknown as StatsBundle)
+    } finally {
+      adviceLoaded = true
+    }
+
+    expect(screen.getByTestId('advice')).toHaveAttribute('data-loading', 'true')
   })
 })

@@ -65,7 +65,7 @@ export function ResetWallet({ wallet }: ResetWalletProps) {
   const confirm = pendingMode ? CONFIRM_COPY[pendingMode] : null
 
   return (
-    <div className="flex flex-col gap-3 border-t border-border/50 pt-3 sm:flex-row sm:items-end sm:justify-between">
+    <div className="mt-10 flex flex-col gap-4 border-t border-border/50 pt-8 sm:flex-row sm:items-end sm:justify-between">
       <p className="text-[11px] text-muted-foreground sm:flex-1">
         Restablecer vacía el dinero de tu billetera o la deja como nueva. La acción no se puede deshacer.
       </p>

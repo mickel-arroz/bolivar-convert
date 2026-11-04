@@ -72,6 +72,17 @@ export default function RootLayout({
       suppressHydrationWarning
     >
       <body className="min-h-full flex flex-col items-center" suppressHydrationWarning>
+        {/* Guarda la zona horaria del dispositivo en la cookie `tz` antes de hidratar: el
+            servidor la lee para saber cuál es el día del usuario (ADR 0005). Solo
+            reescribe si cambió, por ejemplo al viajar. */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html:
+              "(function(){try{var tz=Intl.DateTimeFormat().resolvedOptions().timeZone;" +
+              "if(tz&&document.cookie.split('; ').indexOf('tz='+tz)===-1){" +
+              "document.cookie='tz='+tz+';path=/;max-age=31536000;samesite=lax'}}catch(e){}})();",
+          }}
+        />
       <Analytics />
       <SpeedInsights />
         <ThemeProvider

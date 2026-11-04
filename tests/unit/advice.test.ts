@@ -1,18 +1,16 @@
 import { describe, it, expect, vi } from 'vitest'
 import {
-  ADVICE_MAX_AGE_MS,
+  ADVICE_ATTEMPTS_PER_DAY,
   ADVICE_MAX_LENGTH,
   ADVICE_REJECT_LENGTH,
   GENERIC_ADVICE,
-  isAdviceStale,
+  canAttemptAdviceToday,
   meetsAdviceThreshold,
   parseAdviceResponse,
   runAdviceChain,
+  type AdviceDayState,
   type AdviceModelCall,
 } from '@/lib/wallet/advice'
-
-const NOW = new Date('2026-09-21T12:00:00.000Z')
-const daysAgo = (n: number) => new Date(NOW.getTime() - n * 24 * 60 * 60 * 1000).toISOString()
 
 const CHAIN = ['modelo-a', 'modelo-b', 'modelo-c']
 
@@ -20,29 +18,45 @@ function json(stats: string, budget: string): string {
   return JSON.stringify({ stats, budget })
 }
 
-describe('isAdviceStale', () => {
-  it('un consejo de menos de 7 días no se refresca', () => {
-    expect(isAdviceStale(daysAgo(6), NOW)).toBe(false)
+describe('canAttemptAdviceToday', () => {
+  const TODAY = '2026-09-21'
+  const state = (over: Partial<AdviceDayState> = {}): AdviceDayState => ({
+    adviceDate: null,
+    attemptDate: null,
+    attemptCount: 0,
+    ...over,
   })
 
-  it('un consejo de más de 7 días se refresca', () => {
-    expect(isAdviceStale(daysAgo(8), NOW)).toBe(true)
+  it('sin nada guardado ni intentado, toca generar', () => {
+    expect(canAttemptAdviceToday(state(), TODAY)).toBe(true)
   })
 
-  it('sin nada guardado, se refresca', () => {
-    expect(isAdviceStale(null, NOW)).toBe(true)
-    expect(isAdviceStale(undefined, NOW)).toBe(true)
+  it('con el consejo de hoy ya guardado, no toca', () => {
+    expect(canAttemptAdviceToday(state({ adviceDate: TODAY }), TODAY)).toBe(false)
   })
 
-  it('una fecha ilegible se trata como vencida', () => {
-    expect(isAdviceStale('ayer por la tarde', NOW)).toBe(true)
+  it('con el consejo de ayer, toca: cuenta el cambio de día, no 24 horas', () => {
+    expect(canAttemptAdviceToday(state({ adviceDate: '2026-09-20' }), TODAY)).toBe(true)
   })
 
-  it('mide antigüedad, no días de calendario', () => {
-    const justUnder = new Date(NOW.getTime() - ADVICE_MAX_AGE_MS + 1000).toISOString()
-    const justOver = new Date(NOW.getTime() - ADVICE_MAX_AGE_MS - 1000).toISOString()
-    expect(isAdviceStale(justUnder, NOW)).toBe(false)
-    expect(isAdviceStale(justOver, NOW)).toBe(true)
+  it('tras un fallo se reintenta, hasta agotar los intentos del día', () => {
+    expect(canAttemptAdviceToday(state({ attemptDate: TODAY, attemptCount: 1 }), TODAY)).toBe(true)
+    expect(
+      canAttemptAdviceToday(state({ attemptDate: TODAY, attemptCount: ADVICE_ATTEMPTS_PER_DAY - 1 }), TODAY)
+    ).toBe(true)
+    expect(
+      canAttemptAdviceToday(state({ attemptDate: TODAY, attemptCount: ADVICE_ATTEMPTS_PER_DAY }), TODAY)
+    ).toBe(false)
+  })
+
+  it('los intentos agotados ayer no cuentan hoy', () => {
+    expect(
+      canAttemptAdviceToday(state({ attemptDate: '2026-09-20', attemptCount: ADVICE_ATTEMPTS_PER_DAY }), TODAY)
+    ).toBe(true)
+  })
+
+  it('concede como mucho 3 intentos por día', () => {
+    expect(ADVICE_ATTEMPTS_PER_DAY).toBe(3)
   })
 })
 

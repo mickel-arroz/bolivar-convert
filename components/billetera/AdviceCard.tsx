@@ -13,10 +13,10 @@ interface AdviceCardProps {
 }
 
 /**
- * Contenedor del consejo semanal, arriba del contenido de la pestaña.
+ * Contenedor del consejo del día, arriba del contenido de la pestaña.
  *
  * Muestra el texto completo, nunca recortado, y preserva los saltos de línea igual
- * que las descripciones.
+ * que las descripciones. Un consejo nuevo entra con un fundido, sin spinner.
  */
 export function AdviceCard({ title, text, loading = false }: AdviceCardProps) {
   return (
@@ -33,8 +33,9 @@ export function AdviceCard({ title, text, loading = false }: AdviceCardProps) {
             <AdviceSkeleton />
           ) : (
             <p
+              key={text}
               data-testid="advice-text"
-              className="whitespace-pre-line text-sm leading-relaxed text-foreground"
+              className="whitespace-pre-line text-sm leading-relaxed text-foreground animate-in fade-in duration-700"
             >
               {text}
             </p>

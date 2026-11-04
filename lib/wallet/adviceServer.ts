@@ -10,17 +10,23 @@ import type { RateId } from '@/constants/rates'
 import { DEFAULT_DISPLAY_CURRENCY } from '@/lib/wallet/displayCurrency'
 import { DEFAULT_BUDGET_TEMPLATE_ID } from '@/lib/wallet/compute'
 import { loadWallet } from '@/lib/wallet/server'
-import type { StoredAdvice } from '@/lib/wallet/advice'
+import type { AdviceDayState, StoredAdvice } from '@/lib/wallet/advice'
 import type { AdviceInput } from '@/lib/wallet/advicePayload'
 
 /** Id fijo de la única fila de consejo por usuario (ver migración 0009). */
 const ADVICE_ROW_ID = 'advice_current'
 
-/** Lee el consejo guardado del usuario. `null` si nunca se generó uno. */
+/** La fila del usuario: el consejo guardado (si hay) y el estado de su día. */
+export interface StoredAdviceRow {
+  advice: StoredAdvice | null
+  day: AdviceDayState
+}
+
+/** Lee el consejo guardado del usuario y el estado de su día. */
 export async function loadAdvice(
   supabase: SupabaseClient,
   userId: string
-): Promise<StoredAdvice | null> {
+): Promise<StoredAdviceRow> {
   const { data, error } = await supabase
     .from('advice')
     .select('*')
@@ -29,19 +35,29 @@ export async function loadAdvice(
     .maybeSingle()
   if (error) throw error
   const row = data as Record<string, unknown> | null
-  if (!row) return null
+  const day: AdviceDayState = {
+    adviceDate: (row?.advice_date as string | null) ?? null,
+    attemptDate: (row?.attempt_date as string | null) ?? null,
+    attemptCount: Number(row?.attempt_count ?? 0),
+  }
+  // Reclamar el día crea la fila antes que el consejo: sin textos no hay nada guardado.
+  if (!row?.stats_text || !row?.budget_text) return { advice: null, day }
   return {
-    stats: String(row.stats_text ?? ''),
-    budget: String(row.budget_text ?? ''),
-    generatedAt: String(row.generated_at ?? ''),
+    advice: {
+      stats: String(row.stats_text),
+      budget: String(row.budget_text),
+      generatedAt: String(row.generated_at ?? ''),
+    },
+    day,
   }
 }
 
-/** Guarda (o reemplaza) el consejo del usuario. */
+/** Guarda (o reemplaza) el consejo del usuario como el de `day`. */
 export async function saveAdvice(
   supabase: SupabaseClient,
   userId: string,
-  advice: StoredAdvice
+  advice: StoredAdvice,
+  day: string
 ): Promise<void> {
   const { error } = await supabase.from('advice').upsert(
     {
@@ -50,9 +66,31 @@ export async function saveAdvice(
       stats_text: advice.stats,
       budget_text: advice.budget,
       generated_at: advice.generatedAt,
+      advice_date: day,
+      attempt_started_at: null,
     },
     { onConflict: 'user_id,id' }
   )
+  if (error) throw error
+}
+
+/**
+ * Reclama un intento de generación para `day` (migración 0015). `true` solo si a esta
+ * petición le toca llamar a la IA: otra pestaña o dispositivo no lo recibe a la vez.
+ */
+export async function claimAdviceDay(supabase: SupabaseClient, day: string): Promise<boolean> {
+  const { data, error } = await supabase.rpc('claim_advice_day', { p_day: day })
+  if (error) throw error
+  return data === true
+}
+
+/** Suelta la reserva del intento en vuelo tras un fallo, para que la próxima entrada reintente. */
+export async function releaseAdviceDay(supabase: SupabaseClient, userId: string): Promise<void> {
+  const { error } = await supabase
+    .from('advice')
+    .update({ attempt_started_at: null })
+    .eq('user_id', userId)
+    .eq('id', ADVICE_ROW_ID)
   if (error) throw error
 }
 

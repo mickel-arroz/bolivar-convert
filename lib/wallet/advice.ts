@@ -1,9 +1,9 @@
 /**
- * Consejos semanales: frescura, umbral de datos, parseo tolerante y cadena de modelos.
+ * Consejos diarios: cuándo toca generar, umbral de datos, parseo tolerante y cadena de modelos.
  *
  * Módulo neutro (sin React ni acceso a red). La llamada al modelo entra **inyectada**
  * como parámetro, así que toda la lógica se prueba sin red y sin clave de API.
- * Gobierna ADR 0003.
+ * Gobierna ADR 0005.
  */
 
 /** Los dos consejos: el de Estadísticas mira hacia atrás; el de Presupuesto, hacia adelante. */
@@ -20,8 +20,32 @@ export interface StoredAdvice extends Advice {
   generatedAt: string
 }
 
-/** Un consejo se refresca cuando pasaron más de 7 días desde que se generó. */
-export const ADVICE_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000
+/**
+ * Intentos de generación que concede `claim_advice_day` por día del usuario. Mantener en
+ * sintonía con `v_max` de la migración 0015.
+ */
+export const ADVICE_ATTEMPTS_PER_DAY = 3
+
+/** El estado guardado del día, en fechas yyyy-MM-dd del calendario del usuario. */
+export interface AdviceDayState {
+  /** Día del consejo guardado; `null` si nunca se generó uno con fecha. */
+  adviceDate: string | null
+  /** Día del último intento reclamado. */
+  attemptDate: string | null
+  /** Intentos reclamados ese día. */
+  attemptCount: number
+}
+
+/**
+ * ¿Toca intentar generar hoy? No con el consejo de hoy ya guardado; sí en cuanto cambia
+ * el día del usuario, y tras un fallo mientras queden intentos. La base decide lo mismo
+ * de forma atómica al reclamar: esto evita gastar ese viaje cuando no hace falta.
+ */
+export function canAttemptAdviceToday(state: AdviceDayState, today: string): boolean {
+  if (state.adviceDate === today) return false
+  if (state.attemptDate !== today) return true
+  return state.attemptCount < ADVICE_ATTEMPTS_PER_DAY
+}
 
 /** Largo máximo que el prompt le pide a cada párrafo. */
 export const ADVICE_MAX_LENGTH = 300
@@ -40,7 +64,7 @@ export const GENERIC_ADVICE: Advice = {
   stats:
     'Todavía no hay movimientos suficientes para leer tus hábitos. Registra tus ingresos y gastos durante unas semanas y aquí vas a ver en qué se te está yendo el dinero.',
   budget:
-    'Ponle un presupuesto a las categorías donde más gastas y crea un plan de ahorro con nombre. Con eso a la mano, aquí te vamos a decir qué conviene ajustar cada semana.',
+    'Ponle un presupuesto a las categorías donde más gastas y crea un plan de ahorro con nombre. Con eso a la mano, aquí te vamos a decir qué conviene ajustar cada día.',
 }
 
 /** Lo mínimo que hace falta mirar para decidir si vale la pena pedir un consejo. */
@@ -58,14 +82,6 @@ export function meetsAdviceThreshold(dataset: AdviceDataset): boolean {
   return (
     dataset.transactions.length > 0 || dataset.budgets.length > 0 || dataset.goals.length > 0
   )
-}
-
-/** `true` si hay que refrescar: no hay nada guardado, o lo guardado pasó de 7 días. */
-export function isAdviceStale(generatedAt: string | null | undefined, now: Date = new Date()): boolean {
-  if (!generatedAt) return true
-  const then = new Date(generatedAt).getTime()
-  if (isNaN(then)) return true
-  return now.getTime() - then > ADVICE_MAX_AGE_MS
 }
 
 /** Quita las vallas de código (```json … ```) con las que algunos modelos envuelven el JSON. */

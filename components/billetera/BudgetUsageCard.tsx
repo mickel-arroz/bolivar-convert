@@ -1,15 +1,13 @@
 'use client'
 
 import { useMemo } from 'react'
-import { PieChart, Pie, Cell } from 'recharts'
 import { BudgetStatusRow, TimeRange } from '@/hooks/useWallet'
 import { BudgetUsage, rankBudgetsByUsage } from '@/lib/wallet/compute'
 import { getCategoryIcon } from '@/constants/walletCategories'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
-import { ChartConfig, ChartContainer } from '@/components/ui/chart'
 import { cn } from '@/lib/utils'
 import { formatMoney, formatPercent } from './format'
-import { BarWithTip } from './StatsListParts'
+import { BarWithTip, ProgressRing } from './StatsListParts'
 
 const TOP = 3
 
@@ -18,10 +16,6 @@ const RANGE_TEXT: Record<TimeRange, string> = {
   '6m': 'en los últimos 6 meses',
   '1y': 'en el último año',
   all: 'desde tu primer presupuesto',
-}
-
-const ringConfig: ChartConfig = {
-  used: { label: 'Usado', color: 'var(--rate-eur)' },
 }
 
 interface BudgetUsageCardProps {
@@ -34,7 +28,6 @@ interface BudgetUsageCardProps {
 export function BudgetUsageCard({ rows, usage, timeRange, className }: BudgetUsageCardProps) {
   const ranked = useMemo(() => rankBudgetsByUsage(rows), [rows])
   const shown = ranked.slice(0, TOP)
-  const used = Math.min(usage.ratio, 1)
 
   return (
     <Card className={className}>
@@ -46,30 +39,14 @@ export function BudgetUsageCard({ rows, usage, timeRange, className }: BudgetUsa
       </CardHeader>
       <CardContent className="flex flex-col gap-6">
         <div className="flex items-center gap-4">
-          <div className="relative size-28 shrink-0">
-            <ChartContainer config={ringConfig} className="aspect-square size-28">
-              <PieChart>
-                <Pie
-                  data={[{ value: used }, { value: 1 - used }]}
-                  dataKey="value"
-                  innerRadius="72%"
-                  outerRadius="100%"
-                  startAngle={90}
-                  endAngle={-270}
-                  stroke="none"
-                  isAnimationActive={false}
-                >
-                  <Cell fill={usage.ratio > 1 ? 'var(--destructive)' : 'var(--color-used)'} />
-                  <Cell fill="var(--muted)" />
-                </Pie>
-              </PieChart>
-            </ChartContainer>
-            <span className="absolute inset-0 flex items-center justify-center text-lg font-black tabular-nums">
-              {formatPercent(usage.ratio)}
-            </span>
-          </div>
+          <ProgressRing
+            ratio={usage.ratio}
+            color={usage.ratio > 1 ? 'var(--destructive)' : 'var(--rate-eur)'}
+          />
           <div className="flex min-w-0 flex-col gap-1">
-            <p className="text-sm font-bold">Usado {formatPercent(usage.ratio)} del presupuesto total</p>
+            <p className="text-sm font-bold">
+              Usado {formatPercent(usage.ratio)} del presupuesto total
+            </p>
             <p className="text-xs text-muted-foreground tabular-nums">
               {formatMoney(usage.spent, usage.currency)} de{' '}
               {formatMoney(usage.total, usage.currency)}

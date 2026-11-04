@@ -7,16 +7,16 @@ import { CheckIcon } from '@/components/icons'
 import { cn } from '@/lib/utils'
 import type { SavingsPlanStat } from '@/lib/wallet/statsPlansLists'
 import type { StatsView } from '@/lib/wallet/statsView'
-import { formatMoney } from './format'
+import { formatMoney, formatPercent } from './format'
 import {
   BarWithTip,
   ItemIcon,
   PERIOD_TEXT,
+  ProgressRing,
   ScrollList,
   ShareRow,
   ShareSummary,
   colorOrPalette,
-  percent,
 } from './StatsListParts'
 
 const clamp01 = (value: number) => Math.min(1, Math.max(0, value))
@@ -24,20 +24,6 @@ const clamp01 = (value: number) => Math.min(1, Math.max(0, value))
 /** Un monto con su signo delante: «+$ 40.00» o «−$ 10.00». */
 const signedMoney = (value: number, currency: CurrencyId) =>
   `${value < 0 ? '−' : '+'}${formatMoney(Math.abs(value), currency)}`
-
-function ProgressRing({ ratio, color }: { ratio: number; color: string }) {
-  return (
-    <div
-      className="relative flex size-24 shrink-0 items-center justify-center rounded-full"
-      style={{
-        background: `conic-gradient(${color} ${clamp01(ratio) * 360}deg, var(--muted) 0deg)`,
-      }}
-    >
-      <div className="absolute inset-[9px] rounded-full bg-card" />
-      <span className="relative text-lg font-black tabular-nums">{percent(ratio)}</span>
-    </div>
-  )
-}
 
 function PlanRow({ plan }: { plan: SavingsPlanStat }) {
   const color = plan.color ?? DEFAULT_ACCOUNT_COLOR
@@ -59,7 +45,7 @@ function PlanRow({ plan }: { plan: SavingsPlanStat }) {
               Meta alcanzada
             </span>
           ) : (
-            <span className="shrink-0 text-xs font-bold tabular-nums">{percent(ratio)}</span>
+            <span className="shrink-0 text-xs font-bold tabular-nums">{formatPercent(ratio)}</span>
           )}
         </div>
         {ratio === null ? (
@@ -67,7 +53,7 @@ function PlanRow({ plan }: { plan: SavingsPlanStat }) {
         ) : (
           <>
             <BarWithTip
-              label={`${plan.name} · ${percent(ratio)} de la Meta`}
+              label={`${plan.name} · ${formatPercent(ratio)} de la Meta`}
               className="h-1.5 overflow-hidden rounded-full bg-muted"
             >
               <div

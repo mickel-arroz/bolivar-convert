@@ -5,9 +5,6 @@ import { cn } from '@/lib/utils'
 import { formatPercent } from './format'
 import type { TimeRange } from '@/hooks/useWallet'
 
-/** Alias de `formatPercent` para quien todavía lo importa desde aquí. */
-export const percent = formatPercent
-
 /** Cómo se nombra cada rango de Estadísticas al final de una frase. */
 export const PERIOD_TEXT: Record<TimeRange, string> = {
   '1m': 'en el último mes',
@@ -162,5 +159,22 @@ export function BarWithTip({
       </TooltipTrigger>
       <TooltipContent className="text-xs">{label}</TooltipContent>
     </Tooltip>
+  )
+}
+
+const clamp01 = (value: number) => Math.min(1, Math.max(0, value))
+
+/** Anillo de progreso con el porcentaje al centro. Se llena hasta el 100%; el texto puede pasarlo. */
+export function ProgressRing({ ratio, color }: { ratio: number; color: string }) {
+  return (
+    <div
+      className="relative flex size-24 shrink-0 items-center justify-center rounded-full"
+      style={{
+        background: `conic-gradient(${color} ${clamp01(ratio) * 360}deg, var(--muted) 0deg)`,
+      }}
+    >
+      <div className="absolute inset-[9px] rounded-full bg-card" />
+      <span className="relative text-lg font-black tabular-nums">{formatPercent(ratio)}</span>
+    </div>
   )
 }

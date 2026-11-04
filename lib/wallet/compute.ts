@@ -435,6 +435,62 @@ export function budgetStatusForMonth(
     )
 }
 
+/**
+ * Meses de presupuesto que cubre un rango de Estadísticas: 1M es el mes actual; 6M y 1A,
+ * los meses del rango; Todo, desde el primer mes con presupuesto.
+ */
+export function budgetRangeMonths(
+  range: TimeRange,
+  budgets: Pick<Budget, 'month'>[],
+  now: Date = new Date()
+): string[] {
+  const current = monthKey(now)
+  if (range === '1m') return [current]
+  if (range !== 'all') return enumerateMonths(monthKey(rangeStart(range, now)), current)
+  const first = budgets.reduce((min, b) => (b.month < min ? b.month : min), current)
+  return enumerateMonths(first, current)
+}
+
+/**
+ * Presupuesto vs gastado sumando varios meses: una fila por categoría y moneda. Lo que un
+ * mes del rango le pasa al siguiente (sobrante o Déficit arrastrado) ya está contado en el
+ * mes que lo originó, así que solo cuenta el arrastre del primer mes, que viene de antes.
+ * La fila lleva el presupuesto del último mes. Con un solo mes es igual al estado del mes.
+ */
+export function budgetStatusForRange(
+  input: Pick<StatsInput, 'accounts' | 'categories' | 'budgets' | 'transactions' | 'budgetTransfers'>,
+  rates: Rates,
+  statsRateSource: RateId,
+  months: string[]
+): BudgetStatusRow[] {
+  const byKey = new Map<string, BudgetStatusRow>()
+  for (const month of months) {
+    for (const row of budgetStatusForMonth(input, rates, statsRateSource, month)) {
+      const key = `${row.budget.categoryId}|${row.budget.currency}`
+      const acc = byKey.get(key)
+      if (!acc) {
+        byKey.set(key, { ...row })
+        continue
+      }
+      acc.budget = row.budget
+      acc.actual += row.actual - row.carriedDeficit
+      acc.limit += row.limit
+    }
+  }
+  return [...byKey.values()]
+    .map((row) => {
+      const effectiveLimit = row.limit + row.carryover
+      const ratio =
+        effectiveLimit > 0 ? row.actual / effectiveLimit : row.actual > 0 ? Infinity : 0
+      return { ...row, effectiveLimit, ratio, isOver: isBudgetOver(row.actual, effectiveLimit) }
+    })
+    .sort(
+      (a, b) =>
+        Number(a.isOver) - Number(b.isOver) ||
+        a.categoryName.localeCompare(b.categoryName, 'es', { sensitivity: 'base' })
+    )
+}
+
 /** Suma de todos los presupuestos de un mes, en una sola moneda. */
 export interface BudgetsSummary {
   currency: CurrencyId
@@ -755,6 +811,12 @@ export function computeStats(input: StatsInput, rates: Rates, prefs: StatsPrefs)
   })
 
   const budgetStatus = budgetStatusForMonth(input, rates, statsRateSource, currentMonthKey)
+  const budgetRange = budgetStatusForRange(
+    input,
+    rates,
+    statsRateSource,
+    budgetRangeMonths(timeRange, input.budgets, now)
+  )
 
   const usedCurrencies = new Set<CurrencyId>([displayCurrency])
   input.accounts.forEach((a) => usedCurrencies.add(a.currency))
@@ -768,7 +830,8 @@ export function computeStats(input: StatsInput, rates: Rates, prefs: StatsPrefs)
     netWorth,
     netWorthSeries,
     budgetStatus,
-    budgetUsage: budgetUsage(budgetStatus, displayCurrency, rates, statsRateSource),
+    budgetRange,
+    budgetUsage: budgetUsage(budgetRange, displayCurrency, rates, statsRateSource),
     seriesGranularity: granularity,
     ratesAvailable,
   }

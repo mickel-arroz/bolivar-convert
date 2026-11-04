@@ -26,7 +26,7 @@ const STATS_CHARTS: Record<StatsChartId, StatsChartDef> = {
   incomeVsExpense: { grid: 'charts', hasData: hasMovements },
   netWorth: { grid: 'charts', hasData: (s, hasAccounts) => hasAccounts && hasMovements(s) },
   savingsRate: { grid: 'charts', hasData: (s) => s.monthlySeries.some((p) => p.income > 0) },
-  budget: { grid: 'charts', hasData: (s) => s.budgetStatus.length > 0 },
+  budget: { grid: 'charts', hasData: (s) => s.budgetRange.length > 0 },
   expenseByCategory: {
     grid: 'categories',
     hasData: (s) => s.categorySummary.some((r) => r.kind === 'expense'),

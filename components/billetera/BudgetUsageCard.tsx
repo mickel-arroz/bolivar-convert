@@ -2,7 +2,7 @@
 
 import { useMemo } from 'react'
 import { PieChart, Pie, Cell } from 'recharts'
-import { BudgetStatusRow } from '@/hooks/useWallet'
+import { BudgetStatusRow, TimeRange } from '@/hooks/useWallet'
 import { BudgetUsage, rankBudgetsByUsage } from '@/lib/wallet/compute'
 import { getCategoryIcon } from '@/constants/walletCategories'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
@@ -13,6 +13,13 @@ import { BarWithTip } from './StatsListParts'
 
 const TOP = 3
 
+const RANGE_TEXT: Record<TimeRange, string> = {
+  '1m': 'este mes',
+  '6m': 'en los últimos 6 meses',
+  '1y': 'en el último año',
+  all: 'desde tu primer presupuesto',
+}
+
 const ringConfig: ChartConfig = {
   used: { label: 'Usado', color: 'var(--rate-eur)' },
 }
@@ -22,10 +29,11 @@ const percent = (ratio: number) => `${Math.round(ratio * 100)}%`
 interface BudgetUsageCardProps {
   rows: BudgetStatusRow[]
   usage: BudgetUsage
+  timeRange: TimeRange
   className?: string
 }
 
-export function BudgetUsageCard({ rows, usage, className }: BudgetUsageCardProps) {
+export function BudgetUsageCard({ rows, usage, timeRange, className }: BudgetUsageCardProps) {
   const ranked = useMemo(() => rankBudgetsByUsage(rows), [rows])
   const shown = ranked.slice(0, TOP)
   const used = Math.min(usage.ratio, 1)
@@ -34,7 +42,9 @@ export function BudgetUsageCard({ rows, usage, className }: BudgetUsageCardProps
     <Card className={className}>
       <CardHeader>
         <CardTitle>Presupuesto vs gastado</CardTitle>
-        <CardDescription>Cuánto llevas usado de tus presupuestos este mes.</CardDescription>
+        <CardDescription>
+          Cuánto llevas usado de tus presupuestos {RANGE_TEXT[timeRange]}.
+        </CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-6">
         <div className="flex items-center gap-4">
@@ -63,7 +73,8 @@ export function BudgetUsageCard({ rows, usage, className }: BudgetUsageCardProps
           <div className="flex min-w-0 flex-col gap-1">
             <p className="text-sm font-bold">Usado {percent(usage.ratio)} del presupuesto total</p>
             <p className="text-xs text-muted-foreground tabular-nums">
-              {formatMoney(usage.spent, usage.currency)} de {formatMoney(usage.total, usage.currency)}
+              {formatMoney(usage.spent, usage.currency)} de{' '}
+              {formatMoney(usage.total, usage.currency)}
             </p>
             <p className="text-xs text-muted-foreground">
               {usage.onTrack} al día · {usage.over} sobrepasados
@@ -79,7 +90,11 @@ export function BudgetUsageCard({ rows, usage, className }: BudgetUsageCardProps
             const Icon = getCategoryIcon(row.categoryIcon)
             const cur = row.budget.currency
             return (
-              <div key={row.budget.id} data-testid="budget-usage-row" className="flex flex-col gap-1">
+              <div
+                key={row.budget.id}
+                data-testid="budget-usage-row"
+                className="flex flex-col gap-1"
+              >
                 <div className="flex items-center justify-between gap-2 text-sm">
                   <span className="flex min-w-0 items-center gap-2 font-medium">
                     <Icon
@@ -110,7 +125,10 @@ export function BudgetUsageCard({ rows, usage, className }: BudgetUsageCardProps
                   className="h-1.5 overflow-hidden rounded-full bg-muted"
                 >
                   <div
-                    className={cn('h-full rounded-full', isOver ? 'bg-destructive' : 'bg-green-500')}
+                    className={cn(
+                      'h-full rounded-full',
+                      isOver ? 'bg-destructive' : 'bg-green-500'
+                    )}
                     style={{ width: `${Math.min(ratio, 1) * 100}%` }}
                   />
                 </BarWithTip>

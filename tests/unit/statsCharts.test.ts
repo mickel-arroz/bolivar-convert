@@ -50,9 +50,10 @@ describe('visibleStatsCharts', () => {
     expect(visibleStatsCharts(stats, false)).toEqual(['incomeVsExpense'])
   })
 
-  it('el presupuesto vs gastado depende de que haya presupuestos este mes', () => {
-    const stats = { ...EMPTY, budgetStatus: [{} as BudgetStatusRow] }
+  it('el presupuesto vs gastado depende de que haya presupuestos en el rango', () => {
+    const stats = { ...EMPTY, budgetRange: [{} as BudgetStatusRow] }
     expect(visibleStatsCharts(stats, false)).toEqual(['budget'])
+    expect(visibleStatsCharts({ ...EMPTY, budgetStatus: [{} as BudgetStatusRow] }, false)).toEqual([])
   })
 
   it('cada lista por categoría se oculta por separado', () => {

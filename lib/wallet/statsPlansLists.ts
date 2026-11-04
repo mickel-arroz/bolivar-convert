@@ -157,6 +157,7 @@ export const EMPTY_STATS_VIEW: StatsView = {
   netWorth: 0,
   netWorthSeries: [],
   budgetStatus: [],
+  budgetRange: [],
   budgetUsage: { currency: 'VES', spent: 0, total: 0, ratio: 0, onTrack: 0, over: 0 },
   ratesAvailable: true,
   seriesGranularity: 'month',

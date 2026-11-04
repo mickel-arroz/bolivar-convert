@@ -54,7 +54,7 @@ const bars = () => screen.getAllByTestId('budget-usage-row')
 
 describe('BudgetUsageCard', () => {
   it('el anillo muestra el % usado del total y el conteo al día / sobrepasados', () => {
-    render(<BudgetUsageCard rows={[row('A', 100, 10)]} usage={USAGE} />)
+    render(<BudgetUsageCard rows={[row('A', 100, 10)]} usage={USAGE} timeRange="1m" />)
 
     expect(screen.getByText(/Usado 38\s?% del presupuesto total/)).toBeInTheDocument()
     expect(screen.getByText(/1 al día · 2 sobrepasados/)).toBeInTheDocument()
@@ -65,6 +65,7 @@ describe('BudgetUsageCard', () => {
       <BudgetUsageCard
         rows={[row('Bajo', 100, 10), row('Alto', 10, 12, 'USD'), row('Medio', 100, 50)]}
         usage={USAGE}
+        timeRange="1m"
       />
     )
 
@@ -78,7 +79,7 @@ describe('BudgetUsageCard', () => {
   })
 
   it('los sobrepasados van en rojo y los demás no', () => {
-    render(<BudgetUsageCard rows={[row('Pasado', 100, 150), row('Bien', 100, 20)]} usage={USAGE} />)
+    render(<BudgetUsageCard rows={[row('Pasado', 100, 150), row('Bien', 100, 20)]} usage={USAGE} timeRange="1m" />)
 
     expect(bars()[0].querySelector('.bg-destructive')).not.toBeNull()
     expect(bars()[1].querySelector('.bg-destructive')).toBeNull()
@@ -89,6 +90,7 @@ describe('BudgetUsageCard', () => {
       <BudgetUsageCard
         rows={[1, 2, 3, 4, 5, 6, 7].map((i) => row(`P${i}`, 100, i))}
         usage={USAGE}
+        timeRange="1m"
       />
     )
 
@@ -102,7 +104,7 @@ describe('BudgetUsageCard', () => {
   })
 
   it('al pasar sobre la barra dice de qué presupuesto es y cuánto se usó', () => {
-    render(<BudgetUsageCard rows={[row('Comida', 100, 80)]} usage={USAGE} />)
+    render(<BudgetUsageCard rows={[row('Comida', 100, 80)]} usage={USAGE} timeRange="1m" />)
 
     expect(screen.getByLabelText('Comida · 80% del presupuesto')).toBeInTheDocument()
   })

@@ -381,7 +381,11 @@ export interface StatsBundle {
   netWorth: number
   /** Patrimonio neto acumulado al cierre de cada periodo del rango. */
   netWorthSeries: NetWorthPoint[]
+  /** Presupuestos del mes actual (los de la pestaña Presupuestos). */
   budgetStatus: BudgetStatusRow[]
+  /** Presupuesto vs gastado sumando los meses del rango (ver `budgetStatusForRange`). */
+  budgetRange: BudgetStatusRow[]
+  /** Uso del presupuesto en el rango. */
   budgetUsage: BudgetUsage
   seriesGranularity: Granularity
   /** false si falta alguna tasa necesaria para normalizar (ej. '---'). */

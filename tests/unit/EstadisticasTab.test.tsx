@@ -1,7 +1,7 @@
 import { render, screen, within } from '@testing-library/react'
 import { describe, it, expect, vi } from 'vitest'
 import { EstadisticasTab } from '@/components/billetera/EstadisticasTab'
-import type { CategorySummaryRow, WalletApi } from '@/hooks/useWallet'
+import type { BudgetStatusRow, CategorySummaryRow, TimeRange, WalletApi } from '@/hooks/useWallet'
 import { EMPTY_STATS_VIEW, type StatsView } from '@/lib/wallet/statsPlansLists'
 
 let stats: StatsView | undefined
@@ -31,10 +31,14 @@ const expenseRow: CategorySummaryRow = {
   total: 30,
 }
 
-function renderTab(data: StatsView | undefined, accounts: { id: string }[] = []) {
+function renderTab(
+  data: StatsView | undefined,
+  accounts: { id: string }[] = [],
+  timeRange: TimeRange = '1m'
+) {
   stats = data
   const wallet = {
-    state: { displayCurrency: 'USD', statsRateSource: 'bcvUsd', timeRange: '1m', accounts },
+    state: { displayCurrency: 'USD', statsRateSource: 'bcvUsd', timeRange, accounts },
     setTimeRange: vi.fn(),
     setDisplayCurrency: vi.fn(),
     setStatsRateSource: vi.fn(),
@@ -297,5 +301,36 @@ describe('EstadisticasTab — porcentaje al pasar sobre las barras', () => {
     expect(screen.getByLabelText('Mercado · 60%')).toBeInTheDocument()
     expect(screen.getByLabelText('Casa · 40%')).toBeInTheDocument()
     expect(screen.getByLabelText('Viaje · 30% de la Meta')).toBeInTheDocument()
+  })
+})
+
+describe('EstadisticasTab — Presupuesto vs gastado según el rango', () => {
+  const budgetRow = {
+    budget: { id: 'b', categoryId: 'food', currency: 'USD', month: '2026-11' },
+    categoryName: 'Comida',
+    categoryIcon: 'food',
+    actual: 50,
+    limit: 100,
+    carryover: 0,
+    carriedDeficit: 0,
+    effectiveLimit: 100,
+    ratio: 0.5,
+    isOver: false,
+  } as BudgetStatusRow
+  const withBudget = { ...EMPTY, budgetRange: [budgetRow] }
+
+  it.each([
+    ['1m', 'este mes'],
+    ['6m', 'en los últimos 6 meses'],
+    ['1y', 'en el último año'],
+    ['all', 'desde tu primer presupuesto'],
+  ] as const)('con %s dice que abarca %s', (range, text) => {
+    renderTab(withBudget, [], range)
+    expect(card('Presupuesto vs gastado')).toHaveTextContent(text)
+  })
+
+  it('usa los presupuestos del rango, no solo los del mes actual', () => {
+    renderTab({ ...EMPTY, budgetStatus: [budgetRow] })
+    expect(screen.queryByText('Presupuesto vs gastado')).not.toBeInTheDocument()
   })
 })

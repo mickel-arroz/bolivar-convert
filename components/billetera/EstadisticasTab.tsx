@@ -209,8 +209,9 @@ export function EstadisticasTab({ wallet }: EstadisticasTabProps) {
       <BudgetUsageCard
         key="budget"
         className={className}
-        rows={stats.budgetStatus}
+        rows={stats.budgetRange}
         usage={stats.budgetUsage}
+        timeRange={state.timeRange}
       />
     ),
     expenseByCategory: (className) => (

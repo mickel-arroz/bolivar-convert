@@ -6,7 +6,8 @@ import type {
   ShoppingListItem,
   TimeRange,
 } from '@/hooks/useWallet'
-import { parseAmount, parseSigned, rangeStart } from './compute'
+import { parseAmount } from './compute'
+import { inPeriod, sumGoalContributions } from './goalSums'
 import { isGoalReached, sortGoalsForDisplay } from './goalOrder'
 import { computeShoppingTotals, type ResolvedRates } from './shoppingTotals'
 
@@ -68,7 +69,6 @@ export interface PlansAndListsStats {
   }
 }
 
-
 export interface PlansAndListsInput {
   goals: Goal[]
   goalContributions: GoalContribution[]
@@ -98,13 +98,6 @@ function savingsProgress(
   return progress
 }
 
-/** Si una fecha cae dentro del rango; con Todo, siempre. */
-function inRange(range: TimeRange, now: Date): (date: string) => boolean {
-  if (range === 'all') return () => true
-  const start = rangeStart(range, now)
-  return (date) => new Date(date) >= start
-}
-
 function groupByList(items: ShoppingListItem[]): Map<string, ShoppingListItem[]> {
   const byList = new Map<string, ShoppingListItem[]>()
   for (const it of items) {
@@ -122,18 +115,13 @@ export function computePlansAndListsStats(
   range: TimeRange = 'all',
   now: Date = new Date()
 ): PlansAndListsStats {
-  const isInRange = inRange(range, now)
+  const isInRange = inPeriod(range, now)
   const rateTo = resolvedRates[displayCurrency] ?? 0
 
-  const savedByGoal = new Map<string, number>()
-  const contributedByGoal = new Map<string, number>()
-  for (const gc of input.goalContributions) {
-    const amount = parseSigned(gc.amount)
-    savedByGoal.set(gc.goalId, (savedByGoal.get(gc.goalId) ?? 0) + amount)
-    if (isInRange(gc.date)) {
-      contributedByGoal.set(gc.goalId, (contributedByGoal.get(gc.goalId) ?? 0) + amount)
-    }
-  }
+  const { saved: savedByGoal, contributed: contributedByGoal } = sumGoalContributions(
+    input.goalContributions,
+    isInRange
+  )
   const activeGoals = input.goals.filter((g) => !g.completedAt)
   const plans = sortGoalsForDisplay(activeGoals, savedByGoal).map((g): SavingsPlanStat => {
     const target = parseAmount(g.target)

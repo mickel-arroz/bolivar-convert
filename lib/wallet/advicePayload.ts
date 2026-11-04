@@ -23,15 +23,13 @@ import type {
 } from '@/hooks/useWallet'
 import { ADVICE_MAX_LENGTH } from './advice'
 import {
-  bsPerUnit,
   computeAccountFunds,
   computeStats,
   monthKey,
   parseAmount,
-  parseSigned,
-  rangeStart,
 } from './compute'
-import { computeAllListsTotals, type ResolvedRates } from './shoppingTotals'
+import { computeAllListsTotals, resolveRates } from './shoppingTotals'
+import { inPeriod, sumGoalContributions } from './goalSums'
 
 /** Todo lo que hace falta leer para armar el payload. */
 export interface AdviceInput {
@@ -113,22 +111,12 @@ export function buildAdvicePayload(input: AdviceInput, rates: Rates): AdvicePayl
     { displayCurrency, statsRateSource, timeRange: input.timeRange }
   )
 
-  const periodStart = rangeStart(input.timeRange)
-  const savedByGoal = new Map<string, number>()
-  const contributedInPeriodByGoal = new Map<string, number>()
-  for (const gc of input.goalContributions) {
-    const amount = parseSigned(gc.amount)
-    savedByGoal.set(gc.goalId, (savedByGoal.get(gc.goalId) ?? 0) + amount)
-    if (new Date(gc.date) >= periodStart) {
-      contributedInPeriodByGoal.set(gc.goalId, (contributedInPeriodByGoal.get(gc.goalId) ?? 0) + amount)
-    }
-  }
+  const { saved: savedByGoal, contributed: contributedInPeriodByGoal } = sumGoalContributions(
+    input.goalContributions,
+    inPeriod(input.timeRange)
+  )
 
-  const resolvedRates: ResolvedRates = {
-    VES: 1,
-    USD: bsPerUnit('USD', rates, statsRateSource),
-    EUR: bsPerUnit('EUR', rates, statsRateSource),
-  }
+  const resolvedRates = resolveRates(rates, statsRateSource)
   const shopping = computeAllListsTotals(
     input.shoppingLists,
     input.shoppingItems,

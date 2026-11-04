@@ -32,7 +32,6 @@ import {
   computeAccountFunds,
   computeInGoalsByCurrency,
   computeTotalsByCurrency,
-  bsPerUnit,
   computeStats,
   DEFAULT_BUDGET_TEMPLATE_ID,
   type AccountsSummary,
@@ -40,6 +39,7 @@ import {
 } from '@/lib/wallet/compute'
 import { buildGoalMovements } from '@/lib/wallet/goalMovements'
 import { computePlansAndListsStats } from '@/lib/wallet/statsPlansLists'
+import { resolveRates } from '@/lib/wallet/shoppingTotals'
 import type { StatsView } from '@/lib/wallet/statsView'
 import type { StatsParams } from '@/lib/wallet/statsQuery'
 
@@ -879,11 +879,7 @@ export async function loadStats(
       shoppingLists: ((listsRes.data as Record<string, unknown>[]) ?? []).map(rowToShoppingList),
       shoppingItems: ((itemsRes.data as Record<string, unknown>[]) ?? []).map(rowToShoppingItem),
     },
-    {
-      VES: 1,
-      USD: bsPerUnit('USD', rates, statsRateSource),
-      EUR: bsPerUnit('EUR', rates, statsRateSource),
-    },
+    resolveRates(rates, statsRateSource),
     displayCurrency,
     range
   )

@@ -11,7 +11,8 @@ import {
   normalizePriority,
   type ShoppingPriority,
 } from '@/constants/shoppingPriority'
-import { parseAmount } from './compute'
+import type { Rates, RateId } from '@/constants/rates'
+import { bsPerUnit, parseAmount } from './compute'
 
 /**
  * Tasas ya resueltas: los bolívares que vale una unidad de cada moneda. `VES` es siempre 1.
@@ -20,6 +21,15 @@ import { parseAmount } from './compute'
  * `Rates` y un `RateId`; aquí llegan las tres ya calculadas, sea su fuente cual sea.
  */
 export type ResolvedRates = Record<CurrencyId, number>
+
+/** Las tasas de `Rates` resueltas con la fuente elegida para el dólar. */
+export function resolveRates(rates: Rates, statsRateSource: RateId): ResolvedRates {
+  return {
+    VES: 1,
+    USD: bsPerUnit('USD', rates, statsRateSource),
+    EUR: bsPerUnit('EUR', rates, statsRateSource),
+  }
+}
 
 /** Lo mínimo que necesita saberse de un producto para totalizarlo. */
 export interface ShoppingTotalsItem {

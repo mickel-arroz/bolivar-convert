@@ -548,3 +548,36 @@ describe('EstadisticasTab — Consejo por período', () => {
     expect(screen.getByTestId('advice')).toHaveTextContent(text)
   })
 })
+
+describe('EstadisticasTab — Consejo al cambiar de selección', () => {
+  it('mientras llegan las cifras del Periodo nuevo, el Consejo también va en skeleton', () => {
+    renderTab({ ...EMPTY, params: { timeRange: '1m', displayCurrency: 'USD', statsRateSource: 'bcvUsd' } }, [], '6m', false)
+
+    expect(screen.getByTestId('advice')).toHaveAttribute('data-loading', 'true')
+  })
+
+  it('con las cifras de lo elegido, el Consejo se muestra', () => {
+    renderTab(EMPTY, [], '6m')
+
+    expect(screen.getByTestId('advice')).toHaveAttribute('data-loading', 'false')
+  })
+})
+
+describe('EstadisticasTab — selectores arriba del Consejo', () => {
+  const before = (a: Element, b: Element) => !!(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING)
+
+  it('«Mostrar en» y el Periodo van arriba y el Consejo debajo', () => {
+    renderTab(EMPTY)
+
+    expect(before(screen.getByText('Mostrar en'), screen.getByTestId('advice'))).toBe(true)
+    expect(before(screen.getByRole('button', { name: '6M' }), screen.getByTestId('advice'))).toBe(true)
+  })
+
+  it('mientras cargan las cifras de otro Periodo, los selectores siguen arriba y a la mano', () => {
+    renderTab({ ...EMPTY, params: { timeRange: '1m', displayCurrency: 'USD', statsRateSource: 'bcvUsd' } }, [], '6m', false)
+
+    expect(screen.getByTestId('stats-skeleton')).toBeInTheDocument()
+    expect(before(screen.getByText('Mostrar en'), screen.getByTestId('advice'))).toBe(true)
+    expect(screen.getByRole('button', { name: '1A' })).toBeInTheDocument()
+  })
+})

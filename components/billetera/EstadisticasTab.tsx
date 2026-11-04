@@ -227,17 +227,71 @@ export function EstadisticasTab({ wallet }: EstadisticasTabProps) {
     ),
   }
 
+  // Mientras llegan las cifras de lo elegido, el Consejo entra en skeleton junto con el resto.
+  const statsReady = !!data && isStatsFor(data, selection)
   const adviceCard = (
     <AdviceCard
       title="En qué se te fue el dinero"
       text={advice.stats[state.timeRange]}
-      loading={!adviceLoaded}
+      loading={!adviceLoaded || !statsReady}
     />
   )
 
-  if (!data || !isStatsFor(data, selection)) {
+  // Moneda, fuente de tasa y Periodo: arriba de todo, también mientras cargan las cifras.
+  const selectors = (
+    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+      {/* Izquierda: moneda de visualización + fuente de tasa */}
+      <div className="flex flex-wrap items-center gap-3">
+        <div className="flex items-center gap-2">
+          <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+            Mostrar en
+          </span>
+          <div className="w-32">
+            <CurrencyToggle value={cur} onChange={setDisplayCurrency} />
+          </div>
+        </div>
+        <div className="flex items-center gap-1 rounded-lg bg-muted/50 p-1">
+          {(['bcvUsd', 'binanceUsdAvg'] as const).map((src) => (
+            <Button
+              key={src}
+              variant="ghost"
+              size="sm"
+              onClick={() => setStatsRateSource(src)}
+              className={cn(
+                'h-7 px-2.5 text-[10px] font-bold uppercase tracking-wider',
+                state.statsRateSource === src && 'bg-background shadow-sm'
+              )}
+            >
+              {src === 'bcvUsd' ? 'BCV' : 'Binance'}
+            </Button>
+          ))}
+        </div>
+      </div>
+
+      {/* Derecha: rango de tiempo */}
+      <div className="flex flex-wrap items-center gap-1 rounded-lg bg-muted/50 p-1 sm:justify-end">
+        {RANGES.map((r) => (
+          <Button
+            key={r.id}
+            variant={state.timeRange === r.id ? 'secondary' : 'ghost'}
+            size="sm"
+            onClick={() => setTimeRange(r.id)}
+            className={cn(
+              'h-8 px-3 text-[10px] font-bold uppercase tracking-wider',
+              state.timeRange === r.id && 'bg-background shadow-sm'
+            )}
+          >
+            {r.label}
+          </Button>
+        ))}
+      </div>
+    </div>
+  )
+
+  if (!statsReady) {
     return (
       <div className="flex flex-col gap-6">
+        {selectors}
         {adviceCard}
         <EstadisticasSkeleton />
       </div>
@@ -246,57 +300,8 @@ export function EstadisticasTab({ wallet }: EstadisticasTabProps) {
 
   return (
     <div className="flex flex-col gap-6">
-      {adviceCard}
-
-      {/* Controles */}
       <div className="flex flex-col gap-3">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          {/* Izquierda: moneda de visualización + fuente de tasa */}
-          <div className="flex flex-wrap items-center gap-3">
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                Mostrar en
-              </span>
-              <div className="w-32">
-                <CurrencyToggle value={cur} onChange={setDisplayCurrency} />
-              </div>
-            </div>
-            <div className="flex items-center gap-1 rounded-lg bg-muted/50 p-1">
-              {(['bcvUsd', 'binanceUsdAvg'] as const).map((src) => (
-                <Button
-                  key={src}
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setStatsRateSource(src)}
-                  className={cn(
-                    'h-7 px-2.5 text-[10px] font-bold uppercase tracking-wider',
-                    state.statsRateSource === src && 'bg-background shadow-sm'
-                  )}
-                >
-                  {src === 'bcvUsd' ? 'BCV' : 'Binance'}
-                </Button>
-              ))}
-            </div>
-          </div>
-
-          {/* Derecha: rango de tiempo */}
-          <div className="flex flex-wrap items-center gap-1 rounded-lg bg-muted/50 p-1 sm:justify-end">
-            {RANGES.map((r) => (
-              <Button
-                key={r.id}
-                variant={state.timeRange === r.id ? 'secondary' : 'ghost'}
-                size="sm"
-                onClick={() => setTimeRange(r.id)}
-                className={cn(
-                  'h-8 px-3 text-[10px] font-bold uppercase tracking-wider',
-                  state.timeRange === r.id && 'bg-background shadow-sm'
-                )}
-              >
-                {r.label}
-              </Button>
-            ))}
-          </div>
-        </div>
+        {selectors}
 
         {!stats.ratesAvailable && (
           <p className="rounded-lg border border-dashed border-destructive/40 bg-destructive/5 px-3 py-2 text-xs text-destructive">
@@ -304,6 +309,8 @@ export function EstadisticasTab({ wallet }: EstadisticasTabProps) {
           </p>
         )}
       </div>
+
+      {adviceCard}
 
       {/* Resumen */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">

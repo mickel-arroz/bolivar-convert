@@ -219,6 +219,7 @@ export function EstadisticasTab({ wallet }: EstadisticasTabProps) {
       <ShoppingListsStatsCard
         key="shoppingLists"
         lists={stats.shoppingLists}
+        rateSource={stats.params.statsRateSource}
         timeRange={state.timeRange}
         currency={cur}
         className={className}

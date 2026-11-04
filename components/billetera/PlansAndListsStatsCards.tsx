@@ -1,5 +1,6 @@
 import type { CurrencyId } from '@/constants/currencies'
 import type { TimeRange } from '@/hooks/useWallet'
+import type { RateId } from '@/constants/rates'
 import { getAccountIcon } from '@/constants/walletCategories'
 import { DEFAULT_ACCOUNT_COLOR } from '@/constants/walletColors'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -20,6 +21,11 @@ import {
 } from './StatsListParts'
 
 const clamp01 = (value: number) => Math.min(1, Math.max(0, value))
+
+const RATE_SOURCE_LABEL: Partial<Record<RateId, string>> = {
+  bcvUsd: 'BCV',
+  binanceUsdAvg: 'Binance',
+}
 
 /** Un monto con su signo delante: «+$ 40.00» o «−$ 10.00». */
 const signedMoney = (value: number, currency: CurrencyId) =>
@@ -149,11 +155,14 @@ export function ShoppingListsStatsCard({
   lists,
   currency,
   timeRange,
+  rateSource,
   className,
 }: {
   lists: StatsView['shoppingLists']
   currency: CurrencyId
   timeRange: TimeRange
+  /** Fuente con la que se convirtió: la de Estadísticas, que puede no ser la de la pestaña Listas. */
+  rateSource: RateId
   className?: string
 }) {
   const total = lists.remaining
@@ -177,7 +186,12 @@ export function ShoppingListsStatsCard({
     <Card className={className}>
       <CardHeader>
         <CardTitle>Listas de compras</CardTitle>
-        <CardDescription>Lo que te falta por pagar en cada lista.</CardDescription>
+        <CardDescription>
+          Lo que te falta por pagar en cada lista.{' '}
+          <span className="whitespace-nowrap">
+            Convertido con la tasa {RATE_SOURCE_LABEL[rateSource]}
+          </span>
+        </CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-4">
         <ShareSummary

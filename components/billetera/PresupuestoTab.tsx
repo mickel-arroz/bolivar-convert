@@ -41,6 +41,7 @@ import {
 import { cn } from '@/lib/utils'
 import { notify } from '@/lib/notify'
 import { parseAmount, summarizeBudgets } from '@/lib/wallet/compute'
+import { isGoalReached, sortGoalsForDisplay } from '@/lib/wallet/goalOrder'
 import { WalletDialogs } from './dialogs'
 import { BudgetsSummaryCard } from './BudgetsSummaryCard'
 import { AdviceCard } from './AdviceCard'
@@ -99,7 +100,14 @@ export function PresupuestoTab({ wallet, stats, dialogs, rates }: PresupuestoTab
     [goalBalances]
   )
   // Un plan completado solo queda como el gasto que dejó en Movimientos.
-  const activeGoals = useMemo(() => state.goals.filter((g) => !g.completedAt), [state.goals])
+  const activeGoals = useMemo(
+    () =>
+      sortGoalsForDisplay(
+        state.goals.filter((g) => !g.completedAt),
+        goalBalanceById
+      ),
+    [state.goals, goalBalanceById]
+  )
 
   // Productos agrupados por lista (para contadores en las tarjetas).
   const itemsByList = useMemo(() => {
@@ -415,7 +423,7 @@ export function PresupuestoTab({ wallet, stats, dialogs, rates }: PresupuestoTab
               const saved = goalBalanceById.get(goal.id) ?? 0
               const target = parseAmount(goal.target)
               const pct = target > 0 ? Math.min(100, (saved / target) * 100) : 0
-              const reached = target > 0 && saved >= target
+              const reached = isGoalReached(saved, target)
               const accent = goal.color ?? DEFAULT_ACCOUNT_COLOR
               const GoalIcon = getAccountIcon(goal.icon)
               return (

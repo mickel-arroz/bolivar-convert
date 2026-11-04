@@ -210,6 +210,20 @@ describe('PresupuestoTab — planes de ahorro', () => {
     expect(card).not.toHaveTextContent('Meta alcanzada')
     expect(card).not.toHaveTextContent('Sin meta')
   })
+
+  it('los planes con Meta alcanzada van al final; los demás y los sin Meta antes, por nombre', () => {
+    renderTab([], [], {
+      goals: [plan('g1', 'Auto', '100'), plan('g2', 'Viaje', '100'), plan('g3', 'Colchón')],
+      goalBalances: [saved('g1', 100), saved('g2', 40), saved('g3', 500)],
+    })
+
+    const names = Array.from(document.querySelectorAll('[data-slot="card"] p.font-bold'), (p) => p.textContent)
+    expect(names.filter((n) => ['Auto', 'Viaje', 'Colchón'].includes(n ?? ''))).toEqual([
+      'Colchón',
+      'Viaje',
+      'Auto',
+    ])
+  })
 })
 
 describe('PresupuestoTab — restante de cada presupuesto', () => {

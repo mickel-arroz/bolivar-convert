@@ -26,6 +26,7 @@ import {
   splitPlanWithdrawal,
 } from '@/lib/wallet/compute'
 import { buildGoalMovements, movementIdOf } from '@/lib/wallet/goalMovements'
+import { isGoalReached } from '@/lib/wallet/goalOrder'
 import { Field, AmountField } from './fields'
 import { formatMoney, todayInputValue } from './format'
 import { mutationError } from './mutationMessages'
@@ -301,7 +302,7 @@ export function GoalContributionDialog({
               {target > 0 && (
                 <div className="mt-1 flex items-center justify-between">
                   <span className="text-muted-foreground">Restante para la meta</span>
-                  {goalBalance >= target ? (
+                  {isGoalReached(goalBalance, target) ? (
                     <span className="flex items-center gap-1 font-black text-green-600 dark:text-green-400">
                       <CheckIcon className="size-3.5 shrink-0" />
                       Meta alcanzada

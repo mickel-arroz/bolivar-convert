@@ -551,6 +551,73 @@ export function summarizeBudgets(
   }
 }
 
+/** Uso del presupuesto total del mes, en la moneda de visualización. */
+export interface BudgetUsage {
+  currency: CurrencyId
+  /** Σ gastado del mes, sin el Déficit arrastrado. */
+  spent: number
+  /** Σ límite efectivo (estimado + extra). */
+  total: number
+  /** `spent / total`, sin tope; 0 si no hay total. */
+  ratio: number
+  onTrack: number
+  over: number
+}
+
+/** Lo gastado del mes en un presupuesto: el Déficit arrastrado no es gasto de este mes. */
+const spentThisMonth = (row: BudgetStatusRow) => row.actual - row.carriedDeficit
+
+const overThisMonth = (row: BudgetStatusRow) => isBudgetOver(spentThisMonth(row), row.effectiveLimit)
+
+export function budgetUsage(
+  rows: BudgetStatusRow[],
+  displayCurrency: CurrencyId,
+  rates: Rates,
+  statsRateSource: RateId
+): BudgetUsage {
+  let spent = 0
+  let total = 0
+  let over = 0
+  for (const row of rows) {
+    const from = row.budget.currency
+    spent += normalize(spentThisMonth(row), from, displayCurrency, rates, statsRateSource)
+    total += normalize(Math.max(row.effectiveLimit, 0), from, displayCurrency, rates, statsRateSource)
+    if (overThisMonth(row)) over++
+  }
+  return {
+    currency: displayCurrency,
+    spent,
+    total,
+    ratio: total > 0 ? spent / total : 0,
+    onTrack: rows.length - over,
+    over,
+  }
+}
+
+export interface BudgetUsageRow {
+  row: BudgetStatusRow
+  /** Gastado del mes en la moneda del presupuesto. */
+  spent: number
+  /** `spent / límite efectivo`; Infinity si hay gasto sin límite. */
+  ratio: number
+  isOver: boolean
+}
+
+/** Presupuestos del más consumido al menos consumido, cada uno en su propia moneda. */
+export function rankBudgetsByUsage(rows: BudgetStatusRow[]): BudgetUsageRow[] {
+  return rows
+    .map((row) => {
+      const spent = spentThisMonth(row)
+      const ratio = row.effectiveLimit > 0 ? spent / row.effectiveLimit : spent > 0 ? Infinity : 0
+      return { row, spent, ratio, isOver: overThisMonth(row) }
+    })
+    .sort(
+      (a, b) =>
+        b.ratio - a.ratio ||
+        a.row.categoryName.localeCompare(b.row.categoryName, 'es', { sensitivity: 'base' })
+    )
+}
+
 /** Computa el bundle completo de estadísticas para el rango dado. */
 export function computeStats(input: StatsInput, rates: Rates, prefs: StatsPrefs): StatsBundle {
   const { displayCurrency, statsRateSource, timeRange } = prefs
@@ -695,6 +762,7 @@ export function computeStats(input: StatsInput, rates: Rates, prefs: StatsPrefs)
     netWorth,
     netWorthSeries,
     budgetStatus,
+    budgetUsage: budgetUsage(budgetStatus, displayCurrency, rates, statsRateSource),
     ratesAvailable,
   }
 }

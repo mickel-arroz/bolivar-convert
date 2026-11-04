@@ -9,6 +9,7 @@ const EMPTY: StatsBundle = {
   netWorth: 0,
   netWorthSeries: [],
   budgetStatus: [],
+  budgetUsage: { currency: 'VES', spent: 0, total: 0, ratio: 0, onTrack: 0, over: 0 },
   ratesAvailable: true,
 }
 

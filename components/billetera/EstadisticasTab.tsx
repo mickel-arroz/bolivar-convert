@@ -20,6 +20,7 @@ import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { StatsChartId, statsChartGrid, visibleStatsCharts } from '@/lib/wallet/statsCharts'
 import { AdviceCard } from './AdviceCard'
+import { BudgetUsageCard } from './BudgetUsageCard'
 import { CurrencyToggle } from './fields'
 import { formatMoney } from './format'
 
@@ -34,6 +35,7 @@ const EMPTY_STATS: StatsBundle = {
   netWorth: 0,
   netWorthSeries: [],
   budgetStatus: [],
+  budgetUsage: { currency: 'VES', spent: 0, total: 0, ratio: 0, onTrack: 0, over: 0 },
   ratesAvailable: true,
 }
 
@@ -51,11 +53,6 @@ const chartConfig: ChartConfig = {
 
 const netWorthConfig: ChartConfig = {
   value: { label: 'Patrimonio', color: 'var(--rate-usd)' },
-}
-
-const budgetConfig: ChartConfig = {
-  presupuesto: { label: 'Presupuesto', color: 'var(--rate-eur)' },
-  gastado: { label: 'Gastado', color: 'var(--destructive)' },
 }
 
 const savingsConfig: ChartConfig = {
@@ -106,18 +103,6 @@ export function EstadisticasTab({ wallet }: EstadisticasTabProps) {
         rate: p.income > 0 ? Math.round(((p.income - p.expense) / p.income) * 100) : 0,
       })),
     [stats.monthlySeries]
-  )
-
-  // Presupuesto (disponible) vs gastado del mes actual, por categoría. El Déficit
-  // arrastrado no es gasto de este mes: aquí solo cuenta lo gastado de verdad.
-  const budgetData = useMemo(
-    () =>
-      stats.budgetStatus.map((r) => ({
-        label: r.categoryName,
-        presupuesto: r.effectiveLimit,
-        gastado: r.actual - r.carriedDeficit,
-      })),
-    [stats.budgetStatus]
   )
 
   const renderCategoryList = (rows: typeof expenseRows, max: number, accent: string) => (
@@ -238,32 +223,12 @@ export function EstadisticasTab({ wallet }: EstadisticasTabProps) {
       </Card>
     ),
     budget: (className) => (
-      <Card key="budget" className={className}>
-        <CardHeader>
-          <CardTitle>Presupuesto vs gastado</CardTitle>
-          <CardDescription>
-            Comparación del mes actual por categoría (montos en la moneda de cada presupuesto).
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <ChartContainer config={budgetConfig} className="min-h-56 w-full">
-            <BarChart data={budgetData} margin={{ left: 0, right: 12, top: 10 }}>
-              <CartesianGrid vertical={false} strokeDasharray="3 3" className="stroke-muted/50" />
-              <XAxis dataKey="label" tickLine={false} axisLine={false} tickMargin={10} />
-              <YAxis
-                tickLine={false}
-                axisLine={false}
-                tickMargin={8}
-                width={48}
-                tickFormatter={(v) => compact(v as number)}
-              />
-              <ChartTooltip content={<ChartTooltipContent />} />
-              <Bar dataKey="presupuesto" fill="var(--color-presupuesto)" radius={[4, 4, 0, 0]} />
-              <Bar dataKey="gastado" fill="var(--color-gastado)" radius={[4, 4, 0, 0]} />
-            </BarChart>
-          </ChartContainer>
-        </CardContent>
-      </Card>
+      <BudgetUsageCard
+        key="budget"
+        className={className}
+        rows={stats.budgetStatus}
+        usage={stats.budgetUsage}
+      />
     ),
     expenseByCategory: (className) => (
       <Card key="expenseByCategory" className={className}>

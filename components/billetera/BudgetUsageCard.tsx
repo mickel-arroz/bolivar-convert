@@ -1,0 +1,131 @@
+'use client'
+
+import { useMemo, useState } from 'react'
+import { PieChart, Pie, Cell } from 'recharts'
+import { BudgetStatusRow } from '@/hooks/useWallet'
+import { BudgetUsage, rankBudgetsByUsage } from '@/lib/wallet/compute'
+import { getCategoryIcon } from '@/constants/walletCategories'
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
+import { ChartConfig, ChartContainer } from '@/components/ui/chart'
+import { Button } from '@/components/ui/button'
+import { cn } from '@/lib/utils'
+import { formatMoney } from './format'
+
+const TOP = 5
+
+const ringConfig: ChartConfig = {
+  used: { label: 'Usado', color: 'var(--rate-eur)' },
+}
+
+const percent = (ratio: number) => `${Math.round(ratio * 100)}%`
+
+interface BudgetUsageCardProps {
+  rows: BudgetStatusRow[]
+  usage: BudgetUsage
+  className?: string
+}
+
+export function BudgetUsageCard({ rows, usage, className }: BudgetUsageCardProps) {
+  const [showAll, setShowAll] = useState(false)
+  const ranked = useMemo(() => rankBudgetsByUsage(rows), [rows])
+  const shown = showAll ? ranked : ranked.slice(0, TOP)
+  const used = Math.min(usage.ratio, 1)
+
+  return (
+    <Card className={className}>
+      <CardHeader>
+        <CardTitle>Presupuesto vs gastado</CardTitle>
+        <CardDescription>Cuánto llevas usado de tus presupuestos este mes.</CardDescription>
+      </CardHeader>
+      <CardContent className="flex flex-col gap-6">
+        <div className="flex items-center gap-4">
+          <div className="relative size-28 shrink-0">
+            <ChartContainer config={ringConfig} className="aspect-square size-28">
+              <PieChart>
+                <Pie
+                  data={[{ value: used }, { value: 1 - used }]}
+                  dataKey="value"
+                  innerRadius="72%"
+                  outerRadius="100%"
+                  startAngle={90}
+                  endAngle={-270}
+                  stroke="none"
+                  isAnimationActive={false}
+                >
+                  <Cell fill={usage.ratio > 1 ? 'var(--destructive)' : 'var(--color-used)'} />
+                  <Cell fill="var(--muted)" />
+                </Pie>
+              </PieChart>
+            </ChartContainer>
+            <span className="absolute inset-0 flex items-center justify-center text-lg font-black tabular-nums">
+              {percent(usage.ratio)}
+            </span>
+          </div>
+          <div className="flex min-w-0 flex-col gap-1">
+            <p className="text-sm font-bold">Usado {percent(usage.ratio)} del presupuesto total</p>
+            <p className="text-xs text-muted-foreground tabular-nums">
+              {formatMoney(usage.spent, usage.currency)} de {formatMoney(usage.total, usage.currency)}
+            </p>
+            <p className="text-xs text-muted-foreground">
+              {usage.onTrack} al día · {usage.over} sobrepasados
+            </p>
+          </div>
+        </div>
+
+        <div className="flex flex-col gap-3">
+          <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+            Más consumidos
+          </span>
+          {shown.map(({ row, spent, ratio, isOver }) => {
+            const Icon = getCategoryIcon(row.categoryIcon)
+            const cur = row.budget.currency
+            return (
+              <div key={row.budget.id} data-testid="budget-usage-row" className="flex flex-col gap-1">
+                <div className="flex items-center justify-between gap-2 text-sm">
+                  <span className="flex min-w-0 items-center gap-2 font-medium">
+                    <Icon
+                      className="size-4 shrink-0"
+                      style={row.categoryColor ? { color: row.categoryColor } : undefined}
+                    />
+                    <span data-testid="budget-usage-name" className="truncate">
+                      {row.categoryName}
+                    </span>
+                  </span>
+                  {Number.isFinite(ratio) && (
+                    <span
+                      className={cn(
+                        'shrink-0 text-xs font-bold tabular-nums',
+                        isOver && 'text-destructive'
+                      )}
+                    >
+                      {percent(ratio)}
+                    </span>
+                  )}
+                </div>
+                <div className="h-1.5 overflow-hidden rounded-full bg-muted">
+                  <div
+                    className={cn('h-full rounded-full', isOver ? 'bg-destructive' : 'bg-green-500')}
+                    style={{ width: `${Math.min(ratio, 1) * 100}%` }}
+                  />
+                </div>
+                <span className="text-xs text-muted-foreground tabular-nums">
+                  {formatMoney(spent, cur)} / {formatMoney(Math.max(row.effectiveLimit, 0), cur)}
+                </span>
+              </div>
+            )
+          })}
+          {ranked.length > TOP && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="self-start"
+              onClick={() => setShowAll((v) => !v)}
+            >
+              {showAll ? 'Ver menos' : `Ver todos (${ranked.length})`}
+            </Button>
+          )}
+        </div>
+      </CardContent>
+    </Card>
+  )
+}

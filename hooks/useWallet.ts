@@ -35,6 +35,7 @@ import {
   computeStats as computeStatsCore,
   budgetStatusForMonth as budgetStatusForMonthCore,
   DEFAULT_BUDGET_TEMPLATE_ID,
+  type BudgetUsage,
 } from '@/lib/wallet/compute'
 
 // Reexport de helpers compartidos para consumidores que los importan desde este módulo.
@@ -379,6 +380,7 @@ export interface StatsBundle {
   /** Patrimonio neto acumulado por mes (según el rango seleccionado). */
   netWorthSeries: NetWorthPoint[]
   budgetStatus: BudgetStatusRow[]
+  budgetUsage: BudgetUsage
   /** false si falta alguna tasa necesaria para normalizar (ej. '---'). */
   ratesAvailable: boolean
 }

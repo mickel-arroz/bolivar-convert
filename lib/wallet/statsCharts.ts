@@ -8,6 +8,8 @@ export type StatsChartId =
   | 'expenseByCategory'
   | 'incomeByCategory'
 
+const hasMovements = (s: StatsBundle) => s.monthlySeries.some((p) => p.income > 0 || p.expense > 0)
+
 /** Las gráficas van en una cuadrícula y las listas por categoría en otra. */
 export type StatsChartGrid = 'charts' | 'categories'
 
@@ -19,11 +21,8 @@ interface StatsChartDef {
 
 /** Una entrada por card de Estadísticas, en el orden en que se muestran. */
 const STATS_CHARTS: Record<StatsChartId, StatsChartDef> = {
-  incomeVsExpense: {
-    grid: 'charts',
-    hasData: (s) => s.monthlySeries.some((p) => p.income > 0 || p.expense > 0),
-  },
-  netWorth: { grid: 'charts', hasData: (s, hasAccounts) => hasAccounts && s.netWorthSeries.length > 0 },
+  incomeVsExpense: { grid: 'charts', hasData: hasMovements },
+  netWorth: { grid: 'charts', hasData: (s, hasAccounts) => hasAccounts && hasMovements(s) },
   savingsRate: { grid: 'charts', hasData: (s) => s.monthlySeries.some((p) => p.income > 0) },
   budget: { grid: 'charts', hasData: (s) => s.budgetStatus.length > 0 },
   expenseByCategory: {

@@ -38,10 +38,19 @@ describe('visibleStatsCharts', () => {
     expect(visibleStatsCharts(stats, false)).toEqual(['incomeVsExpense', 'savingsRate'])
   })
 
-  it('el patrimonio neto depende de que haya cuentas', () => {
-    const stats = { ...EMPTY, netWorthSeries: [{ month: '2026-10', label: 'oct', value: 0 }] }
-    expect(visibleStatsCharts(stats, true)).toEqual(['netWorth'])
-    expect(visibleStatsCharts(stats, false)).toEqual([])
+  it('el patrimonio neto se oculta con cuentas pero sin movimientos en el rango', () => {
+    const stats = { ...EMPTY, netWorthSeries: [{ month: '2026-10', label: 'oct', value: 70 }] }
+    expect(visibleStatsCharts(stats, true)).toEqual([])
+  })
+
+  it('el patrimonio neto necesita cuentas y movimientos en el rango', () => {
+    const stats = {
+      ...EMPTY,
+      monthlySeries: [month(0, 50)],
+      netWorthSeries: [{ month: '2026-10', label: 'oct', value: 70 }],
+    }
+    expect(visibleStatsCharts(stats, true)).toEqual(['incomeVsExpense', 'netWorth'])
+    expect(visibleStatsCharts(stats, false)).toEqual(['incomeVsExpense'])
   })
 
   it('el presupuesto vs gastado depende de que haya presupuestos este mes', () => {

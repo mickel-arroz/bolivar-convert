@@ -120,6 +120,8 @@ export interface ShoppingListSummaryRow {
   pending: number
   /** **Precio total** de la lista. `null` si falta una tasa. */
   total: number | null
+  /** **Restante por pagar** de la lista. `null` si falta una tasa en cualquier lista. */
+  remaining: number | null
   /** Desglose por prioridad de esta lista. Omite las prioridades que no usa. */
   byPriority: PriorityTotal[]
 }
@@ -178,6 +180,7 @@ export function computeAllListsTotals(
       purchased: listItems.filter((it) => it.purchased).length,
       pending: listItems.filter((it) => !it.purchased).length,
       total: listTotals.total,
+      remaining: global.total === null ? null : listTotals.remaining,
       byPriority: listTotals.byPriority,
     })
   }

@@ -122,7 +122,14 @@ describe('buildAdvicePayload', () => {
       { category: 'Comida', limit: 200, spent: 120, currency: 'USD' },
     ])
     expect(payload.goals).toEqual([
-      { name: 'Viaje a Mérida', saved: 300, target: 1000, currency: 'USD' },
+      {
+        name: 'Viaje a Mérida',
+        saved: 300,
+        target: 1000,
+        missing: 700,
+        currency: 'USD',
+        contributedInPeriod: 300,
+      },
     ])
   })
 
@@ -132,10 +139,93 @@ describe('buildAdvicePayload', () => {
     expect(payload.totals).toEqual({ income: 0, expense: 120, netWorth: 880 })
   })
 
-  it('lleva el Restante total por pagar de las listas y sus nombres', () => {
+  it('lleva el Restante por pagar de cada lista y el Restante total por pagar', () => {
     const payload = buildAdvicePayload(input(), RATES)
 
-    expect(payload.shopping).toEqual({ lists: ['Mercado'], remaining: 50 })
+    expect(payload.shopping).toEqual({ lists: [{ name: 'Mercado', remaining: 50 }], remaining: 50 })
+  })
+
+  it('lleva lo aportado a cada plan dentro del período, neto de retiros', () => {
+    const payload = buildAdvicePayload(
+      input({
+        goalContributions: [
+          { id: 'old', goalId: 'goal1', amount: '500', date: '2020-01-10', createdAt: '2020-01-10T00:00:00.000Z' },
+          { id: 'in', goalId: 'goal1', amount: '300', date: today, createdAt: `${today}T11:00:00.000Z` },
+          { id: 'out', goalId: 'goal1', amount: '-50', date: today, createdAt: `${today}T12:00:00.000Z` },
+        ],
+      }),
+      RATES
+    )
+
+    expect(payload.goals[0]).toMatchObject({ saved: 750, contributedInPeriod: 250 })
+    expect(buildAdvicePayload(input({ timeRange: 'all' }), RATES).goals[0].contributedInPeriod).toBe(300)
+  })
+
+  it('lo que le falta a un plan nunca es negativo, y sin Meta no hay nada que alcanzar', () => {
+    const payload = buildAdvicePayload(
+      input({
+        goals: [
+          { id: 'goal1', name: 'Viaje', currency: 'USD', target: '100', createdAt: '2026-01-01T00:00:00.000Z' },
+          { id: 'goal2', name: 'Colchón', currency: 'USD', createdAt: '2026-01-01T00:00:00.000Z' },
+        ],
+      }),
+      RATES
+    )
+
+    expect(payload.goals.map((g) => [g.name, g.missing])).toEqual([
+      ['Viaje', 0],
+      ['Colchón', null],
+    ])
+  })
+
+  it('si falta una tasa, ninguna lista da su Restante por pagar, igual que el total', () => {
+    const payload = buildAdvicePayload(
+      input({
+        shoppingLists: [
+          { id: 'l1', name: 'Mercado', createdAt: '2026-01-01T00:00:00.000Z' },
+          { id: 'l2', name: 'Europa', createdAt: '2026-01-02T00:00:00.000Z' },
+        ],
+        shoppingItems: [
+          { id: 'a', listId: 'l1', title: 'Harina', price: '50', currency: 'USD', priority: 1, purchased: false, createdAt: '2026-01-01T00:00:00.000Z' },
+          { id: 'b', listId: 'l2', title: 'Tren', price: '30', currency: 'EUR', priority: 1, purchased: false, createdAt: '2026-01-01T00:00:00.000Z' },
+        ],
+      }),
+      { ...RATES, bcvEur: '---' }
+    )
+
+    expect(payload.shopping).toEqual({
+      lists: [
+        { name: 'Mercado', remaining: null },
+        { name: 'Europa', remaining: null },
+      ],
+      remaining: null,
+    })
+  })
+
+  it('el Restante por pagar va por lista, cada una por separado', () => {
+    const payload = buildAdvicePayload(
+      input({
+        shoppingLists: [
+          { id: 'l1', name: 'Mercado', createdAt: '2026-01-01T00:00:00.000Z' },
+          { id: 'l2', name: 'Farmacia', createdAt: '2026-01-02T00:00:00.000Z' },
+        ],
+        shoppingItems: [
+          { id: 'a', listId: 'l1', title: 'Harina', price: '50', currency: 'USD', priority: 1, purchased: false, createdAt: '2026-01-01T00:00:00.000Z' },
+          { id: 'b', listId: 'l2', title: 'Vitaminas', price: '30', currency: 'USD', priority: 1, purchased: false, createdAt: '2026-01-01T00:00:00.000Z' },
+          { id: 'c', listId: 'l2', title: 'Gasas', price: '5', currency: 'USD', priority: 2, purchased: true, createdAt: '2026-01-01T00:00:00.000Z' },
+        ],
+      }),
+      RATES
+    )
+
+    expect(payload.shopping).toEqual({
+      lists: [
+        { name: 'Mercado', remaining: 50 },
+        { name: 'Farmacia', remaining: 30 },
+      ],
+      remaining: 80,
+    })
+    expect(JSON.stringify(payload)).not.toContain('Vitaminas')
   })
 
   it('no lleva ningún detalle de transacciones', () => {
@@ -202,6 +292,16 @@ describe('buildAdvicePrompt', () => {
     expect(prompt).toContain('patrimonio')
     expect(prompt).toContain('a dónde asignar')
     expect(prompt).toContain('No enumeres los gastos menores')
+  })
+
+  it('pide en Estadísticas comentar el avance de los planes de ahorro y lo pendiente en listas de compras', () => {
+    const prompt = buildAdvicePrompt(buildAdvicePayload(input(), RATES))
+    const statsLine = prompt.split('\n').find((l) => l.startsWith('- "stats"')) ?? ''
+
+    expect(statsLine).toContain('planes de ahorro')
+    expect(statsLine).toContain('cuánto le falta')
+    expect(statsLine).toContain('listas de compras')
+    expect(statsLine).toContain('sin enumerar')
   })
 
   it('exige que toda cifra de dinero diga su moneda', () => {

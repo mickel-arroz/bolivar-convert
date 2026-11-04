@@ -2,21 +2,30 @@ import { describe, it, expect, vi } from 'vitest'
 import {
   ADVICE_ATTEMPTS_PER_DAY,
   ADVICE_MAX_LENGTH,
+  ADVICE_PERIODS,
   ADVICE_REJECT_LENGTH,
   GENERIC_ADVICE,
   canAttemptAdviceToday,
   meetsAdviceThreshold,
   parseAdviceResponse,
   runAdviceChain,
+  statsFromStorage,
   type AdviceDayState,
   type AdviceModelCall,
 } from '@/lib/wallet/advice'
 
 const CHAIN = ['modelo-a', 'modelo-b', 'modelo-c']
 
-function json(stats: string, budget: string): string {
-  return JSON.stringify({ stats, budget })
+type Periodos = Record<'1m' | '6m' | '1y' | 'all', string>
+
+/** El mismo texto para los cuatro períodos. */
+const todos = (text: string): Periodos => ({ '1m': text, '6m': text, '1y': text, all: text })
+
+function json(stats: string | Periodos, budget: string): string {
+  return JSON.stringify({ stats: typeof stats === 'string' ? todos(stats) : stats, budget })
 }
+
+const consejo = (stats: string, budget: string) => ({ stats: todos(stats), budget })
 
 describe('canAttemptAdviceToday', () => {
   const TODAY = '2026-09-21'
@@ -75,54 +84,55 @@ describe('meetsAdviceThreshold', () => {
 })
 
 describe('parseAdviceResponse', () => {
-  it('acepta la salida estructurada con los dos párrafos', () => {
-    expect(parseAdviceResponse(json('Miraste atrás.', 'Mira adelante.'))).toEqual({
-      stats: 'Miraste atrás.',
-      budget: 'Mira adelante.',
-    })
+  it('acepta un texto de Estadísticas por período y el de Presupuestos', () => {
+    const stats = { '1m': 'Este mes.', '6m': 'Seis meses.', '1y': 'Este año.', all: 'Desde siempre.' }
+    expect(parseAdviceResponse(json(stats, 'Mira adelante.'))).toEqual({ stats, budget: 'Mira adelante.' })
   })
 
   it('acepta JSON envuelto en vallas de código', () => {
     const raw = '```json\n' + json('Atrás.', 'Adelante.') + '\n```'
-    expect(parseAdviceResponse(raw)).toEqual({ stats: 'Atrás.', budget: 'Adelante.' })
+    expect(parseAdviceResponse(raw)).toEqual(consejo('Atrás.', 'Adelante.'))
   })
 
-  it('descarta una respuesta con un solo párrafo usable', () => {
-    expect(parseAdviceResponse(json('Solo este.', '   '))).toBeNull()
+  it('descarta una respuesta a la que le falta algún período o el de Presupuestos', () => {
+    expect(parseAdviceResponse(json('Atrás.', '   '))).toBeNull()
+    expect(
+      parseAdviceResponse(json({ '1m': 'a', '6m': 'b', '1y': 'c', all: ' ' }, 'Adelante.'))
+    ).toBeNull()
+    expect(parseAdviceResponse(JSON.stringify({ stats: 'un solo texto', budget: 'b' }))).toBeNull()
     expect(parseAdviceResponse('Un único párrafo sin nada más.')).toBeNull()
   })
 
-  it('parte en dos párrafos una respuesta sin JSON', () => {
-    const prosa = 'En comida se te fue casi todo.\n\nBaja el presupuesto de ocio este mes.'
+  it('parte en cinco párrafos una respuesta sin JSON: los cuatro períodos y luego Presupuestos', () => {
+    const prosa = ['Mes.', 'Semestre.', 'Año.', 'Todo.', 'Ajusta ocio.'].join('\n\n')
     expect(parseAdviceResponse(prosa)).toEqual({
-      stats: 'En comida se te fue casi todo.',
-      budget: 'Baja el presupuesto de ocio este mes.',
+      stats: { '1m': 'Mes.', '6m': 'Semestre.', '1y': 'Año.', all: 'Todo.' },
+      budget: 'Ajusta ocio.',
     })
+    expect(parseAdviceResponse('Atrás.\n\nAdelante.')).toBeNull()
   })
 
   it('quita los espacios de los bordes de cada párrafo', () => {
-    expect(parseAdviceResponse(json('  Atrás.  ', '\nAdelante.\n'))).toEqual({
-      stats: 'Atrás.',
-      budget: 'Adelante.',
-    })
+    expect(parseAdviceResponse(json('  Atrás.  ', '\nAdelante.\n'))).toEqual(
+      consejo('Atrás.', 'Adelante.')
+    )
   })
 
   it('nunca recorta un consejo que se pasa un poco del límite del prompt', () => {
     const long = 'b'.repeat(ADVICE_MAX_LENGTH + 50)
     const advice = parseAdviceResponse(json(long, 'Adelante.'))
-    expect(advice?.stats).toBe(long)
+    expect(advice?.stats['1y']).toBe(long)
   })
 
   it('acepta un párrafo justo en 3 veces el límite', () => {
     const edge = 'c'.repeat(ADVICE_REJECT_LENGTH)
-    expect(parseAdviceResponse(json(edge, edge))).toEqual({ stats: edge, budget: edge })
+    expect(parseAdviceResponse(json(edge, edge))).toEqual(consejo(edge, edge))
   })
 
-  it('descarta la respuesta cuando un párrafo pasa de 3 veces el límite', () => {
+  it('descarta la respuesta cuando cualquier párrafo pasa de 3 veces el límite', () => {
     const tooLong = 'd'.repeat(ADVICE_REJECT_LENGTH + 1)
-    expect(parseAdviceResponse(json(tooLong, 'Adelante.'))).toBeNull()
+    expect(parseAdviceResponse(json({ ...todos('Atrás.'), '6m': tooLong }, 'Adelante.'))).toBeNull()
     expect(parseAdviceResponse(json('Atrás.', tooLong))).toBeNull()
-    expect(parseAdviceResponse(`${tooLong}\n\nAdelante.`)).toBeNull()
   })
 
   it('descarta una respuesta vacía', () => {
@@ -132,9 +142,15 @@ describe('parseAdviceResponse', () => {
 })
 
 describe('GENERIC_ADVICE', () => {
+  it('tiene un texto de Estadísticas para cada período', () => {
+    expect(Object.keys(GENERIC_ADVICE.stats).sort()).toEqual([...ADVICE_PERIODS].sort())
+  })
+
   it('habla de planes de ahorro, no de metas de ahorro', () => {
     expect(GENERIC_ADVICE.budget).toContain('plan de ahorro')
-    expect(`${GENERIC_ADVICE.stats} ${GENERIC_ADVICE.budget}`).not.toMatch(/metas? de ahorro/i)
+    expect(`${Object.values(GENERIC_ADVICE.stats).join(' ')} ${GENERIC_ADVICE.budget}`).not.toMatch(
+      /metas? de ahorro/i
+    )
   })
 })
 
@@ -144,7 +160,7 @@ describe('runAdviceChain', () => {
 
     const advice = await runAdviceChain('prompt', CHAIN, call)
 
-    expect(advice).toEqual({ stats: 'Atrás.', budget: 'Adelante.' })
+    expect(advice).toEqual(consejo('Atrás.', 'Adelante.'))
     expect(call).toHaveBeenCalledTimes(1)
     expect(call).toHaveBeenCalledWith('modelo-a', 'prompt')
   })
@@ -157,7 +173,7 @@ describe('runAdviceChain', () => {
 
     const advice = await runAdviceChain('prompt', CHAIN, call)
 
-    expect(advice).toEqual({ stats: 'Atrás.', budget: 'Adelante.' })
+    expect(advice).toEqual(consejo('Atrás.', 'Adelante.'))
     expect(call).toHaveBeenCalledTimes(2)
     expect(call.mock.calls.map((c) => c[0])).toEqual(['modelo-a', 'modelo-b'])
   })
@@ -170,7 +186,7 @@ describe('runAdviceChain', () => {
 
     const advice = await runAdviceChain('prompt', CHAIN, call)
 
-    expect(advice).toEqual({ stats: 'Atrás.', budget: 'Adelante.' })
+    expect(advice).toEqual(consejo('Atrás.', 'Adelante.'))
     expect(call).toHaveBeenCalledTimes(2)
   })
 
@@ -182,21 +198,21 @@ describe('runAdviceChain', () => {
 
     const advice = await runAdviceChain('prompt', CHAIN, call)
 
-    expect(advice).toEqual({ stats: 'Atrás.', budget: 'Adelante.' })
+    expect(advice).toEqual(consejo('Atrás.', 'Adelante.'))
     expect(call.mock.calls.map((c) => c[0])).toEqual(['modelo-a', 'modelo-b'])
   })
 
   it('acepta la prosa sin JSON del último recurso de la cadena', async () => {
     const call = vi.fn(async (model: string) => {
       if (model !== 'modelo-c') throw new Error('sin cuota')
-      return 'Gastaste de más en comida.\n\nRecorta ocio la semana que viene.'
+      return ['Mes.', 'Semestre.', 'Año.', 'Todo.', 'Recorta ocio.'].join('\n\n')
     })
 
     const advice = await runAdviceChain('prompt', CHAIN, call)
 
     expect(advice).toEqual({
-      stats: 'Gastaste de más en comida.',
-      budget: 'Recorta ocio la semana que viene.',
+      stats: { '1m': 'Mes.', '6m': 'Semestre.', '1y': 'Año.', all: 'Todo.' },
+      budget: 'Recorta ocio.',
     })
     expect(call).toHaveBeenCalledTimes(3)
   })
@@ -210,7 +226,7 @@ describe('runAdviceChain', () => {
 
     expect(advice).toBeNull()
     expect(call).toHaveBeenCalledTimes(CHAIN.length)
-    expect(GENERIC_ADVICE.stats.length).toBeGreaterThan(0)
+    expect(GENERIC_ADVICE.stats['1m'].length).toBeGreaterThan(0)
     expect(GENERIC_ADVICE.budget.length).toBeGreaterThan(0)
   })
 
@@ -218,5 +234,21 @@ describe('runAdviceChain', () => {
     const call = vi.fn(async () => json('a', 'b'))
     expect(await runAdviceChain('prompt', [], call)).toBeNull()
     expect(call).not.toHaveBeenCalled()
+  })
+})
+
+describe('statsFromStorage', () => {
+  it('lee el consejo de Estadísticas guardado por período', () => {
+    const stats = { '1m': 'Mes.', '6m': 'Semestre.', '1y': 'Año.', all: 'Todo.' }
+    expect(statsFromStorage(stats, 'viejo')).toEqual(stats)
+  })
+
+  it('un consejo guardado antes de los períodos usa su único texto en los cuatro', () => {
+    expect(statsFromStorage(null, 'Un solo texto.')).toEqual(todos('Un solo texto.'))
+  })
+
+  it('sin nada usable devuelve null', () => {
+    expect(statsFromStorage(null, null)).toBeNull()
+    expect(statsFromStorage({ '1m': 'solo uno' }, '')).toBeNull()
   })
 })

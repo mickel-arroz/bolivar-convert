@@ -10,7 +10,7 @@ import type { RateId } from '@/constants/rates'
 import { DEFAULT_DISPLAY_CURRENCY } from '@/lib/wallet/displayCurrency'
 import { DEFAULT_BUDGET_TEMPLATE_ID } from '@/lib/wallet/compute'
 import { loadWallet } from '@/lib/wallet/server'
-import type { AdviceDayState, StoredAdvice } from '@/lib/wallet/advice'
+import { statsFromStorage, type AdviceDayState, type StoredAdvice } from '@/lib/wallet/advice'
 import type { AdviceInput } from '@/lib/wallet/advicePayload'
 
 /** Id fijo de la única fila de consejo por usuario (ver migración 0009). */
@@ -41,10 +41,11 @@ export async function loadAdvice(
     attemptCount: Number(row?.attempt_count ?? 0),
   }
   // Reclamar el día crea la fila antes que el consejo: sin textos no hay nada guardado.
-  if (!row?.stats_text || !row?.budget_text) return { advice: null, day }
+  const stats = statsFromStorage(row?.stats_by_period, row?.stats_text as string | null)
+  if (!stats || !row?.budget_text) return { advice: null, day }
   return {
     advice: {
-      stats: String(row.stats_text),
+      stats,
       budget: String(row.budget_text),
       generatedAt: String(row.generated_at ?? ''),
     },
@@ -63,7 +64,8 @@ export async function saveAdvice(
     {
       id: ADVICE_ROW_ID,
       user_id: userId,
-      stats_text: advice.stats,
+      stats_by_period: advice.stats,
+      stats_text: advice.stats['1m'],
       budget_text: advice.budget,
       generated_at: advice.generatedAt,
       advice_date: day,
@@ -119,6 +121,5 @@ export async function loadAdviceInput(
     shoppingItems: state.shoppingItems ?? [],
     displayCurrency: state.displayCurrency ?? DEFAULT_DISPLAY_CURRENCY,
     statsRateSource: (state.statsRateSource as RateId | undefined) ?? 'bcvUsd',
-    timeRange: state.timeRange ?? '1m',
   }
 }

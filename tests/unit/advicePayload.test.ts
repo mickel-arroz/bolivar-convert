@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { buildAdvicePayload, buildAdvicePrompt, type AdviceInput } from '@/lib/wallet/advicePayload'
-import { ADVICE_MAX_LENGTH } from '@/lib/wallet/advice'
+import { ADVICE_MAX_LENGTH, ADVICE_PERIODS } from '@/lib/wallet/advice'
 import type { Rates } from '@/constants/rates'
 
 const RATES: Rates = {
@@ -95,7 +95,6 @@ function input(over: Partial<AdviceInput> = {}): AdviceInput {
     ],
     displayCurrency: 'USD',
     statsRateSource: 'bcvUsd',
-    timeRange: '1m',
     ...over,
   }
 }
@@ -109,10 +108,40 @@ describe('buildAdvicePayload', () => {
     ])
   })
 
-  it('lleva los totales por categoría con el nombre que escribió el usuario', () => {
+  it('lleva los totales por categoría de cada período, con el nombre que escribió el usuario', () => {
     const payload = buildAdvicePayload(input(), RATES)
 
-    expect(payload.categories).toContainEqual({ name: 'Comida', kind: 'expense', total: 120 })
+    for (const period of ADVICE_PERIODS) {
+      expect(payload.periods[period].categories).toContainEqual({ name: 'Comida', kind: 'expense', total: 120 })
+    }
+  })
+
+  it('cada período cuenta solo los movimientos de su rango', () => {
+    const hace3Meses = new Date()
+    hace3Meses.setMonth(hace3Meses.getMonth() - 3)
+    const fecha = hace3Meses.toISOString().slice(0, 10)
+    const payload = buildAdvicePayload(
+      input({
+        transactions: [
+          {
+            id: 'tx-viejo',
+            type: 'income',
+            accountId: 'acc1',
+            categoryId: 'cat_salary',
+            amount: '500',
+            date: fecha,
+            createdAt: `${fecha}T10:00:00.000Z`,
+          },
+        ],
+        categories: [{ id: 'cat_salary', name: 'Sueldo', kind: 'income', icon: 'salary' }],
+      }),
+      RATES
+    )
+
+    expect(payload.periods['1m'].income).toBe(0)
+    expect(payload.periods['6m'].income).toBe(500)
+    expect(payload.periods['1y'].income).toBe(500)
+    expect(payload.periods.all.income).toBe(500)
   })
 
   it('lleva el avance de cada presupuesto y de cada meta', () => {
@@ -128,15 +157,16 @@ describe('buildAdvicePayload', () => {
         target: 1000,
         missing: 700,
         currency: 'USD',
-        contributedInPeriod: 300,
       },
     ])
   })
 
-  it('lleva las métricas globales: ingresos, gastos totales y patrimonio', () => {
+  it('lleva el patrimonio una vez y los ingresos y gastos totales de cada período', () => {
     const payload = buildAdvicePayload(input(), RATES)
 
-    expect(payload.totals).toEqual({ income: 0, expense: 120, netWorth: 880 })
+    expect(payload.netWorth).toBe(880)
+    expect(Object.keys(payload.periods)).toEqual([...ADVICE_PERIODS])
+    expect(payload.periods['1m']).toMatchObject({ income: 0, expense: 120 })
   })
 
   it('lleva el Restante por pagar de cada lista y el Restante total por pagar', () => {
@@ -157,8 +187,9 @@ describe('buildAdvicePayload', () => {
       RATES
     )
 
-    expect(payload.goals[0]).toMatchObject({ saved: 750, contributedInPeriod: 250 })
-    expect(buildAdvicePayload(input({ timeRange: 'all' }), RATES).goals[0].contributedInPeriod).toBe(300)
+    expect(payload.goals[0]).toMatchObject({ saved: 750 })
+    expect(payload.periods['1m'].goals).toEqual([{ name: 'Viaje a Mérida', contributed: 250, currency: 'USD' }])
+    expect(payload.periods.all.goals).toEqual([{ name: 'Viaje a Mérida', contributed: 750, currency: 'USD' }])
   })
 
   it('lo que le falta a un plan nunca es negativo, y sin Meta no hay nada que alcanzar', () => {
@@ -254,7 +285,7 @@ describe('buildAdvicePayload', () => {
     )
 
     expect(payload.accounts).toEqual([])
-    expect(payload.categories).toEqual([])
+    expect(payload.periods['1m'].categories).toEqual([])
     expect(payload.shopping).toEqual({ lists: [], remaining: 0 })
   })
 })
@@ -298,6 +329,8 @@ describe('buildAdvicePrompt', () => {
     const prompt = buildAdvicePrompt(buildAdvicePayload(input(), RATES))
     const statsLine = prompt.split('\n').find((l) => l.startsWith('- "stats"')) ?? ''
 
+    for (const period of ADVICE_PERIODS) expect(statsLine).toContain(`"${period}"`)
+    expect(statsLine).toContain('"periods"')
     expect(statsLine).toContain('planes de ahorro')
     expect(statsLine).toContain('cuánto le falta')
     expect(statsLine).toContain('listas de compras')

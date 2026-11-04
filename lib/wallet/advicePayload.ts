@@ -21,7 +21,7 @@ import type {
   Transaction,
   Transfer,
 } from '@/hooks/useWallet'
-import { ADVICE_MAX_LENGTH } from './advice'
+import { ADVICE_MAX_LENGTH, ADVICE_PERIODS } from './advice'
 import {
   computeAccountFunds,
   computeStats,
@@ -45,14 +45,13 @@ export interface AdviceInput {
   shoppingItems: ShoppingListItem[]
   displayCurrency: CurrencyId
   statsRateSource: RateId
-  timeRange: TimeRange
 }
 
 export interface AdvicePayload {
   /** Moneda en la que están expresadas todas las cifras agregadas. */
   currency: CurrencyId
-  /** Métricas globales del período: ingresos, gastos totales y patrimonio. */
-  totals: { income: number; expense: number; netWorth: number }
+  /** Patrimonio neto actual. */
+  netWorth: number
   /** Una entrada por cuenta con sus tres cifras. */
   accounts: {
     name: string
@@ -61,14 +60,11 @@ export interface AdvicePayload {
     available: number
     inGoals: number
   }[]
-  /** Totales por categoría del período, con el nombre que el usuario le puso. */
-  categories: { name: string; kind: 'income' | 'expense'; total: number }[]
   /** Avance de cada presupuesto del mes en curso. */
   budgets: { category: string; limit: number; spent: number; currency: CurrencyId }[]
   /**
    * Avance de cada Plan de ahorro. `target` es su Meta y `missing` lo que le falta para
-   * alcanzarla (nunca negativo); ambos `null` sin Meta. `contributedInPeriod` es lo
-   * aportado en el período, neto de retiros.
+   * alcanzarla (nunca negativo); ambos `null` sin Meta.
    */
   goals: {
     name: string
@@ -76,10 +72,21 @@ export interface AdvicePayload {
     target: number | null
     missing: number | null
     currency: CurrencyId
-    contributedInPeriod: number
   }[]
   /** Listas de compras: el Restante por pagar de cada una y el **Restante total por pagar**. */
   shopping: { lists: { name: string; remaining: number | null }[]; remaining: number | null }
+  /** Lo que mira hacia atrás, en cada período de Estadísticas. */
+  periods: Record<TimeRange, AdvicePeriod>
+}
+
+/** Un período de Estadísticas: sus totales, sus categorías y lo aportado a cada plan. */
+export interface AdvicePeriod {
+  income: number
+  expense: number
+  /** Totales por categoría, con el nombre que el usuario le puso. */
+  categories: { name: string; kind: 'income' | 'expense'; total: number }[]
+  /** Lo aportado a cada plan en el período, neto de retiros; solo los que se movieron. */
+  goals: { name: string; contributed: number; currency: CurrencyId }[]
 }
 
 const round2 = (n: number) => Math.round(n * 100) / 100
@@ -98,23 +105,42 @@ export function buildAdvicePayload(input: AdviceInput, rates: Rates): AdvicePayl
   })
   const accountById = new Map(input.accounts.map((a) => [a.id, a]))
 
-  const stats = computeStats(
-    {
-      accounts: input.accounts,
-      transactions: input.transactions,
-      transfers: input.transfers,
-      categories: input.categories,
-      budgets: input.budgets,
-      budgetTransfers: input.budgetTransfers,
-    },
-    rates,
-    { displayCurrency, statsRateSource, timeRange: input.timeRange }
-  )
+  const statsFor = (timeRange: TimeRange) =>
+    computeStats(
+      {
+        accounts: input.accounts,
+        transactions: input.transactions,
+        transfers: input.transfers,
+        categories: input.categories,
+        budgets: input.budgets,
+        budgetTransfers: input.budgetTransfers,
+      },
+      rates,
+      { displayCurrency, statsRateSource, timeRange }
+    )
+  const statsByPeriod = new Map(ADVICE_PERIODS.map((period) => [period, statsFor(period)]))
+  // El patrimonio y los presupuestos del mes no dependen del período.
+  const stats = statsByPeriod.get('all')!
 
-  const { saved: savedByGoal, contributed: contributedInPeriodByGoal } = sumGoalContributions(
-    input.goalContributions,
-    inPeriod(input.timeRange)
-  )
+  const savedByGoal = sumGoalContributions(input.goalContributions, inPeriod('all')).saved
+
+  const period = (range: TimeRange): AdvicePeriod => {
+    const periodStats = statsByPeriod.get(range)!
+    const { contributed } = sumGoalContributions(input.goalContributions, inPeriod(range))
+    return {
+      income: round2(periodStats.incomeVsExpense.income),
+      expense: round2(periodStats.incomeVsExpense.expense),
+      categories: periodStats.categorySummary.map((row) => ({
+        name: row.name,
+        kind: row.kind,
+        total: round2(row.total),
+      })),
+      goals: input.goals.flatMap((goal) => {
+        const amount = round2(contributed.get(goal.id) ?? 0)
+        return amount === 0 ? [] : [{ name: goal.name, contributed: amount, currency: goal.currency }]
+      }),
+    }
+  }
 
   const resolvedRates = resolveRates(rates, statsRateSource)
   const shopping = computeAllListsTotals(
@@ -126,22 +152,13 @@ export function buildAdvicePayload(input: AdviceInput, rates: Rates): AdvicePayl
 
   return {
     currency: displayCurrency,
-    totals: {
-      income: round2(stats.incomeVsExpense.income),
-      expense: round2(stats.incomeVsExpense.expense),
-      netWorth: round2(stats.netWorth),
-    },
+    netWorth: round2(stats.netWorth),
     accounts: funds.map((f) => ({
       name: accountById.get(f.accountId)?.name ?? 'Cuenta',
       currency: f.currency,
       balance: round2(f.balance),
       available: round2(f.available),
       inGoals: round2(f.inGoals),
-    })),
-    categories: stats.categorySummary.map((row) => ({
-      name: row.name,
-      kind: row.kind,
-      total: round2(row.total),
     })),
     budgets: stats.budgetStatus.map((row) => ({
       category: row.categoryName,
@@ -158,17 +175,20 @@ export function buildAdvicePayload(input: AdviceInput, rates: Rates): AdvicePayl
         target: target === null ? null : round2(target),
         missing: target === null ? null : round2(Math.max(target - saved, 0)),
         currency: goal.currency,
-        contributedInPeriod: round2(contributedInPeriodByGoal.get(goal.id) ?? 0),
       }
     }),
     shopping: {
       lists: shopping.rows.map((row) => ({ name: row.name, remaining: round2OrNull(row.remaining) })),
       remaining: round2OrNull(shopping.remaining),
     },
+    periods: Object.fromEntries(ADVICE_PERIODS.map((range) => [range, period(range)])) as Record<
+      TimeRange,
+      AdvicePeriod
+    >,
   }
 }
 
-/** El prompt de una sola petición que devuelve los dos párrafos. */
+/** El prompt de una sola petición que devuelve los consejos de Estadísticas por período y el de Presupuestos. */
 export function buildAdvicePrompt(payload: AdvicePayload, now: Date = new Date()): string {
   return [
     'Eres un asesor financiero personal venezolano, cercano y claro. Hablas en español de Venezuela, tuteando, concreto y sin formalidades.',
@@ -178,8 +198,8 @@ export function buildAdvicePrompt(payload: AdvicePayload, now: Date = new Date()
     'Datos del usuario (agregados, sin detalle de movimientos):',
     JSON.stringify(payload),
     '',
-    'Devuelve EXACTAMENTE un objeto JSON con dos claves de texto:',
-    '- "stats": mira hacia atrás. Resume sus métricas globales del período (ingresos, gastos totales y patrimonio, en "totals"), comenta el avance de sus planes de ahorro (en "goals": lo que aportó en el período, neto de retiros, en "contributedInPeriod", y cuánto le falta a cada plan con Meta para alcanzarla, en "missing") y cuánto compromete lo que le falta por pagar en sus listas de compras (en "shopping"), y recomienda a dónde asignar el dinero. Puedes nombrar sus categorías más grandes y destacar los planes o listas que más pesen, sin enumerar todo uno por uno. No enumeres los gastos menores uno por uno.',
+    'Devuelve EXACTAMENTE un objeto JSON con dos claves:',
+    '- "stats": un objeto con cuatro textos que miran hacia atrás, uno por período, con las claves "1m" (el último mes), "6m" (los últimos 6 meses), "1y" (el último año) y "all" (desde siempre). Cada uno usa solo los datos de su período en "periods": sus ingresos y gastos totales ("income", "expense"), sus categorías más grandes y lo que aportó a sus planes de ahorro en ese período, neto de retiros ("goals" del período). Además comenta su patrimonio ("netWorth"), cuánto le falta a cada plan con Meta para alcanzarla (en "goals", "missing") y cuánto compromete lo que le falta por pagar en sus listas de compras (en "shopping"), y recomienda a dónde asignar el dinero. Los cuatro textos deben ser distintos entre sí: cada uno habla de lo que pasó en su período. Puedes destacar los planes o listas que más pesen, sin enumerar todo uno por uno. No enumeres los gastos menores uno por uno.',
     '- "budget": mira hacia adelante. Qué conviene ajustar este mes, considerando sus presupuestos, sus planes de ahorro (en "goals"; "target" es la Meta del plan, opcional) y lo que le falta por pagar en sus listas de compras.',
     '',
     `Cada texto debe ser un solo párrafo de máximo ${ADVICE_MAX_LENGTH} caracteres.`,

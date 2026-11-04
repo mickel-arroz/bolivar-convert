@@ -5,14 +5,16 @@ import { useAdvice } from '@/hooks/useAdvice'
 import { AdviceCard } from '@/components/billetera/AdviceCard'
 import { ADVICE_MAX_LENGTH, GENERIC_ADVICE, type StoredAdvice } from '@/lib/wallet/advice'
 
+const todos = (text: string) => ({ '1m': text, '6m': text, '1y': text, all: text })
+
 const SAVED: StoredAdvice = {
-  stats: 'En comida se te fue casi todo.',
+  stats: todos('En comida se te fue casi todo.'),
   budget: 'Recorta ocio este mes.',
   generatedAt: '2026-09-20T10:00:00.000Z',
 }
 
 const FRESH: StoredAdvice = {
-  stats: 'Hoy: vas bien con el ahorro.',
+  stats: todos('Hoy: vas bien con el ahorro.'),
   budget: 'Hoy: frena las compras.',
   generatedAt: '2026-09-21T10:00:00.000Z',
 }
@@ -67,10 +69,10 @@ describe('useAdvice', () => {
     const { result } = renderHook(() => useAdvice())
 
     await waitFor(() => expect(refreshes()).toHaveLength(1))
-    expect(result.current.advice.stats).toBe(SAVED.stats)
+    expect(result.current.advice.stats).toEqual(SAVED.stats)
 
     release()
-    await waitFor(() => expect(result.current.advice.stats).toBe(FRESH.stats))
+    await waitFor(() => expect(result.current.advice.stats).toEqual(FRESH.stats))
     expect(result.current.advice.budget).toBe(FRESH.budget)
   })
 
@@ -83,7 +85,7 @@ describe('useAdvice', () => {
     await waitFor(() => expect(refreshes()).toHaveLength(1))
     await waitFor(() => expect(result.current.loaded).toBe(true))
 
-    expect(result.current.advice.stats).toBe(SAVED.stats)
+    expect(result.current.advice.stats).toEqual(SAVED.stats)
   })
 
   it('si no tocó generar (otra pestaña se llevó el intento), no cambia lo que se ve', async () => {
@@ -92,7 +94,7 @@ describe('useAdvice', () => {
 
     await waitFor(() => expect(refreshes()).toHaveLength(1))
 
-    expect(result.current.advice.stats).toBe(SAVED.stats)
+    expect(result.current.advice.stats).toEqual(SAVED.stats)
   })
 
   it('sin consejo guardado muestra el texto genérico de cada pestaña', async () => {
@@ -132,7 +134,7 @@ describe('useAdvice', () => {
     expect(refreshes()).toHaveLength(1)
 
     release()
-    await waitFor(() => expect(estadisticas.result.current.advice.stats).toBe(FRESH.stats))
+    await waitFor(() => expect(estadisticas.result.current.advice.stats).toEqual(FRESH.stats))
     await waitFor(() => expect(presupuestos.result.current.advice.budget).toBe(FRESH.budget))
     expect(refreshes()).toHaveLength(1)
   })
@@ -140,7 +142,7 @@ describe('useAdvice', () => {
 
 describe('AdviceCard', () => {
   it('muestra el texto genérico cuando no hay consejo', () => {
-    render(<AdviceCard title="En qué se te fue el dinero" text={GENERIC_ADVICE.stats} />)
+    render(<AdviceCard title="En qué se te fue el dinero" text={GENERIC_ADVICE.stats['1m']} />)
 
     expect(screen.getByTestId('advice-text')).toHaveTextContent('Registra tus ingresos y gastos')
     expect(screen.getByText('En qué se te fue el dinero')).toBeInTheDocument()
@@ -154,7 +156,7 @@ describe('AdviceCard', () => {
   })
 
   it('mientras se lee lo guardado muestra un skeleton y no el texto genérico', () => {
-    render(<AdviceCard title="Consejo" text={GENERIC_ADVICE.stats} loading />)
+    render(<AdviceCard title="Consejo" text={GENERIC_ADVICE.stats['1m']} loading />)
 
     expect(screen.getByTestId('advice-skeleton')).toBeInTheDocument()
     expect(screen.queryByTestId('advice-text')).not.toBeInTheDocument()

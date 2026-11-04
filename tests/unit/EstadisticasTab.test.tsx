@@ -14,11 +14,19 @@ vi.mock('@/hooks/useWalletResource', () => ({
   },
 }))
 vi.mock('@/hooks/useAdvice', () => ({
-  useAdvice: () => ({ advice: { stats: '' }, loaded: adviceLoaded }),
+  useAdvice: () => ({
+    advice: {
+      stats: { '1m': 'Consejo del mes.', '6m': 'Consejo del semestre.', '1y': 'Consejo del año.', all: 'Consejo de siempre.' },
+      budget: '',
+    },
+    loaded: adviceLoaded,
+  }),
 }))
 vi.mock('@/components/billetera/AdviceCard', () => ({
-  AdviceCard: ({ loading }: { loading?: boolean }) => (
-    <div data-testid="advice" data-loading={String(!!loading)} />
+  AdviceCard: ({ loading, text }: { loading?: boolean; text: string }) => (
+    <div data-testid="advice" data-loading={String(!!loading)}>
+      {text}
+    </div>
   ),
 }))
 vi.mock('@/components/ui/chart', () => ({
@@ -525,5 +533,18 @@ describe('EstadisticasTab — datos de otra selección', () => {
 
     expect(screen.queryByTestId('stats-skeleton')).not.toBeInTheDocument()
     expect(screen.getByText('Balance')).toBeInTheDocument()
+  })
+})
+
+describe('EstadisticasTab — Consejo por período', () => {
+  it.each([
+    ['1m', 'Consejo del mes.'],
+    ['6m', 'Consejo del semestre.'],
+    ['1y', 'Consejo del año.'],
+    ['all', 'Consejo de siempre.'],
+  ] as const)('con el período %s muestra su propio consejo', (timeRange, text) => {
+    renderTab(EMPTY, [], timeRange)
+
+    expect(screen.getByTestId('advice')).toHaveTextContent(text)
   })
 })

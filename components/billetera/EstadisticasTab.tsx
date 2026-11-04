@@ -227,7 +227,11 @@ export function EstadisticasTab({ wallet }: EstadisticasTabProps) {
   }
 
   const adviceCard = (
-    <AdviceCard title="En qué se te fue el dinero" text={advice.stats} loading={!adviceLoaded} />
+    <AdviceCard
+      title="En qué se te fue el dinero"
+      text={advice.stats[state.timeRange]}
+      loading={!adviceLoaded}
+    />
   )
 
   if (!data || !isStatsFor(data, selection)) {

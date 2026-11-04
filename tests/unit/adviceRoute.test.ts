@@ -59,14 +59,21 @@ import { GET, POST } from '@/app/api/wallet/advice/route'
 import { ADVICE_MODEL_CHAIN } from '@/lib/ai/gemini'
 
 const NEW_DAY: AdviceDayState = { adviceDate: null, attemptDate: null, attemptCount: 0 }
-const SAVED: StoredAdvice = { stats: 'viejo stats', budget: 'viejo budget', generatedAt: '2026-09-20T10:00:00.000Z' }
+const todos = (text: string) => ({ '1m': text, '6m': text, '1y': text, all: text })
+const SAVED: StoredAdvice = {
+  stats: todos('viejo stats'),
+  budget: 'viejo budget',
+  generatedAt: '2026-09-20T10:00:00.000Z',
+}
 
 function stored(advice: StoredAdvice | null, day: Partial<AdviceDayState> = {}) {
   loadAdvice.mockResolvedValue({ advice, day: { ...NEW_DAY, ...day } })
 }
 
 const modelAnswers = () =>
-  generateContent.mockResolvedValue({ text: JSON.stringify({ stats: 'nuevo stats', budget: 'nuevo budget' }) })
+  generateContent.mockResolvedValue({
+    text: JSON.stringify({ stats: todos('nuevo stats'), budget: 'nuevo budget' }),
+  })
 
 describe('/api/wallet/advice', () => {
   beforeEach(() => {
@@ -119,7 +126,7 @@ describe('/api/wallet/advice', () => {
     const body = await (await POST()).json()
 
     expect(body.refreshed).toBe(true)
-    expect(body.advice).toMatchObject({ stats: 'nuevo stats', budget: 'nuevo budget' })
+    expect(body.advice).toMatchObject({ stats: todos('nuevo stats'), budget: 'nuevo budget' })
     expect(saveAdvice).toHaveBeenCalledWith({}, 'usuario-1', body.advice, TODAY)
     expect(releaseAdviceDay).not.toHaveBeenCalled()
   })
@@ -143,7 +150,7 @@ describe('/api/wallet/advice', () => {
     })
     generateContent.mockImplementation(async () => {
       order.push('model')
-      return { text: JSON.stringify({ stats: 'a', budget: 'b' }) }
+      return { text: JSON.stringify({ stats: todos('a'), budget: 'b' }) }
     })
 
     await POST()

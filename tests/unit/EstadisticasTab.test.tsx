@@ -112,11 +112,33 @@ describe('EstadisticasTab — Planes de ahorro y Listas de compras', () => {
       ...EMPTY,
       savingsPlans: {
         rows: [
-          { goalId: 'viaje', name: 'Viaje', currency: 'USD', saved: 150, target: 500 },
-          { goalId: 'moto', name: 'Moto', currency: 'USD', saved: 200, target: 200 },
-          { goalId: 'colchon', name: 'Colchón', currency: 'VES', saved: 30, target: null },
+          {
+            goalId: 'viaje',
+            name: 'Viaje',
+            currency: 'USD',
+            saved: 150,
+            contributed: 0,
+            target: 500,
+          },
+          {
+            goalId: 'moto',
+            name: 'Moto',
+            currency: 'USD',
+            saved: 200,
+            contributed: 0,
+            target: 200,
+          },
+          {
+            goalId: 'colchon',
+            name: 'Colchón',
+            currency: 'VES',
+            saved: 30,
+            contributed: 0,
+            target: null,
+          },
         ],
         progress: { saved: 350, target: 700, reached: 1, withTarget: 2 },
+        contributed: 0,
       },
     })
 
@@ -138,8 +160,18 @@ describe('EstadisticasTab — Planes de ahorro y Listas de compras', () => {
     renderTab({
       ...EMPTY,
       savingsPlans: {
-        rows: [{ goalId: 'colchon', name: 'Colchón', currency: 'VES', saved: 30, target: null }],
+        rows: [
+          {
+            goalId: 'colchon',
+            name: 'Colchón',
+            currency: 'VES',
+            saved: 30,
+            contributed: 0,
+            target: null,
+          },
+        ],
         progress: null,
+        contributed: 0,
       },
     })
 
@@ -151,10 +183,11 @@ describe('EstadisticasTab — Planes de ahorro y Listas de compras', () => {
       ...EMPTY,
       shoppingLists: {
         rows: [
-          { listId: 'mercado', name: 'Mercado', pending: 2, remaining: 75 },
-          { listId: 'casa', name: 'Casa', pending: 1, remaining: 25 },
+          { listId: 'mercado', name: 'Mercado', pending: 2, remaining: 75, purchased: 0 },
+          { listId: 'casa', name: 'Casa', pending: 1, remaining: 25, purchased: 0 },
         ],
         remaining: 100,
+        purchased: 0,
       },
     })
 
@@ -181,9 +214,11 @@ describe('EstadisticasTab — Planes de ahorro y Listas de compras', () => {
           name: `Plan ${i}`,
           currency: 'USD' as const,
           saved: i,
+          contributed: 0,
           target: null,
         })),
         progress: null,
+        contributed: 0,
       },
       shoppingLists: {
         rows: Array.from({ length: 20 }, (_, i) => ({
@@ -191,8 +226,10 @@ describe('EstadisticasTab — Planes de ahorro y Listas de compras', () => {
           name: `Lista ${i}`,
           pending: 1,
           remaining: i + 1,
+          purchased: 0,
         })),
         remaining: 210,
+        purchased: 0,
       },
     })
 
@@ -284,15 +321,19 @@ describe('EstadisticasTab — porcentaje al pasar sobre las barras', () => {
         { categoryId: 't', name: 'Transporte', icon: 'other', kind: 'expense', total: 25 },
       ],
       savingsPlans: {
-        rows: [{ goalId: 'v', name: 'Viaje', currency: 'USD', saved: 150, target: 500 }],
+        rows: [
+          { goalId: 'v', name: 'Viaje', currency: 'USD', saved: 150, contributed: 0, target: 500 },
+        ],
         progress: null,
+        contributed: 0,
       },
       shoppingLists: {
         rows: [
-          { listId: 'm', name: 'Mercado', pending: 2, remaining: 60 },
-          { listId: 'k', name: 'Casa', pending: 1, remaining: 40 },
+          { listId: 'm', name: 'Mercado', pending: 2, remaining: 60, purchased: 0 },
+          { listId: 'k', name: 'Casa', pending: 1, remaining: 40, purchased: 0 },
         ],
         remaining: 100,
+        purchased: 0,
       },
     })
 
@@ -332,5 +373,51 @@ describe('EstadisticasTab — Presupuesto vs gastado según el rango', () => {
   it('usa los presupuestos del rango, no solo los del mes actual', () => {
     renderTab({ ...EMPTY, budgetStatus: [budgetRow] })
     expect(screen.queryByText('Presupuesto vs gastado')).not.toBeInTheDocument()
+  })
+})
+
+describe('EstadisticasTab — Planes y Listas según el rango', () => {
+  const data: StatsView = {
+    ...EMPTY,
+    savingsPlans: {
+      rows: [
+        { goalId: 'v', name: 'Viaje', currency: 'USD', saved: 240, contributed: 40, target: 500 },
+        { goalId: 'c', name: 'Colchón', currency: 'USD', saved: 30, contributed: 0, target: null },
+      ],
+      progress: null,
+      contributed: 40,
+    },
+    shoppingLists: {
+      rows: [
+        { listId: 'm', name: 'Mercado', pending: 2, remaining: 10, purchased: 400 },
+        { listId: 'k', name: 'Casa', pending: 0, remaining: 0, purchased: 5 },
+      ],
+      remaining: 10,
+      purchased: 405,
+    },
+  }
+
+  it.each([
+    ['1m', 'en el último mes'],
+    ['6m', 'en los últimos 6 meses'],
+    ['1y', 'en el último año'],
+    ['all', 'desde el inicio'],
+  ] as const)('con %s resume lo aportado y lo comprado %s', (range, text) => {
+    renderTab(data, [], range)
+
+    expect(card('Planes de ahorro')).toHaveTextContent(`Aportaste $ 40.00 ${text}`)
+    expect(card('Listas de compras')).toHaveTextContent(`Comprado ${text}: $ 405.00`)
+  })
+
+  it('cada fila dice lo suyo del periodo', () => {
+    renderTab(data)
+
+    const [viaje, colchon] = within(card('Planes de ahorro')).getAllByTestId('stats-plan-row')
+    expect(viaje).toHaveTextContent('+$ 40.00 en el periodo')
+    expect(colchon).not.toHaveTextContent('en el periodo')
+
+    const [mercado, casa] = within(card('Listas de compras')).getAllByTestId('stats-list-row')
+    expect(mercado).toHaveTextContent('2 por comprar · $ 400.00 comprado')
+    expect(casa).toHaveTextContent('Nada por comprar · $ 5.00 comprado')
   })
 })

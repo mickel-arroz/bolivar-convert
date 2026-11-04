@@ -2,8 +2,17 @@ import type { CSSProperties, ComponentProps, ComponentType, ReactNode } from 're
 import { WALLET_COLORS, isDefaultColor } from '@/constants/walletColors'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
+import type { TimeRange } from '@/hooks/useWallet'
 
 export const percent = (ratio: number) => `${Math.round(ratio * 100)}%`
+
+/** Cómo se nombra cada rango de Estadísticas al final de una frase. */
+export const PERIOD_TEXT: Record<TimeRange, string> = {
+  '1m': 'en el último mes',
+  '6m': 'en los últimos 6 meses',
+  '1y': 'en el último año',
+  all: 'desde el inicio',
+}
 
 /** El color propio de un elemento o, si no tiene, uno de la paleta según su posición. */
 export const colorOrPalette = (color: string | undefined, index: number): string =>
@@ -66,11 +75,14 @@ export function ShareSummary({
   label,
   amount,
   detail,
+  note,
   parts,
 }: {
   label: string
   amount: string
   detail: string
+  /** Una línea más bajo el detalle (p. ej. lo del periodo). */
+  note?: string
   /** Sin valor (p. ej. falta una tasa), no se dibuja la barra. */
   parts?: SharePart[]
 }) {
@@ -81,6 +93,7 @@ export function ShareSummary({
       </span>
       <span className="text-2xl font-black tabular-nums">{amount}</span>
       <span className="text-xs text-muted-foreground">{detail}</span>
+      {note && <span className="text-xs text-muted-foreground">{note}</span>}
       {parts && <SharesBar parts={parts} />}
     </div>
   )

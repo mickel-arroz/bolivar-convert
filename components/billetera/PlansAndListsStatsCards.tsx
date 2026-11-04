@@ -1,13 +1,16 @@
 import type { CurrencyId } from '@/constants/currencies'
+import type { TimeRange } from '@/hooks/useWallet'
 import { getAccountIcon } from '@/constants/walletCategories'
 import { DEFAULT_ACCOUNT_COLOR } from '@/constants/walletColors'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { CheckIcon } from '@/components/icons'
+import { cn } from '@/lib/utils'
 import type { SavingsPlanStat, StatsView } from '@/lib/wallet/statsPlansLists'
 import { formatMoney } from './format'
 import {
   BarWithTip,
   ItemIcon,
+  PERIOD_TEXT,
   ScrollList,
   ShareRow,
   ShareSummary,
@@ -16,6 +19,10 @@ import {
 } from './StatsListParts'
 
 const clamp01 = (value: number) => Math.min(1, Math.max(0, value))
+
+/** Un monto con su signo delante: «+$ 40.00» o «−$ 10.00». */
+const signedMoney = (value: number, currency: CurrencyId) =>
+  `${value < 0 ? '−' : '+'}${formatMoney(Math.abs(value), currency)}`
 
 function ProgressRing({ ratio, color }: { ratio: number; color: string }) {
   return (
@@ -73,18 +80,37 @@ function PlanRow({ plan }: { plan: SavingsPlanStat }) {
             </span>
           </>
         )}
+        {plan.contributed !== 0 && (
+          <span
+            className={cn(
+              'text-xs font-medium tabular-nums',
+              plan.contributed > 0 ? 'text-green-600 dark:text-green-400' : 'text-destructive'
+            )}
+          >
+            {signedMoney(plan.contributed, plan.currency)} en el periodo
+          </span>
+        )}
       </div>
     </div>
   )
 }
 
+function contributedText(value: number | null, currency: CurrencyId, range: TimeRange): string {
+  const period = PERIOD_TEXT[range]
+  if (value === null) return `Lo aportado ${period} no se puede convertir sin tasas`
+  if (value === 0) return `Sin aportes ${period}`
+  return `${value > 0 ? 'Aportaste' : 'Retiraste'} ${formatMoney(Math.abs(value), currency)} ${period}`
+}
+
 export function SavingsPlansStatsCard({
   plans,
   currency,
+  timeRange,
   className,
 }: {
   plans: StatsView['savingsPlans']
   currency: CurrencyId
+  timeRange: TimeRange
   className?: string
 }) {
   const { rows, progress } = plans
@@ -114,6 +140,9 @@ export function SavingsPlansStatsCard({
             </div>
           </div>
         )}
+        <p className="text-sm font-semibold">
+          {contributedText(plans.contributed, currency, timeRange)}
+        </p>
         <ScrollList>
           {rows.map((plan) => (
             <PlanRow key={plan.goalId} plan={plan} />
@@ -124,13 +153,20 @@ export function SavingsPlansStatsCard({
   )
 }
 
+function listDetail(pending: number, purchased: string | null): string {
+  const left = pending > 0 ? `${pending} por comprar` : 'Nada por comprar'
+  return purchased === null ? left : `${left} · ${purchased} comprado`
+}
+
 export function ShoppingListsStatsCard({
   lists,
   currency,
+  timeRange,
   className,
 }: {
   lists: StatsView['shoppingLists']
   currency: CurrencyId
+  timeRange: TimeRange
   className?: string
 }) {
   const total = lists.remaining
@@ -161,6 +197,7 @@ export function ShoppingListsStatsCard({
           label="Restante total por pagar"
           amount={money(total)}
           detail={`${products} ${products === 1 ? 'producto' : 'productos'} en ${rows.length} ${rows.length === 1 ? 'lista' : 'listas'}`}
+          note={`Comprado ${PERIOD_TEXT[timeRange]}: ${money(lists.purchased)}`}
           parts={parts}
         />
         <ScrollList>
@@ -171,7 +208,7 @@ export function ShoppingListsStatsCard({
               icon={getAccountIcon(row.icon)}
               color={row.color}
               name={row.name}
-              detail={`${row.pending} por comprar`}
+              detail={listDetail(row.pending, row.purchased ? money(row.purchased) : null)}
               amount={money(row.remaining)}
               share={row.share}
             />

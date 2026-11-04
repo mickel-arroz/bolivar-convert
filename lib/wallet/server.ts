@@ -881,7 +881,8 @@ export async function loadStats(
       USD: bsPerUnit('USD', rates, statsRateSource),
       EUR: bsPerUnit('EUR', rates, statsRateSource),
     },
-    displayCurrency
+    displayCurrency,
+    range
   )
   return { ...stats, ...plansAndLists }
 }

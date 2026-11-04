@@ -9,8 +9,12 @@ import {
 
 const EMPTY = EMPTY_STATS_VIEW
 
-const month = (income: number, expense: number): MonthlyPoint =>
-  ({ month: '2026-10', label: 'oct', income, expense })
+const month = (income: number, expense: number): MonthlyPoint => ({
+  month: '2026-10',
+  label: 'oct',
+  income,
+  expense,
+})
 
 const category = (kind: 'income' | 'expense'): CategorySummaryRow =>
   ({ categoryId: kind, name: kind, icon: 'other', kind, total: 10 }) as CategorySummaryRow
@@ -53,25 +57,33 @@ describe('visibleStatsCharts', () => {
   it('el presupuesto vs gastado depende de que haya presupuestos en el rango', () => {
     const stats = { ...EMPTY, budgetRange: [{} as BudgetStatusRow] }
     expect(visibleStatsCharts(stats, false)).toEqual(['budget'])
-    expect(visibleStatsCharts({ ...EMPTY, budgetStatus: [{} as BudgetStatusRow] }, false)).toEqual([])
+    expect(visibleStatsCharts({ ...EMPTY, budgetStatus: [{} as BudgetStatusRow] }, false)).toEqual(
+      []
+    )
   })
 
   it('cada lista por categoría se oculta por separado', () => {
-    expect(visibleStatsCharts({ ...EMPTY, categorySummary: [category('expense')] }, false)).toEqual([
-      'expenseByCategory',
-    ])
+    expect(visibleStatsCharts({ ...EMPTY, categorySummary: [category('expense')] }, false)).toEqual(
+      ['expenseByCategory']
+    )
     expect(visibleStatsCharts({ ...EMPTY, categorySummary: [category('income')] }, false)).toEqual([
       'incomeByCategory',
     ])
   })
 
   it('Planes de ahorro se muestra con al menos un plan activo', () => {
-    const stats = { ...EMPTY, savingsPlans: { rows: [{} as SavingsPlanStat], progress: null } }
+    const stats = {
+      ...EMPTY,
+      savingsPlans: { rows: [{} as SavingsPlanStat], progress: null, contributed: 0 },
+    }
     expect(visibleStatsCharts(stats, false)).toEqual(['savingsPlans'])
   })
 
   it('Listas de compras se muestra solo con algo por pagar', () => {
-    const stats = { ...EMPTY, shoppingLists: { rows: [{} as ShoppingListStat], remaining: 12 } }
+    const stats = {
+      ...EMPTY,
+      shoppingLists: { rows: [{} as ShoppingListStat], remaining: 12, purchased: 0 },
+    }
     expect(visibleStatsCharts(stats, false)).toEqual(['shoppingLists'])
   })
 })

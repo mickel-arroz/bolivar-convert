@@ -238,6 +238,7 @@ export function EstadisticasTab({ wallet }: EstadisticasTabProps) {
       <SavingsPlansStatsCard
         key="savingsPlans"
         plans={stats.savingsPlans}
+        timeRange={state.timeRange}
         currency={cur}
         className={className}
       />
@@ -246,6 +247,7 @@ export function EstadisticasTab({ wallet }: EstadisticasTabProps) {
       <ShoppingListsStatsCard
         key="shoppingLists"
         lists={stats.shoppingLists}
+        timeRange={state.timeRange}
         currency={cur}
         className={className}
       />

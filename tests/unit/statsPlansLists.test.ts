@@ -224,3 +224,84 @@ describe('computePlansAndListsStats — Listas de compras', () => {
     expect(shoppingLists.remaining).toBeNull()
   })
 })
+
+describe('computePlansAndListsStats — según el rango', () => {
+  const NOW = new Date(2026, 10, 4, 12)
+  const dated = (goalId: string, amount: string, date: string): GoalContribution => ({
+    ...contribution(goalId, amount),
+    id: `${goalId}-${amount}-${date}`,
+    date,
+  })
+  const bought = (listId: string, price: string, date: string): ShoppingListItem =>
+    item(listId, price, {
+      id: `${listId}-${price}-${date}`,
+      purchased: true,
+      purchase: { accountId: 'a', cost: price, transactionId: 't', date },
+    })
+
+  it('cada plan dice cuánto se le aportó en el periodo y el resumen lo suma convertido', () => {
+    const { savingsPlans } = computePlansAndListsStats(
+      {
+        ...EMPTY_INPUT,
+        goals: [goal('viaje', { target: '500' }), goal('carro', { currency: 'VES' })],
+        goalContributions: [
+          dated('viaje', '200', '2026-05-01'),
+          dated('viaje', '50', '2026-10-20'),
+          dated('viaje', '-10', '2026-11-01'),
+          dated('carro', '400', '2026-10-25'),
+        ],
+      },
+      RATES,
+      'USD',
+      '1m',
+      NOW
+    )
+    expect(savingsPlans.rows).toEqual([
+      expect.objectContaining({ goalId: 'carro', saved: 400, contributed: 400 }),
+      expect.objectContaining({ goalId: 'viaje', saved: 240, contributed: 40 }),
+    ])
+    expect(savingsPlans.contributed).toBe(50)
+  })
+
+  it('con Todo cuenta todos los aportes', () => {
+    const { savingsPlans } = computePlansAndListsStats(
+      {
+        ...EMPTY_INPUT,
+        goals: [goal('viaje')],
+        goalContributions: [
+          dated('viaje', '200', '2020-05-01'),
+          dated('viaje', '50', '2026-10-20'),
+        ],
+      },
+      RATES,
+      'USD',
+      'all',
+      NOW
+    )
+    expect(savingsPlans.rows[0]).toMatchObject({ contributed: 250 })
+  })
+
+  it('cada lista dice lo comprado en el periodo, y aparece aunque ya no le quede nada', () => {
+    const { shoppingLists } = computePlansAndListsStats(
+      {
+        ...EMPTY_INPUT,
+        shoppingLists: [list('mercado'), list('casa'), list('vieja')],
+        shoppingItems: [
+          item('mercado', '10'),
+          bought('mercado', '400', '2026-10-30'),
+          bought('casa', '5', '2026-11-02'),
+          bought('vieja', '99', '2026-01-02'),
+        ],
+      },
+      { VES: 1, USD: 40, EUR: 50 },
+      'USD',
+      '1m',
+      NOW
+    )
+    expect(shoppingLists.rows).toEqual([
+      expect.objectContaining({ listId: 'mercado', remaining: 10, purchased: 400 }),
+      expect.objectContaining({ listId: 'casa', remaining: 0, purchased: 5, pending: 0 }),
+    ])
+    expect(shoppingLists.purchased).toBe(405)
+  })
+})

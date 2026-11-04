@@ -14,19 +14,17 @@ export interface SavingsRatePoint {
 export interface SavingsRateView {
   /** Fracción ahorrada del rango completo: (ingresos − gastos) / ingresos. `null` sin ingresos. */
   overall: number | null
-  /** Por mes o trimestre; vacía cuando la serie va por semanas. */
+  /** Un punto por periodo de la Agrupación (semana, mes o trimestre). */
   series: SavingsRatePoint[]
-  /** Hay al menos 2 periodos con ingresos: una línea tiene algo que contar. */
+  /** Algún periodo tuvo ingresos: hay al menos un punto que dibujar. */
   showLine: boolean
 }
 
 export function savingsRateView(
-  stats: Pick<StatsBundle, 'incomeVsExpense' | 'periodSeries' | 'grouping'>
+  stats: Pick<StatsBundle, 'incomeVsExpense' | 'periodSeries'>
 ): SavingsRateView {
   const { income, expense } = stats.incomeVsExpense
   const overall = income > 0 ? (income - expense) / income : null
-
-  if (stats.grouping === 'week') return { overall, series: [], showLine: false }
 
   const series = stats.periodSeries.map((p): SavingsRatePoint => {
     const rate = p.income > 0 ? Math.round(((p.income - p.expense) / p.income) * 100) : null
@@ -36,6 +34,5 @@ export function savingsRateView(
       shown: rate === null ? null : Math.max(rate, SAVINGS_RATE_FLOOR),
     }
   })
-  const withIncome = series.filter((p) => p.rate !== null).length
-  return { overall, series, showLine: withIncome >= 2 }
+  return { overall, series, showLine: series.some((p) => p.rate !== null) }
 }

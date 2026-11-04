@@ -441,7 +441,7 @@ describe('EstadisticasTab — Tasa de ahorro', () => {
     expense,
   })
 
-  it('en 1M muestra solo la tasa del periodo, sin línea por semanas', () => {
+  it('en 1M muestra la tasa del periodo y también la gráfica por semanas', () => {
     renderTab(
       {
         ...EMPTY,
@@ -457,7 +457,7 @@ describe('EstadisticasTab — Tasa de ahorro', () => {
     expect(tasa).toHaveTextContent('23%')
     expect(tasa).toHaveTextContent('Ahorraste el 23% de tus ingresos en el último mes')
     expect(tasa).toHaveTextContent('Te quedaron $ 230.00 de $ 1,000.00')
-    expect(within(tasa).queryByTestId('chart')).not.toBeInTheDocument()
+    expect(within(tasa).getByTestId('chart')).toBeInTheDocument()
   })
 
   it('con varios meses suma la línea mes a mes', () => {

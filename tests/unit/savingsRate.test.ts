@@ -31,11 +31,7 @@ describe('savingsRateView', () => {
   it('un mes sin ingresos queda como hueco, no como 0%', () => {
     const view = savingsRateView({
       ...EMPTY_STATS_VIEW,
-      periodSeries: [
-        point('2026-09', 100, 80),
-        point('2026-10', 0, 50),
-        point('2026-11', 200, 50),
-      ],
+      periodSeries: [point('2026-09', 100, 80), point('2026-10', 0, 50), point('2026-11', 200, 50)],
     })
     expect(view.series.map((p) => p.rate)).toEqual([20, null, 75])
   })
@@ -49,27 +45,26 @@ describe('savingsRateView', () => {
     expect(view.series[1]).toMatchObject({ rate: 50, shown: 50 })
   })
 
-  it('la línea solo aparece con al menos 2 meses con ingresos', () => {
+  it('la gráfica aparece en cuanto algún periodo tiene ingresos', () => {
+    const none = savingsRateView({
+      ...EMPTY_STATS_VIEW,
+      periodSeries: [point('2026-10', 0, 5), point('2026-11', 0, 50)],
+    })
+    expect(none.showLine).toBe(false)
+
     const one = savingsRateView({
       ...EMPTY_STATS_VIEW,
       periodSeries: [point('2026-10', 0, 5), point('2026-11', 100, 50)],
     })
-    expect(one.showLine).toBe(false)
-
-    const two = savingsRateView({
-      ...EMPTY_STATS_VIEW,
-      periodSeries: [point('2026-10', 100, 5), point('2026-11', 100, 50)],
-    })
-    expect(two.showLine).toBe(true)
+    expect(one.showLine).toBe(true)
   })
 
-  it('por semanas nunca hay línea: la tasa necesita al menos un mes', () => {
+  it('en 1M también hay gráfica, por semanas', () => {
     const view = savingsRateView({
       ...EMPTY_STATS_VIEW,
-      grouping: 'week',
-      periodSeries: [point('2026-10-26', 100, 5), point('2026-11-02', 100, 50)],
+      periodSeries: [point('2026-10-26', 100, 5), point('2026-11-02', 0, 50)],
     })
-    expect(view.showLine).toBe(false)
-    expect(view.series).toEqual([])
+    expect(view.showLine).toBe(true)
+    expect(view.series.map((p) => p.rate)).toEqual([95, null])
   })
 })

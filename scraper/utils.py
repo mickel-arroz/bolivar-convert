@@ -20,3 +20,8 @@ def retry(attempts=3, delay=2):
                     time.sleep(delay)
         return wrapper
     return decorator
+
+
+def parse_bcv_number(text):
+    """Convierte un número en formato venezolano ("1.006,03263992") a float."""
+    return float(text.strip().replace(".", "").replace(",", "."))

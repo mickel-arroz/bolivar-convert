@@ -65,3 +65,13 @@ def test_fecha_valor_returns_none_on_missing_html():
     html = '<div><p>No date here</p></div>'
     soup = BeautifulSoup(html, "html.parser")
     assert extract_fecha_valor(soup) is None
+
+def test_bcv_eur_extraction_with_thousands_separator():
+    html = '<div id="euro"><strong>1.006,03263992</strong></div>'
+    soup = BeautifulSoup(html, "html.parser")
+    assert get_eur(soup) == 1006.03263992
+
+def test_bcv_usd_extraction_with_thousands_separator():
+    html = '<div id="dolar"><strong>1.012,50000000</strong></div>'
+    soup = BeautifulSoup(html, "html.parser")
+    assert get_usd(soup) == 1012.5
